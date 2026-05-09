@@ -8,7 +8,7 @@ The vault has three content types, each with its own folder and build tool:
 |---|---|---|
 | Notes | `content/notes/` | Astro + remark/rehype |
 | Slides | `content/slides/` | Slidev |
-| Guides | `content/guides/` | mdBook |
+| Guides | `content/guides/` | Astro (native) |
 
 Everything is assembled into a single site at `$CI_PROJECT_NAME.gitlab.io/$CI_PROJECT_NAME/`.
 
@@ -16,4 +16,4 @@ Everything is assembled into a single site at `$CI_PROJECT_NAME.gitlab.io/$CI_PR
 
 Open `content/` as your Obsidian vault root. Standard Obsidian features (wikilinks, callouts, tags) are supported.
 
-For slides, use any Slidev-compatible editor. For guides, any Markdown editor works since mdBook uses standard CommonMark.
+For slides, use any Slidev-compatible editor. For guides, any Markdown editor works — guides are plain Markdown ordered by a `SUMMARY.md` manifest.

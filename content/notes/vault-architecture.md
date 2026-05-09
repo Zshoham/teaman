@@ -17,7 +17,7 @@ Monorepo with clean separation between content and build tooling:
 ├── content/          # Obsidian vault root (future: git submodule)
 │   ├── notes/        # Standard Obsidian markdown
 │   ├── slides/       # Slidev decks (*.md); prefix _ to mark draft
-│   └── guides/       # mdBook books (dirs containing book.toml)
+│   └── guides/       # Multi-chapter books (dirs containing SUMMARY.md)
 ├── site/             # Astro project + single Slidev installation
 └── .gitlab-ci.yml
 ```
@@ -51,42 +51,39 @@ Astro is the primary SSG wrapper. Each content type integrates differently.
 
 ### Guides
 
-- Each directory under `content/guides/` containing a `book.toml` is an mdBook book
-- CI globs for `book.toml` files and runs `mdbook build` per book into
-  `public/guides/<book-name>/`
-- Astro owns a guides index page
-- **Future upgrade path**: parse `SUMMARY.md` in Astro and render guide pages
-  with unified chrome (hybrid approach)
+- Each directory under `content/guides/` containing a `SUMMARY.md` is a guide
+- `SUMMARY.md` provides the guide title (`# H1`) and chapter ordering
+  (markdown bullet list of links to chapter files)
+- Astro content collection (`guides`) loads chapter `.md` files; a single
+  `pages/guides/[...slug].astro` route renders both the guide root (first
+  chapter) and per-chapter pages with shared sidebar TOC + prev/next nav
+- All chrome — typography, callouts, code blocks — comes from the same
+  remark/rehype pipeline as notes, so theming stays consistent
 
 ## CI Pipeline
 
-Three parallel build jobs merge their artifacts into a single Pagefind pass,
+Two parallel build jobs merge their artifacts into a single Pagefind pass,
 then deploy:
 
 ```
 build:notes  ─┐
-build:slides ─┼─► build:search ─► pages (main branch only)
-build:guides ─┘
+build:slides ─┴─► build:search ─► pages (main branch only)
 ```
 
-- `build:notes` → runs `astro build`, artifact: `public/`
+- `build:notes` → runs `astro build` (notes + guides), artifact: `public/`
 - `build:slides` → runs `slidev build` per deck, artifact: `public/slides/`
-- `build:guides` → downloads mdBook binary, runs per book, artifact: `public/guides/`
 - `build:search` → GitLab merges artifacts, runs Pagefind, artifact: full `public/`
 - `pages` → GitLab Pages deploy (only on default branch)
 
-mdBook installed via prebuilt binary — no Rust compile time in CI.
-
 **Future**: add `changes:` rules per job for incremental builds. A theme change
-should trigger all three jobs.
+should trigger both jobs.
 
 ## Search
 
 Pagefind crawls the fully assembled `public/` as a post-build step, producing a
-unified search index across notes, slides, and guides.
-
-Fallback if Pagefind struggles with Slidev SPAs: use Astro search for notes and
-mdBook's built-in search for guides.
+unified search index across notes, slides, and guides. Slidev decks are added
+as custom records (their SPA bodies are empty pre-JS) — every other content
+type is crawled directly from its built HTML.
 
 ## Theming
 
@@ -102,15 +99,14 @@ via a build step.
 `SITE_BASE` env var (default: `/$CI_PROJECT_NAME/`) is set in one place (CI) and
 consumed by:
 
-- `astro.config.mjs` → `base` option
+- `astro.config.mjs` → `base` option (notes + guides)
 - `build-slides.mjs` → `--base` flag per deck
-- Each `book.toml` → `[output.html] site-url`
 
 ## Conventions
 
 | Convention | Meaning |
 |---|---|
 | `_*.md` in `slides/` | Draft deck — excluded from build |
-| `book.toml` in a `guides/` subdir | Marks directory as an mdBook book |
+| `SUMMARY.md` in a `guides/` subdir | Marks directory as a guide; defines title + chapter order |
 | `draft: true` in note frontmatter | Excludes note from published site |
 | `SITE_BASE` env var | Single config point for URL base path |

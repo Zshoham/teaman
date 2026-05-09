@@ -1,0 +1,225 @@
+/* Long-form Markdown rendering — shared by notes and guides. */
+
+.vault .prose {
+  font-family: var(--display-font);
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+/* Vertical rhythm — defaults that get overridden per-element pair below. */
+.vault .prose > * + * { margin-top: 1em; }
+.vault .prose p { margin: 0; text-wrap: pretty; }
+.vault .prose > p + p { margin-top: 0.9em; }
+
+/* Block elements get breathing room above AND below them — code blocks,
+   blockquotes, tables and callouts feel cramped if the text on either side
+   is too close. Lists are lighter, so they only get the larger gap above. */
+.vault .prose > * + pre,
+.vault .prose > pre + *,
+.vault .prose > * + blockquote,
+.vault .prose > blockquote + *,
+.vault .prose > * + table,
+.vault .prose > table + *,
+.vault .prose > * + .callout,
+.vault .prose > .callout + *,
+.vault .prose > * + figure,
+.vault .prose > figure + * { margin-top: 1.5em; }
+.vault .prose > * + ul,
+.vault .prose > * + ol { margin-top: 1.2em; }
+
+/* Headings: more space above, less below. */
+.vault .prose h1,
+.vault .prose h2,
+.vault .prose h3,
+.vault .prose h4 {
+  font-family: var(--display-font);
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+  scroll-margin-top: 24px;
+}
+.vault .prose h1 { font-size: 30px; }
+.vault .prose h2 { font-size: 23px; }
+.vault .prose h3 { font-size: 19px; }
+.vault .prose h4 { font-size: 16px; }
+
+.vault .prose > * + h1 { margin-top: 1.8em; }
+.vault .prose > * + h2 { margin-top: 1.5em; }
+.vault .prose > * + h3 { margin-top: 1.2em; }
+.vault .prose > * + h4 { margin-top: 1em; }
+.vault .prose > h1 + *,
+.vault .prose > h2 + *,
+.vault .prose > h3 + *,
+.vault .prose > h4 + * { margin-top: 0.6em; }
+
+/* Heading anchors (rehype-autolink-headings, behavior: append) */
+.vault .prose .heading-anchor {
+  margin-left: 0.4em;
+  color: var(--faint);
+  text-decoration: none;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.vault .prose h1:hover > .heading-anchor,
+.vault .prose h2:hover > .heading-anchor,
+.vault .prose h3:hover > .heading-anchor,
+.vault .prose h4:hover > .heading-anchor,
+.vault .prose .heading-anchor:focus { opacity: 1; }
+.vault .prose .heading-anchor:hover { color: var(--accent); }
+
+/* Inline links */
+.vault .prose a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--hairline);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color .15s, color .15s;
+}
+.vault .prose a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+.vault .prose strong { font-weight: 600; }
+.vault .prose em { font-style: italic; }
+
+/* Inline code */
+.vault .prose :not(pre) > code {
+  font-family: var(--mono-font);
+  font-size: 0.86em;
+  padding: 1px 5px;
+  background: var(--surface);
+  border: 0.5px solid var(--hairline);
+  border-radius: 4px;
+}
+
+/* Code blocks (Shiki) ─────────────────────────────────────────────────── */
+.vault .prose pre {
+  position: relative;
+  font-family: var(--mono-font);
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 14px 16px;
+  border: 0.5px solid var(--hairline);
+  border-radius: 8px;
+  overflow-x: auto;
+  /* No `margin` reset — the sibling rules above (`* + pre`, `pre + *`)
+     control vertical rhythm; setting `margin: 0` here would tie on
+     specificity and override them. */
+}
+.vault .prose pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* Language label, top-right of the code block. */
+.vault .prose pre[data-language]:not([data-language='plaintext']):not([data-language='text'])::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: var(--mono-font);
+  font-size: 10px;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Dark-mode swap for Shiki dual themes. Astro emits the light theme inline
+   by default; override for dark via CSS variables Shiki also emits. */
+:root[data-theme='dark'] .astro-code,
+:root[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* Lists */
+.vault .prose ul,
+.vault .prose ol {
+  margin: 0;
+  padding-left: 1.4em;
+}
+.vault .prose li { margin-top: 0.3em; }
+.vault .prose li::marker { color: var(--faint); }
+
+/* Blockquotes */
+.vault .prose blockquote {
+  margin: 0;
+  padding: 4px 0 4px 16px;
+  border-left: 2px solid var(--accent);
+  color: var(--mute);
+  font-style: italic;
+}
+.vault .prose blockquote p { margin: 0; }
+.vault .prose blockquote > * + * { margin-top: 0.6em; }
+
+/* Misc */
+.vault .prose hr {
+  border: 0;
+  border-top: 0.5px solid var(--hairline);
+  margin: 2em 0;
+}
+.vault .prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* Tables */
+.vault .prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.vault .prose th,
+.vault .prose td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--hairline);
+}
+.vault .prose th {
+  font-family: var(--mono-font);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Callouts (rehype-callouts) ──────────────────────────────────────────── */
+.vault .prose .callout {
+  padding: 14px 16px;
+  border: 0.5px solid var(--hairline);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.vault .prose .callout > * + * { margin-top: 0.6em; }
+.vault .prose .callout-title {
+  font-family: var(--mono-font);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+@media (max-width: 880px) {
+  .vault .prose { font-size: 16px; }
+  .vault .prose h1 { font-size: 26px; }
+  .vault .prose h2 { font-size: 21px; }
+}

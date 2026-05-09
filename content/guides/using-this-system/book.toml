@@ -1,9 +1,0 @@
-[book]
-title = "Using This System"
-authors = []
-language = "en"
-multilingual = false
-src = "src"
-
-[output.html]
-site-url = "/guides/using-this-system/"

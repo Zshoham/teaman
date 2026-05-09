@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
 import { resolve, join } from 'path';
 import Layout from '../layouts/Layout.astro';
 import { SITE_CONFIG } from '../config';
+import { listGuides } from '../lib/guides';
 
 const base = import.meta.env.BASE_URL;
 const contentRoot = resolve(process.cwd(), '../content');
@@ -114,40 +115,34 @@ const slideEntries: Entry[] = existsSync(slidesDir)
   : [];
 
 // ── Guides ───────────────────────────────────────────────────────────────────
-const guidesDir = join(contentRoot, 'guides');
-const guideEntries: Entry[] = existsSync(guidesDir)
-  ? readdirSync(guidesDir).flatMap(name => {
-      const dir = join(guidesDir, name);
-      if (!statSync(dir).isDirectory()) return [];
-      const tomlPath = join(dir, 'book.toml');
-      if (!existsSync(tomlPath)) return [];
-      const toml = readFileSync(tomlPath, 'utf8');
-      const titleMatch = toml.match(/title\s*=\s*"([^"]+)"/);
-      const introPath = join(dir, 'src', 'introduction.md');
-      const summaryPath = join(dir, 'src', 'SUMMARY.md');
-      let excerpt = '';
-      let words = 0;
-      if (existsSync(introPath)) {
-        const introBody = readFileSync(introPath, 'utf8');
-        excerpt = extractExcerpt(introBody);
-        words = wordCount(introBody);
-      } else if (existsSync(summaryPath)) {
-        excerpt = extractExcerpt(readFileSync(summaryPath, 'utf8'));
-      }
-      const stat = safeMtime(introPath) > safeMtime(tomlPath) ? safeMtime(introPath) : safeMtime(tomlPath);
-      return [{
-        id: `guide-${name}`,
-        type: 'guide' as const,
-        title: titleMatch?.[1] ?? name.replace(/-/g, ' '),
-        excerpt,
-        tags: [],
-        updated: isoDate(stat),
-        created: isoDate(stat),
-        words,
-        href: `${base}guides/${name}/`,
-      }];
-    })
-  : [];
+const guideEntries: Entry[] = listGuides().map(g => {
+  const summaryPath = join(g.dir, 'SUMMARY.md');
+  const firstChapter = g.chapters[0];
+  const firstPath = firstChapter ? join(g.dir, `${firstChapter.slug}.md`) : null;
+  let excerpt = '';
+  let words = 0;
+  if (firstPath && existsSync(firstPath)) {
+    const body = readFileSync(firstPath, 'utf8');
+    excerpt = extractExcerpt(body);
+    words = wordCount(body);
+  } else {
+    excerpt = extractExcerpt(readFileSync(summaryPath, 'utf8'));
+  }
+  const firstStat = firstPath ? safeMtime(firstPath) : new Date(0);
+  const summaryStat = safeMtime(summaryPath);
+  const stat = firstStat > summaryStat ? firstStat : summaryStat;
+  return {
+    id: `guide-${g.slug}`,
+    type: 'guide' as const,
+    title: g.title,
+    excerpt,
+    tags: [],
+    updated: isoDate(stat),
+    created: isoDate(stat),
+    words,
+    href: `${base}guides/${g.slug}/`,
+  };
+});
 
 const entries: Entry[] = [...noteEntries, ...slideEntries, ...guideEntries]
   .sort((a, b) => b.updated.localeCompare(a.updated));
