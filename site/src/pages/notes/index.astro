@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+const notes = (await getCollection('notes'))
+  .filter(n => !n.data.draft)
+  .sort((a, b) => (b.data.date?.getTime() ?? 0) - (a.data.date?.getTime() ?? 0));
+---
+
+<Layout title="Notes">
+  <h1>Notes</h1>
+  {notes.length === 0 && <p>No notes yet.</p>}
+  <ul>
+    {notes.map(note => (
+      <li>
+        <a href={`${import.meta.env.BASE_URL}notes/${note.id}/`}>
+          {note.data.title ?? note.id}
+        </a>
+        {note.data.date && (
+          <time datetime={note.data.date.toISOString()}>
+            {note.data.date.toLocaleDateString()}
+          </time>
+        )}
+      </li>
+    ))}
+  </ul>
+</Layout>

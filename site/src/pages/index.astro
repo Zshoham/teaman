@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+const base = import.meta.env.BASE_URL;
+---
+
+<Layout title="Teaman">
+  <h1>Teaman</h1>
+  <p>A personal knowledge base, slide decks, and guides — built from an Obsidian vault.</p>
+  <ul>
+    <li><a href={`${base}notes/`}>Notes</a> — Obsidian markdown</li>
+    <li><a href={`${base}slides/`}>Slides</a> — Slidev presentations</li>
+    <li><a href={`${base}guides/`}>Guides</a> — mdBook documentation</li>
+  </ul>
+</Layout>

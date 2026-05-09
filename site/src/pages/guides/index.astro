@@ -1,0 +1,30 @@
+---
+import { readdirSync, existsSync, statSync } from 'fs';
+import { resolve, join } from 'path';
+import Layout from '../../layouts/Layout.astro';
+
+const guidesDir = resolve(process.cwd(), '../content/guides');
+const base = import.meta.env.BASE_URL;
+
+const guides = existsSync(guidesDir)
+  ? readdirSync(guidesDir)
+      .filter(name => {
+        const dir = join(guidesDir, name);
+        return statSync(dir).isDirectory() && existsSync(join(dir, 'book.toml'));
+      })
+  : [];
+---
+
+<Layout title="Guides">
+  <h1>Guides</h1>
+  {guides.length === 0 && <p>No guides yet.</p>}
+  <ul>
+    {guides.map(guide => (
+      <li>
+        <a href={`${base}guides/${guide}/`}>
+          {guide.replace(/-/g, ' ')}
+        </a>
+      </li>
+    ))}
+  </ul>
+</Layout>

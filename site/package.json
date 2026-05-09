@@ -1,0 +1,20 @@
+{
+  "name": "teaman-site",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "build:slides": "node scripts/build-slides.mjs",
+    "build:guides": "node scripts/build-guides.mjs",
+    "build:all": "npm run build && npm run build:slides && npm run build:guides"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^4.0.0",
+    "@slidev/cli": "^52.15.1",
+    "@slidev/theme-default": "^0.25.0",
+    "astro": "^5.0.0",
+    "rehype-callouts": "^1.0.0",
+    "remark-wiki-link": "^2.0.1"
+  }
+}

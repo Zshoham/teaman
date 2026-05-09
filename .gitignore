@@ -1,0 +1,19 @@
+# Build output
+public/
+
+# Dependencies
+node_modules/
+
+# Astro build cache
+.astro/
+
+# Slidev workaround dir (see slidevjs/slidev#1975)
+site/.slides-build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
