@@ -7,13 +7,15 @@
     "preview": "astro preview",
     "build:slides": "node scripts/build-slides.mjs",
     "build:guides": "node scripts/build-guides.mjs",
-    "build:all": "npm run build && npm run build:slides && npm run build:guides"
+    "build:search": "pagefind --site ../public",
+    "build:all": "npm run build && npm run build:slides && npm run build:guides && npm run build:search"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.0.0",
     "@slidev/cli": "^52.15.1",
     "@slidev/theme-default": "^0.25.0",
     "astro": "^5.0.0",
+    "pagefind": "^1.5.2",
     "rehype-callouts": "^1.0.0",
     "remark-wiki-link": "^2.0.1"
   }
