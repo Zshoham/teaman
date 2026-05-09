@@ -10,6 +10,13 @@ export interface SiteConfig {
   brand: string;
   /** Tagline shown after the brand. Also used in the document title (`brand — tagline`). */
   tagline: string;
+  /**
+   * Optional logo shown at the top-left of the header. Path is resolved against
+   * the site `base`. Single-color SVGs work best — the image is rendered as a
+   * CSS mask so it inherits the current text color (and therefore themes).
+   * Set to `null` to fall back to the small accent square.
+   */
+  logo?: string | null;
   hero: {
     eyebrow: string;
     /** HTML allowed. Wrap muted-italic phrases in `<em>`; line breaks via `<br>`. */
@@ -24,6 +31,7 @@ export interface SiteConfig {
 export const SITE_CONFIG: SiteConfig = {
   brand: 'vault.teaman',
   tagline: 'a working garden',
+  logo: 'teacup.svg',
 
   hero: {
     eyebrow: 'an open notebook · est. 2026',

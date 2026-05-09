@@ -20,6 +20,7 @@ const base = import.meta.env.BASE_URL;
 const docTitle = title
   ? `${title} — ${SITE_CONFIG.brand}`
   : `${SITE_CONFIG.brand} — ${SITE_CONFIG.tagline}`;
+const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
 ---
 
 <!doctype html>
@@ -54,7 +55,10 @@ const docTitle = title
   <div class="shell">
     <header class="vault-header">
       <a href={base} class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
+        {logoUrl
+          ? <span class="brand-logo" style={`--brand-logo: url('${logoUrl}')`} aria-hidden="true"></span>
+          : <span class="brand-mark" aria-hidden="true"></span>
+        }
         <span class="brand-name mono">{SITE_CONFIG.brand}</span>
         <span class="brand-tagline mono">/ {SITE_CONFIG.tagline}</span>
       </a>
@@ -160,7 +164,7 @@ const docTitle = title
 
   .vault .brand {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
     text-decoration: none;
     color: var(--ink);
@@ -171,7 +175,14 @@ const docTitle = title
     height: 10px;
     border-radius: 2px;
     background: var(--accent);
-    transform: translateY(1px);
+  }
+  .vault .brand-logo {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: currentColor;
+    -webkit-mask: var(--brand-logo) center / contain no-repeat;
+            mask: var(--brand-logo) center / contain no-repeat;
   }
   .vault .brand-name {
     font-size: 13px;
