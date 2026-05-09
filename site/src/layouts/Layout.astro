@@ -1,63 +1,333 @@
 ---
 import '../styles/tokens.css';
+import { SITE_CONFIG } from '../config';
 
 interface Props {
-  title: string;
+  /**
+   * Page-specific title. The document `<title>` becomes `${title} — ${brand}`.
+   * Omit on the home page to use the default `${brand} — ${tagline}`.
+   */
+  title?: string;
+  /**
+   * Optional override for the bottom-left footer text. Home page passes its
+   * entry count + last-edit summary here.
+   */
+  footerLeft?: string;
 }
-const { title } = Astro.props;
+
+const { title, footerLeft } = Astro.props;
 const base = import.meta.env.BASE_URL;
+const docTitle = title
+  ? `${title} — ${SITE_CONFIG.brand}`
+  : `${SITE_CONFIG.brand} — ${SITE_CONFIG.tagline}`;
 ---
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-  </head>
-  <body>
-    <nav>
-      <a href={base}>Home</a>
-      <a href={`${base}notes/`}>Notes</a>
-      <a href={`${base}slides/`}>Slides</a>
-      <a href={`${base}guides/`}>Guides</a>
-    </nav>
-    <main>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{docTitle}</title>
+
+  <script is:inline>
+    (() => {
+      try {
+        const stored = localStorage.getItem('vault-theme');
+        if (stored === 'dark' || stored === 'light') {
+          document.documentElement.dataset.theme = stored;
+        }
+      } catch {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;1,8..60,400&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href={`${base}pagefind/pagefind-component-ui.css`} />
+  <script type="module" is:inline src={`${base}pagefind/pagefind-component-ui.js`}></script>
+</head>
+<body class="vault">
+  <div class="shell">
+    <header class="vault-header">
+      <a href={base} class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name mono">{SITE_CONFIG.brand}</span>
+        <span class="brand-tagline mono">/ {SITE_CONFIG.tagline}</span>
+      </a>
+
+      <div class="header-tools">
+        <pagefind-modal-trigger>
+          <button type="button" class="search-trigger" aria-label="Search the vault">
+            <span class="search-glyph mono" aria-hidden="true">⌕</span>
+            <span class="search-placeholder">search the vault</span>
+            <span class="search-kbd mono" aria-hidden="true">/</span>
+          </button>
+        </pagefind-modal-trigger>
+
+        <button
+          type="button"
+          class="theme-toggle"
+          data-theme-toggle
+          aria-label="Toggle dark mode"
+          title="Toggle dark mode"
+        >
+          <svg class="theme-icon theme-icon-sun" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="8" r="2.8" fill="currentColor" stroke="none"></circle>
+            <path d="M8 1.5v1.6M8 12.9v1.6M14.5 8h-1.6M3.1 8H1.5M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1M12.6 12.6l-1.1-1.1M4.5 4.5L3.4 3.4"></path>
+          </svg>
+          <svg class="theme-icon theme-icon-moon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M13 9.5A5 5 0 0 1 6.5 3 5 5 0 1 0 13 9.5z" fill="currentColor" stroke="none"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <pagefind-modal></pagefind-modal>
+
+    <main class="page">
       <slot />
     </main>
-  </body>
-</html>
 
-<style>
-  body {
-    font-family: var(--font-sans);
-    color: var(--color-text);
-    background: var(--color-bg);
-    margin: 0;
+    <footer class="vault-footer mono">
+      <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
+      {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
+    </footer>
+  </div>
+
+  <script>
+    // '/' opens the pagefind modal — matches the kbd hint in the search box.
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.matches('input, textarea, [contenteditable], [contenteditable=""]') || t.isContentEditable)) return;
+      e.preventDefault();
+      document.querySelector<HTMLButtonElement>('pagefind-modal-trigger button')?.click();
+    });
+
+    // Dark mode toggle — persisted in localStorage; light is the default when unset.
+    const themeButton = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
+    themeButton?.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('vault-theme', next); } catch {}
+    });
+  </script>
+</body>
+
+<style is:global>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body.vault {
+    font-family: var(--sans-font);
+    color: var(--ink);
+    background: var(--bg);
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
-  nav {
-    display: flex;
-    gap: var(--space-4);
-    padding: var(--space-4) var(--space-8);
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-  }
+  body.vault a { color: inherit; }
+  body.vault ::selection { background: rgba(185, 84, 42, 0.18); }
 
-  nav a {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-weight: 500;
+  .vault .mono {
+    font-family: var(--mono-font);
+    font-feature-settings: 'calt' 0;
   }
+  .vault .mute  { color: var(--mute); }
+  .vault .faint { color: var(--faint); }
 
-  nav a:hover {
-    color: var(--color-primary-hover);
-  }
-
-  main {
-    max-width: 800px;
+  .vault .shell {
+    max-width: 1180px;
     margin: 0 auto;
-    padding: var(--space-8) var(--space-4);
+    padding: 0 40px;
+  }
+
+  /* Header ──────────────────────────────────────────────────────────────── */
+  .vault .vault-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 28px 0 22px;
+    border-bottom: 0.5px solid var(--hairline);
+  }
+
+  .vault .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .vault .brand-mark {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--accent);
+    transform: translateY(1px);
+  }
+  .vault .brand-name {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .vault .brand-tagline {
+    font-size: 11px;
+    color: var(--faint);
+    margin-left: 4px;
+  }
+
+  .vault .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .vault .search-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 240px;
+    padding: 6px 8px 6px 12px;
+    border: 0.5px solid var(--hairline);
+    border-radius: 7px;
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: inherit;
+    transition: border-color .15s, background .15s;
+  }
+  .vault .search-trigger:hover,
+  .vault .search-trigger:focus-visible {
+    border-color: var(--ink);
+    background: var(--surface);
+    outline: none;
+  }
+  .vault .search-glyph { color: var(--faint); font-size: 13px; line-height: 1; }
+  .vault .search-placeholder {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    color: var(--faint);
+    font-size: 13px;
+  }
+  .vault .search-kbd {
+    flex-shrink: 0;
+    color: var(--faint);
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 6px;
+    border: 0.5px solid var(--hairline);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  .vault .theme-toggle {
+    appearance: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0.5px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    padding: 0;
+    transition: border-color .15s, background .15s;
+  }
+  .vault .theme-toggle:hover,
+  .vault .theme-toggle:focus-visible {
+    border-color: var(--ink);
+    background: var(--surface);
+    outline: none;
+  }
+  .vault .theme-icon { display: block; }
+  .vault .theme-icon-moon { display: none; }
+  :root[data-theme='dark'] .vault .theme-icon-sun { display: none; }
+  :root[data-theme='dark'] .vault .theme-icon-moon { display: block; }
+
+  .vault .vault-nav {
+    display: flex;
+    gap: 18px;
+  }
+  .vault .vault-nav a {
+    color: var(--mute);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color .12s;
+  }
+  .vault .vault-nav a:hover { color: var(--ink); }
+
+  /* Main slot ──────────────────────────────────────────────────────────── */
+  .vault .page {
+    padding-top: 16px;
+  }
+
+  /* Footer ─────────────────────────────────────────────────────────────── */
+  .vault .vault-footer {
+    margin-top: 64px;
+    padding: 32px 0 48px;
+    border-top: 0.5px solid var(--hairline);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--faint);
+  }
+
+  /* Pagefind component UI — inherit the vault palette via its --pf-* vars.
+     Targets the custom-element hosts so the values cross into the shadow DOM. */
+  pagefind-modal,
+  pagefind-modal-trigger,
+  pagefind-search,
+  pagefind-searchbox {
+    --pf-font: var(--sans-font);
+    --pf-background: var(--bg);
+    --pf-text: var(--ink);
+    --pf-text-secondary: var(--mute);
+    --pf-text-muted: var(--faint);
+    --pf-border: var(--hairline);
+    --pf-border-focus: var(--ink);
+    --pf-border-radius: 7px;
+    --pf-hover: var(--surface);
+    --pf-mark: var(--accent);
+    --pf-outline-focus: var(--accent);
+    --pf-outline-width: 1px;
+    --pf-modal-backdrop: rgba(0, 0, 0, 0.35);
+    --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.10);
+    --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+    --pf-skeleton: var(--surface);
+    --pf-skeleton-shine: var(--hairline);
+  }
+
+  :root[data-theme='dark'] pagefind-modal,
+  :root[data-theme='dark'] pagefind-modal-trigger,
+  :root[data-theme='dark'] pagefind-search,
+  :root[data-theme='dark'] pagefind-searchbox {
+    --pf-modal-backdrop: rgba(0, 0, 0, 0.6);
+    --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Responsive ─────────────────────────────────────────────────────────── */
+  @media (max-width: 880px) {
+    .vault .shell { padding: 0 24px; }
+    .vault .vault-header { flex-wrap: wrap; row-gap: 16px; }
+    .vault .header-tools { width: 100%; justify-content: space-between; }
+    .vault .search-trigger { width: 100%; max-width: 320px; }
   }
 </style>
+</html>
