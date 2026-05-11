@@ -5,6 +5,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import GuideTOC from '../../components/guide/GuideTOC.astro';
 import GuideNav from '../../components/guide/GuideNav.astro';
 import { listGuides, getGuide } from '../../lib/guides';
+import { readingTimeMeta, wordCount, wordMeta } from '../../lib/entries';
 import '../../styles/prose.css';
 
 export async function getStaticPaths() {
@@ -44,6 +45,7 @@ const base = import.meta.env.BASE_URL;
 const idx = guide.chapters.findIndex(c => c.slug === chapterSlug);
 const currentTitle = guide.chapters[idx]?.title ?? entry.data.title ?? chapterSlug;
 const docTitle = `${currentTitle} — ${guide.title}`;
+const words = wordCount(entry.body ?? '');
 ---
 
 <Layout title={docTitle}>
@@ -61,6 +63,7 @@ const docTitle = `${currentTitle} — ${guide.title}`;
         <header class="guide-head">
           <p class="guide-eyebrow mono">guide · chapter {idx + 1} of {guide.chapters.length}</p>
           <h1 class="guide-title">{currentTitle}</h1>
+          <p class="guide-meta mono">{wordMeta(words)} · {readingTimeMeta(words)}</p>
         </header>
 
         <div class="prose">
@@ -111,6 +114,11 @@ const docTitle = `${currentTitle} — ${guide.title}`;
     color: var(--ink);
     margin: 12px 0 0;
     text-wrap: balance;
+  }
+  .vault .guide-meta {
+    margin: 16px 0 0;
+    font-size: 11px;
+    color: var(--faint);
   }
 
   @media (max-width: 880px) {

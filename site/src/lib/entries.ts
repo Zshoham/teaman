@@ -24,8 +24,13 @@ export interface Entry {
   href: string;
 }
 
-function wordMeta(words: number): string {
+export function wordMeta(words: number): string {
   return `${words.toLocaleString()} words`;
+}
+
+export function readingTimeMeta(words: number): string {
+  const minutes = Math.max(1, Math.ceil(words / 220));
+  return `${minutes} min read`;
 }
 
 function slidesMeta(count: number): string {
@@ -39,7 +44,7 @@ export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function wordCount(text: string): number {
+export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
