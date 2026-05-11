@@ -608,9 +608,10 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
   }
   .vault .entry {
     padding: 28px 0;
+  }
+  .vault .entry:not([hidden]) ~ .entry:not([hidden]) {
     border-top: 0.5px solid var(--hairline);
   }
-  .vault .entry:first-child { border-top: 0; }
   .vault .entry[hidden] { display: none; }
 
   .vault .entry-head {
