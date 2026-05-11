@@ -131,20 +131,22 @@ export function loadSlideEntries(): Entry[] {
 export function loadGuideEntries(): Entry[] {
   return listGuides().map(g => {
     const summaryPath = join(g.dir, 'SUMMARY.md');
-    const firstChapter = g.chapters[0];
-    const firstPath = firstChapter ? join(g.dir, `${firstChapter.slug}.md`) : null;
+    const summaryBody = readFileSync(summaryPath, 'utf8');
     let excerpt = '';
     let words = 0;
-    if (firstPath && existsSync(firstPath)) {
-      const body = readFileSync(firstPath, 'utf8');
-      excerpt = extractExcerpt(body);
-      words = wordCount(body);
-    } else {
-      excerpt = extractExcerpt(readFileSync(summaryPath, 'utf8'));
+    let stat = safeMtime(summaryPath);
+
+    for (const chapter of g.chapters) {
+      const chapterPath = join(g.dir, `${chapter.slug}.md`);
+      if (!existsSync(chapterPath)) continue;
+      const body = readFileSync(chapterPath, 'utf8');
+      if (!excerpt) excerpt = extractExcerpt(body);
+      words += wordCount(body);
+      const chapterStat = safeMtime(chapterPath);
+      if (chapterStat > stat) stat = chapterStat;
     }
-    const firstStat = firstPath ? safeMtime(firstPath) : new Date(0);
-    const summaryStat = safeMtime(summaryPath);
-    const stat = firstStat > summaryStat ? firstStat : summaryStat;
+
+    if (!excerpt) excerpt = extractExcerpt(summaryBody);
     return {
       id: `guide-${g.slug}`,
       type: 'guide' as const,
