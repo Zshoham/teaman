@@ -1,11 +1,11 @@
-export function fmtDate(iso: string): string {
-  const d = new Date(iso);
+export function fmtDate(input: Date | string): string {
+  const d = input instanceof Date ? input : new Date(input);
   const m = d.toLocaleString('en-US', { month: 'short' }).toLowerCase();
   return `${String(d.getDate()).padStart(2, '0')} ${m} ${d.getFullYear()}`;
 }
 
-export function relTime(iso: string): string {
-  const d = new Date(iso);
+export function relTime(input: Date | string): string {
+  const d = input instanceof Date ? input : new Date(input);
   const diffDays = (Date.now() - d.getTime()) / 86400000;
   if (diffDays < 1) return 'today';
   if (diffDays < 2) return 'yesterday';

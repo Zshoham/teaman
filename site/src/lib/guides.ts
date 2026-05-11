@@ -14,6 +14,15 @@ export interface Guide {
 }
 
 const guidesRoot = resolve(process.cwd(), '../content/guides');
+const base = import.meta.env.BASE_URL;
+
+/** URL for a chapter. The first chapter of a guide is served at the guide root. */
+export function chapterHref(guide: Guide, chapterSlug: string): string {
+  const isFirst = guide.chapters[0]?.slug === chapterSlug;
+  return isFirst
+    ? `${base}guides/${guide.slug}/`
+    : `${base}guides/${guide.slug}/${chapterSlug}/`;
+}
 
 export function listGuides(): Guide[] {
   if (!existsSync(guidesRoot)) return [];

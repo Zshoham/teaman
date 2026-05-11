@@ -1,0 +1,75 @@
+---
+import { chapterHref, type Guide } from '../../lib/guides';
+
+interface Props {
+  guide: Guide;
+  currentSlug: string;
+}
+
+const { guide, currentSlug } = Astro.props;
+const idx = guide.chapters.findIndex(c => c.slug === currentSlug);
+const prev = idx > 0 ? guide.chapters[idx - 1] : null;
+const next = idx >= 0 && idx < guide.chapters.length - 1 ? guide.chapters[idx + 1] : null;
+---
+
+<nav class="guide-nav mono" aria-label="Chapter navigation">
+  {prev ? (
+    <a class="guide-nav-link prev" href={chapterHref(guide, prev.slug)}>
+      <span class="guide-nav-dir">← previous</span>
+      <span class="guide-nav-label">{prev.title}</span>
+    </a>
+  ) : <span></span>}
+  {next ? (
+    <a class="guide-nav-link next" href={chapterHref(guide, next.slug)}>
+      <span class="guide-nav-dir">next →</span>
+      <span class="guide-nav-label">{next.title}</span>
+    </a>
+  ) : <span></span>}
+</nav>
+
+<style>
+  .guide-nav {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 0.5px solid var(--hairline);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .guide-nav-link {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 0.5px solid var(--hairline);
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: border-color .15s, background .15s;
+  }
+  .guide-nav-link:hover {
+    border-color: var(--ink);
+    background: var(--surface);
+  }
+  .guide-nav-link.next {
+    text-align: right;
+    align-items: flex-end;
+  }
+  .guide-nav-dir {
+    font-size: 10.5px;
+    color: var(--faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .guide-nav-label {
+    font-family: var(--display-font);
+    font-size: 15px;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  @media (max-width: 880px) {
+    .guide-nav { grid-template-columns: 1fr; }
+    .guide-nav-link.next { text-align: left; align-items: flex-start; }
+  }
+</style>

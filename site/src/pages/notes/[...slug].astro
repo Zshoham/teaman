@@ -1,6 +1,8 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { fmtDate } from '../../lib/format';
 import '../../styles/prose.css';
 
 export async function getStaticPaths() {
@@ -14,20 +16,14 @@ export async function getStaticPaths() {
 const { note } = Astro.props;
 const { Content } = await render(note);
 const base = import.meta.env.BASE_URL;
-
-const fmtDate = (d: Date) => {
-  const m = d.toLocaleString('en-US', { month: 'short' }).toLowerCase();
-  return `${String(d.getDate()).padStart(2, '0')} ${m} ${d.getFullYear()}`;
-};
 ---
 
 <Layout title={note.data.title ?? note.id}>
   <article class="note">
-    <p class="crumbs mono">
-      <a href={base}>index</a>
-      <span class="sep">/</span>
-      <span class="crumb-current">{note.id}</span>
-    </p>
+    <Breadcrumbs segments={[
+      { label: 'index', href: base },
+      { label: note.id },
+    ]} />
 
     <header class="note-head">
       <h1 class="note-title">{note.data.title ?? note.id}</h1>
@@ -56,21 +52,6 @@ const fmtDate = (d: Date) => {
     margin: 0 auto;
     padding: 24px 0 8px;
   }
-
-  .vault .crumbs {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--faint);
-    margin: 0 0 28px;
-  }
-  .vault .crumbs a {
-    color: var(--mute);
-    text-decoration: none;
-  }
-  .vault .crumbs a:hover { color: var(--ink); }
-  .vault .crumb-current { color: var(--ink); }
 
   .vault .note-head {
     margin-bottom: 32px;

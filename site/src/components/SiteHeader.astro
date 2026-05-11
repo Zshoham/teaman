@@ -1,0 +1,136 @@
+---
+import { SITE_CONFIG } from '../config';
+import ThemeToggle from './ThemeToggle.astro';
+
+const base = import.meta.env.BASE_URL;
+const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
+---
+
+<header class="vault-header">
+  <a href={base} class="brand">
+    {logoUrl
+      ? <span class="brand-logo" style={`--brand-logo: url('${logoUrl}')`} aria-hidden="true"></span>
+      : <span class="brand-mark" aria-hidden="true"></span>
+    }
+    <span class="brand-name mono">{SITE_CONFIG.brand}</span>
+    <span class="brand-tagline mono">/ {SITE_CONFIG.tagline}</span>
+  </a>
+
+  <div class="header-tools">
+    <pagefind-modal-trigger>
+      <button type="button" class="search-trigger" aria-label="Search the vault">
+        <span class="search-glyph mono" aria-hidden="true">⌕</span>
+        <span class="search-placeholder">search the vault</span>
+        <span class="search-kbd mono" aria-hidden="true">/</span>
+      </button>
+    </pagefind-modal-trigger>
+
+    <ThemeToggle />
+  </div>
+</header>
+
+<script>
+  // '/' opens the pagefind modal — matches the kbd hint in the search box.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.matches('input, textarea, [contenteditable], [contenteditable=""]') || t.isContentEditable)) return;
+    e.preventDefault();
+    document.querySelector<HTMLButtonElement>('pagefind-modal-trigger button')?.click();
+  });
+</script>
+
+<style>
+  .vault-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 28px 0 22px;
+    border-bottom: 0.5px solid var(--hairline);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+  }
+  .brand-mark {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .brand-logo {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: currentColor;
+    -webkit-mask: var(--brand-logo) center / contain no-repeat;
+            mask: var(--brand-logo) center / contain no-repeat;
+  }
+  .brand-name {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .brand-tagline {
+    font-size: 11px;
+    color: var(--faint);
+    margin-left: 4px;
+  }
+
+  .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .search-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 240px;
+    padding: 6px 8px 6px 12px;
+    border: 0.5px solid var(--hairline);
+    border-radius: 7px;
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink);
+    font-family: inherit;
+    transition: border-color .15s, background .15s;
+  }
+  .search-trigger:hover,
+  .search-trigger:focus-visible {
+    border-color: var(--ink);
+    background: var(--surface);
+    outline: none;
+  }
+  .search-glyph { color: var(--faint); font-size: 13px; line-height: 1; }
+  .search-placeholder {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    color: var(--faint);
+    font-size: 13px;
+  }
+  .search-kbd {
+    flex-shrink: 0;
+    color: var(--faint);
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 6px;
+    border: 0.5px solid var(--hairline);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  @media (max-width: 880px) {
+    .vault-header { flex-wrap: wrap; row-gap: 16px; }
+    .header-tools { width: 100%; justify-content: space-between; }
+    .search-trigger { width: 100%; max-width: 320px; }
+  }
+</style>

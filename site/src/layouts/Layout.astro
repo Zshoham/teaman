@@ -1,6 +1,7 @@
 ---
 import '../styles/tokens.css';
 import { SITE_CONFIG } from '../config';
+import SiteHeader from '../components/SiteHeader.astro';
 
 interface Props {
   /**
@@ -20,7 +21,6 @@ const base = import.meta.env.BASE_URL;
 const docTitle = title
   ? `${title} — ${SITE_CONFIG.brand}`
   : `${SITE_CONFIG.brand} — ${SITE_CONFIG.tagline}`;
-const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
 ---
 
 <!doctype html>
@@ -31,6 +31,7 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
   <title>{docTitle}</title>
 
   <script is:inline>
+    // Runs before paint to avoid a flash of incorrect theme.
     (() => {
       try {
         const stored = localStorage.getItem('vault-theme');
@@ -53,42 +54,7 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
 </head>
 <body class="vault">
   <div class="shell">
-    <header class="vault-header">
-      <a href={base} class="brand">
-        {logoUrl
-          ? <span class="brand-logo" style={`--brand-logo: url('${logoUrl}')`} aria-hidden="true"></span>
-          : <span class="brand-mark" aria-hidden="true"></span>
-        }
-        <span class="brand-name mono">{SITE_CONFIG.brand}</span>
-        <span class="brand-tagline mono">/ {SITE_CONFIG.tagline}</span>
-      </a>
-
-      <div class="header-tools">
-        <pagefind-modal-trigger>
-          <button type="button" class="search-trigger" aria-label="Search the vault">
-            <span class="search-glyph mono" aria-hidden="true">⌕</span>
-            <span class="search-placeholder">search the vault</span>
-            <span class="search-kbd mono" aria-hidden="true">/</span>
-          </button>
-        </pagefind-modal-trigger>
-
-        <button
-          type="button"
-          class="theme-toggle"
-          data-theme-toggle
-          aria-label="Toggle dark mode"
-          title="Toggle dark mode"
-        >
-          <svg class="theme-icon theme-icon-sun" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.8" fill="currentColor" stroke="none"></circle>
-            <path d="M8 1.5v1.6M8 12.9v1.6M14.5 8h-1.6M3.1 8H1.5M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1M12.6 12.6l-1.1-1.1M4.5 4.5L3.4 3.4"></path>
-          </svg>
-          <svg class="theme-icon theme-icon-moon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M13 9.5A5 5 0 0 1 6.5 3 5 5 0 1 0 13 9.5z" fill="currentColor" stroke="none"></path>
-          </svg>
-        </button>
-      </div>
-    </header>
+    <SiteHeader />
 
     <pagefind-modal></pagefind-modal>
 
@@ -101,25 +67,6 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
       {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
     </footer>
   </div>
-
-  <script>
-    // '/' opens the pagefind modal — matches the kbd hint in the search box.
-    window.addEventListener('keydown', (e) => {
-      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.matches('input, textarea, [contenteditable], [contenteditable=""]') || t.isContentEditable)) return;
-      e.preventDefault();
-      document.querySelector<HTMLButtonElement>('pagefind-modal-trigger button')?.click();
-    });
-
-    // Dark mode toggle — persisted in localStorage; light is the default when unset.
-    const themeButton = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
-    themeButton?.addEventListener('click', () => {
-      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.dataset.theme = next;
-      try { localStorage.setItem('vault-theme', next); } catch {}
-    });
-  </script>
 </body>
 
 <style is:global>
@@ -151,132 +98,6 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
     margin: 0 auto;
     padding: 0 40px;
   }
-
-  /* Header ──────────────────────────────────────────────────────────────── */
-  .vault .vault-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 28px 0 22px;
-    border-bottom: 0.5px solid var(--hairline);
-  }
-
-  .vault .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-    color: var(--ink);
-  }
-  .vault .brand-mark {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    background: var(--accent);
-  }
-  .vault .brand-logo {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    background-color: currentColor;
-    -webkit-mask: var(--brand-logo) center / contain no-repeat;
-            mask: var(--brand-logo) center / contain no-repeat;
-  }
-  .vault .brand-name {
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-  }
-  .vault .brand-tagline {
-    font-size: 11px;
-    color: var(--faint);
-    margin-left: 4px;
-  }
-
-  .vault .header-tools {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-  }
-
-  .vault .search-trigger {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 240px;
-    padding: 6px 8px 6px 12px;
-    border: 0.5px solid var(--hairline);
-    border-radius: 7px;
-    background: transparent;
-    cursor: pointer;
-    color: var(--ink);
-    font-family: inherit;
-    transition: border-color .15s, background .15s;
-  }
-  .vault .search-trigger:hover,
-  .vault .search-trigger:focus-visible {
-    border-color: var(--ink);
-    background: var(--surface);
-    outline: none;
-  }
-  .vault .search-glyph { color: var(--faint); font-size: 13px; line-height: 1; }
-  .vault .search-placeholder {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    color: var(--faint);
-    font-size: 13px;
-  }
-  .vault .search-kbd {
-    flex-shrink: 0;
-    color: var(--faint);
-    font-size: 10px;
-    line-height: 1;
-    padding: 3px 6px;
-    border: 0.5px solid var(--hairline);
-    border-radius: 4px;
-    background: var(--bg);
-  }
-
-  .vault .theme-toggle {
-    appearance: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 0.5px solid var(--hairline);
-    background: transparent;
-    color: var(--ink);
-    cursor: pointer;
-    padding: 0;
-    transition: border-color .15s, background .15s;
-  }
-  .vault .theme-toggle:hover,
-  .vault .theme-toggle:focus-visible {
-    border-color: var(--ink);
-    background: var(--surface);
-    outline: none;
-  }
-  .vault .theme-icon { display: block; }
-  .vault .theme-icon-moon { display: none; }
-  :root[data-theme='dark'] .vault .theme-icon-sun { display: none; }
-  :root[data-theme='dark'] .vault .theme-icon-moon { display: block; }
-
-  .vault .vault-nav {
-    display: flex;
-    gap: 18px;
-  }
-  .vault .vault-nav a {
-    color: var(--mute);
-    text-decoration: none;
-    font-size: 13px;
-    transition: color .12s;
-  }
-  .vault .vault-nav a:hover { color: var(--ink); }
 
   /* Main slot ──────────────────────────────────────────────────────────── */
   .vault .page {
@@ -336,9 +157,6 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
   /* Responsive ─────────────────────────────────────────────────────────── */
   @media (max-width: 880px) {
     .vault .shell { padding: 0 24px; }
-    .vault .vault-header { flex-wrap: wrap; row-gap: 16px; }
-    .vault .header-tools { width: 100%; justify-content: space-between; }
-    .vault .search-trigger { width: 100%; max-width: 320px; }
   }
 </style>
 </html>
