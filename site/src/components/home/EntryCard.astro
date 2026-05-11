@@ -1,0 +1,117 @@
+---
+import { TYPE_LABEL, type Entry } from '../../lib/entries';
+import { fmtDate } from '../../lib/format';
+
+interface Props {
+  entry: Entry;
+}
+
+const { entry: e } = Astro.props;
+---
+
+<article
+  class="entry"
+  data-entry
+  data-type={e.type}
+  data-tags={e.tags.join(' ')}
+  data-updated={e.updated}
+  data-created={e.created}
+  data-title={e.title.toLowerCase()}
+>
+  <div class="entry-head">
+    <span class="entry-date mono">{fmtDate(e.updated)}</span>
+    <span class="entry-type mono">{TYPE_LABEL[e.type]}</span>
+    <span class="entry-meta mono">{e.meta}</span>
+  </div>
+  <h3 class="entry-title">
+    <a href={e.href}>{e.title}</a>
+  </h3>
+  {e.excerpt && <p class="entry-excerpt">{e.excerpt}</p>}
+  {e.tags.length > 0 && (
+    <div class="entry-tags">
+      {e.tags.map(tag => (
+        <button type="button" class="tag-link mono" data-tag={tag}>#{tag}</button>
+      ))}
+    </div>
+  )}
+</article>
+
+<style>
+  .entry {
+    padding: 28px 0;
+  }
+  .entry:not([hidden]) ~ .entry:not([hidden]) {
+    border-top: 0.5px solid var(--hairline);
+  }
+  .entry[hidden] { display: none; }
+
+  .entry-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .entry-date {
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .entry-type { color: var(--accent); }
+  .entry-meta {
+    margin-left: auto;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .entry-title {
+    margin: 0;
+    font-family: var(--display-font);
+    font-weight: 400;
+    font-size: 28px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .entry-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .entry-title a:hover { color: var(--accent); }
+
+  .entry-excerpt {
+    margin: 12px 0 0;
+    max-width: 700px;
+    font-family: var(--display-font);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--mute);
+    text-wrap: pretty;
+  }
+
+  .entry-tags {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .tag-link {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+  }
+  .tag-link:hover,
+  .tag-link.is-active { color: var(--accent); }
+
+  @media (max-width: 880px) {
+    .entry { padding: 22px 0; }
+    .entry-title { font-size: 24px; }
+    .entry-excerpt { font-size: 15px; }
+  }
+</style>

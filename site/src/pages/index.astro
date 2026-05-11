@@ -1,151 +1,15 @@
 ---
-import { getCollection } from 'astro:content';
-import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { resolve, join } from 'path';
 import Layout from '../layouts/Layout.astro';
 import { SITE_CONFIG } from '../config';
-import { listGuides } from '../lib/guides';
+import { loadAllEntries } from '../lib/entries';
+import { fmtDate } from '../lib/format';
+import Hero from '../components/home/Hero.astro';
+import FilterBar from '../components/home/FilterBar.astro';
+import ActiveTagChip from '../components/home/ActiveTagChip.astro';
+import EntryCard from '../components/home/EntryCard.astro';
+import TopicsSidebar from '../components/home/TopicsSidebar.astro';
 
-const base = import.meta.env.BASE_URL;
-const contentRoot = resolve(process.cwd(), '../content');
-
-type EntryType = 'note' | 'guide' | 'slides';
-
-interface Entry {
-  id: string;
-  type: EntryType;
-  title: string;
-  excerpt: string;
-  tags: string[];
-  updated: string;
-  created: string;
-  words: number;
-  slideCount?: number;
-  href: string;
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function stripFrontmatter(md: string): { fm: string; body: string } {
-  if (!md.startsWith('---\n')) return { fm: '', body: md };
-  const end = md.indexOf('\n---\n', 4);
-  if (end === -1) return { fm: '', body: md };
-  return { fm: md.slice(4, end), body: md.slice(end + 5) };
-}
-
-function readFm(fm: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of fm.split('\n')) {
-    const m = line.match(/^([a-zA-Z_][\w-]*)\s*:\s*(.+?)\s*$/);
-    if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return out;
-}
-
-function extractExcerpt(body: string, maxLen = 220): string {
-  const cleaned = body
-    .replace(/^---\s*$/gm, '')
-    .replace(/^#+\s.*$/gm, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, p, a) => a || p)
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\*\*|__|`/g, '');
-  const para = cleaned.split(/\n\s*\n/).map(s => s.trim()).find(Boolean) ?? '';
-  if (para.length <= maxLen) return para;
-  return para.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
-}
-
-function safeMtime(path: string): Date {
-  try { return statSync(path).mtime; } catch { return new Date(); }
-}
-
-// ── Notes ────────────────────────────────────────────────────────────────────
-const noteEntries: Entry[] = (await getCollection('notes'))
-  .filter(n => !n.data.draft)
-  .map(n => {
-    const body = (n.body ?? '') as string;
-    const date = n.data.date ?? new Date();
-    return {
-      id: `note-${n.id}`,
-      type: 'note' as const,
-      title: n.data.title ?? n.id,
-      excerpt: extractExcerpt(body),
-      tags: n.data.tags ?? [],
-      updated: isoDate(date as Date),
-      created: isoDate(date as Date),
-      words: wordCount(body),
-      href: `${base}notes/${n.id}/`,
-    };
-  });
-
-// ── Slides ───────────────────────────────────────────────────────────────────
-const slidesDir = join(contentRoot, 'slides');
-const slideEntries: Entry[] = existsSync(slidesDir)
-  ? readdirSync(slidesDir)
-      .filter(f => f.endsWith('.md') && !f.startsWith('_'))
-      .map(f => {
-        const path = join(slidesDir, f);
-        const md = readFileSync(path, 'utf8');
-        const { fm, body } = stripFrontmatter(md);
-        const data = readFm(fm);
-        const slideCount = body.split(/^---\s*$/m).filter(s => s.trim()).length || 1;
-        const id = f.replace(/\.md$/, '');
-        const stat = statSync(path);
-        return {
-          id: `slides-${id}`,
-          type: 'slides' as const,
-          title: data.title ?? id.replace(/-/g, ' '),
-          excerpt: extractExcerpt(body),
-          tags: data.tags ? data.tags.replace(/^\[|\]$/g, '').split(',').map(t => t.trim()).filter(Boolean) : [],
-          updated: isoDate(stat.mtime),
-          created: isoDate(stat.birthtime ?? stat.mtime),
-          words: 0,
-          slideCount,
-          href: `${base}slides/${id}/`,
-        };
-      })
-  : [];
-
-// ── Guides ───────────────────────────────────────────────────────────────────
-const guideEntries: Entry[] = listGuides().map(g => {
-  const summaryPath = join(g.dir, 'SUMMARY.md');
-  const firstChapter = g.chapters[0];
-  const firstPath = firstChapter ? join(g.dir, `${firstChapter.slug}.md`) : null;
-  let excerpt = '';
-  let words = 0;
-  if (firstPath && existsSync(firstPath)) {
-    const body = readFileSync(firstPath, 'utf8');
-    excerpt = extractExcerpt(body);
-    words = wordCount(body);
-  } else {
-    excerpt = extractExcerpt(readFileSync(summaryPath, 'utf8'));
-  }
-  const firstStat = firstPath ? safeMtime(firstPath) : new Date(0);
-  const summaryStat = safeMtime(summaryPath);
-  const stat = firstStat > summaryStat ? firstStat : summaryStat;
-  return {
-    id: `guide-${g.slug}`,
-    type: 'guide' as const,
-    title: g.title,
-    excerpt,
-    tags: [],
-    updated: isoDate(stat),
-    created: isoDate(stat),
-    words,
-    href: `${base}guides/${g.slug}/`,
-  };
-});
-
-const entries: Entry[] = [...noteEntries, ...slideEntries, ...guideEntries]
-  .sort((a, b) => b.updated.localeCompare(a.updated));
+const entries = await loadAllEntries();
 
 const counts: Record<string, number> = entries.reduce((acc, e) => {
   acc[e.type] = (acc[e.type] ?? 0) + 1;
@@ -158,14 +22,7 @@ const topics = [...tagCounts.entries()]
   .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   .map(([tag, count]) => ({ tag, count }));
 
-const stats = {
-  notes: counts.note ?? 0,
-  guides: counts.guide ?? 0,
-  slides: counts.slides ?? 0,
-  tags: tagCounts.size,
-  total: entries.length,
-  lastUpdated: entries[0]?.updated ?? isoDate(new Date()),
-};
+const lastUpdated = entries[0]?.updated ?? new Date().toISOString().slice(0, 10);
 
 const filterTabs = [
   { id: 'all', label: 'all', count: entries.length },
@@ -174,577 +31,101 @@ const filterTabs = [
   { id: 'slides', label: 'slides', count: counts.slides ?? 0 },
 ].filter(t => t.id === 'all' || t.count > 0);
 
-const TYPE_LABEL: Record<EntryType, string> = { note: 'note', guide: 'guide', slides: 'slides' };
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  const m = d.toLocaleString('en-US', { month: 'short' }).toLowerCase();
-  return `${String(d.getDate()).padStart(2, '0')} ${m} ${d.getFullYear()}`;
-}
-
-function relTime(iso: string): string {
-  const d = new Date(iso);
-  const diffDays = (Date.now() - d.getTime()) / 86400000;
-  if (diffDays < 1) return 'today';
-  if (diffDays < 2) return 'yesterday';
-  if (diffDays < 14) return `${Math.floor(diffDays)}d ago`;
-  if (diffDays < 60) return `${Math.floor(diffDays / 7)}w ago`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
-  return `${Math.floor(diffDays / 365)}y ago`;
-}
-
 const statRows: Array<[string, number]> = [
-  ['notes', stats.notes],
-  ['guides', stats.guides],
-  ['slides', stats.slides],
-  ['tags', stats.tags],
+  ['notes', counts.note ?? 0],
+  ['guides', counts.guide ?? 0],
+  ['slides', counts.slides ?? 0],
+  ['tags', tagCounts.size],
 ].filter(([, n]) => n > 0) as Array<[string, number]>;
 
-const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · last edit ${fmtDate(stats.lastUpdated)}`;
+const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · last edit ${fmtDate(lastUpdated)}`;
 ---
 
 <Layout footerLeft={footerLeft}>
-  <section class="hero">
-    <div class="hero-text">
-      <p class="hero-eyebrow mono">{SITE_CONFIG.hero.eyebrow}</p>
-      <h1 class="hero-title" set:html={SITE_CONFIG.hero.title}></h1>
-      <p class="hero-description" set:html={SITE_CONFIG.hero.description}></p>
-    </div>
-    <aside class="stats">
-      {statRows.map(([label, n]) => (
-        <div class="stat-row">
-          <span class="stat-label mono">{label}</span>
-          <span class="stat-value mono">{String(n).padStart(3, '0')}</span>
-        </div>
-      ))}
-      <div class="stat-foot">
-        <span class="stat-label faint mono">last edit</span>
-        <span class="stat-value mute mono">{relTime(stats.lastUpdated)}</span>
-      </div>
-    </aside>
-  </section>
+  <Hero
+    eyebrow={SITE_CONFIG.hero.eyebrow}
+    title={SITE_CONFIG.hero.title}
+    description={SITE_CONFIG.hero.description}
+    statRows={statRows}
+    lastUpdated={lastUpdated}
+  />
 
   <div class="layout" data-has-sidebar={topics.length > 0 ? 'true' : 'false'}>
     <div class="content">
-      <div class="filter-bar">
-        <div class="filter-pills" data-filter-pills>
-          {filterTabs.map(t => (
-            <button
-              type="button"
-              class="pill"
-              data-filter={t.id}
-              aria-pressed={t.id === 'all' ? 'true' : 'false'}
-            >
-              <span>{t.label}</span>
-              <span class="pill-count mono">{t.count}</span>
-            </button>
-          ))}
-        </div>
-        <button type="button" class="sort-button mono" data-sort-toggle aria-label="Sort: newest first">
-          date <span class="sort-arrow" aria-hidden="true">↓</span>
-        </button>
-      </div>
-
-      <div class="active-tag" data-active-tag hidden>
-        <span class="active-tag-label mono">filtered by</span>
-        <span class="active-tag-name mono" data-active-tag-name></span>
-        <button type="button" class="active-tag-clear mono" data-tag-clear>clear ×</button>
-      </div>
+      <FilterBar filterTabs={filterTabs} />
+      <ActiveTagChip />
 
       <div class="entries" data-entries>
-        {entries.map(e => (
-          <article
-            class="entry"
-            data-entry
-            data-type={e.type}
-            data-tags={e.tags.join(' ')}
-            data-updated={e.updated}
-            data-created={e.created}
-            data-title={e.title.toLowerCase()}
-          >
-            <div class="entry-head">
-              <span class="entry-date mono">{fmtDate(e.updated)}</span>
-              <span class="entry-type mono">{TYPE_LABEL[e.type]}</span>
-              <span class="entry-meta mono">
-                {e.type === 'slides'
-                  ? `${e.slideCount} slides`
-                  : `${e.words.toLocaleString()} words`}
-              </span>
-            </div>
-            <h3 class="entry-title">
-              <a href={e.href}>{e.title}</a>
-            </h3>
-            {e.excerpt && <p class="entry-excerpt">{e.excerpt}</p>}
-            {e.tags.length > 0 && (
-              <div class="entry-tags">
-                {e.tags.map(tag => (
-                  <button type="button" class="tag-link mono" data-tag={tag}>#{tag}</button>
-                ))}
-              </div>
-            )}
-          </article>
-        ))}
+        {entries.map(e => <EntryCard entry={e} />)}
       </div>
       <div class="empty-state mono" data-empty hidden>nothing matches.</div>
     </div>
 
-    {topics.length > 0 && (
-      <aside class="sidebar">
-        <section class="side-section">
-          <h2 class="side-title mono">topics</h2>
-          <div class="topics" data-topics>
-            {topics.map((t, i) => (
-              <button
-                type="button"
-                class="topic mono"
-                data-tag={t.tag}
-                data-topic-index={i}
-                hidden={i >= 8}
-              >
-                <span><span class="hash">#</span>{t.tag}</span>
-                <span class="topic-count">{String(t.count).padStart(2, '0')}</span>
-              </button>
-            ))}
-          </div>
-          {topics.length > 8 && (
-            <button type="button" class="topics-more mono" data-topics-toggle aria-expanded="false">
-              <span data-topics-more-label>show {topics.length - 8} more</span>
-              <span class="topics-more-icon" aria-hidden="true">↓</span>
-            </button>
-          )}
-        </section>
-      </aside>
-    )}
+    {topics.length > 0 && <TopicsSidebar topics={topics} />}
   </div>
 </Layout>
 
 <script>
-  type EntryEl = HTMLElement;
+  import { createListController } from '../scripts/list-controller';
 
-  const entriesList = document.querySelector<HTMLUListElement>('[data-entries]');
-  const entryEls = Array.from(document.querySelectorAll<EntryEl>('[data-entry]'));
-  const filterPills = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter-pills] [data-filter]'));
-  const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
-  const sortArrow = sortToggle?.querySelector<HTMLElement>('.sort-arrow') ?? null;
-  const empty = document.querySelector<HTMLElement>('[data-empty]');
-  const activeTagWrap = document.querySelector<HTMLElement>('[data-active-tag]');
-  const activeTagName = document.querySelector<HTMLElement>('[data-active-tag-name]');
-  const tagClear = document.querySelector<HTMLButtonElement>('[data-tag-clear]');
+  const entriesList = document.querySelector<HTMLElement>('[data-entries]');
+  if (entriesList) {
+    const filterPills = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[data-filter-pills] [data-filter]')
+    );
+    const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
 
-  type SortDir = 'desc' | 'asc';
-  const state: { filter: string; sort: SortDir; tag: string | null } = {
-    filter: 'all',
-    sort: 'desc',
-    tag: null,
-  };
-
-  function setPressed(buttons: HTMLButtonElement[], match: (b: HTMLButtonElement) => boolean) {
-    buttons.forEach(b => b.setAttribute('aria-pressed', match(b) ? 'true' : 'false'));
-  }
-
-  function apply() {
-    const sorted = entryEls.slice().sort((a, b) => {
-      const av = a.dataset.updated || '';
-      const bv = b.dataset.updated || '';
-      return state.sort === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-    });
-    if (entriesList) sorted.forEach(el => entriesList.appendChild(el));
-
-    let visible = 0;
-    sorted.forEach(el => {
-      const matchType = state.filter === 'all' || el.dataset.type === state.filter;
-      const tags = (el.dataset.tags || '').split(' ').filter(Boolean);
-      const matchTag = !state.tag || tags.includes(state.tag);
-      const show = matchType && matchTag;
-      el.hidden = !show;
-      if (show) visible++;
-    });
-    if (empty) empty.hidden = visible > 0;
-
-    if (state.tag && activeTagWrap && activeTagName) {
-      activeTagWrap.hidden = false;
-      activeTagName.textContent = '#' + state.tag;
-    } else if (activeTagWrap) {
-      activeTagWrap.hidden = true;
-    }
-
-    document.querySelectorAll<HTMLElement>('[data-tag]').forEach(el => {
-      el.classList.toggle('is-active', el.dataset.tag === state.tag);
+    createListController({
+      container: entriesList,
+      itemSelector: '[data-entry]',
+      emptyState: document.querySelector<HTMLElement>('[data-empty]'),
+      filter: {
+        pills: filterPills,
+        attr: 'data-type',
+      },
+      sort: sortToggle
+        ? {
+            toggle: sortToggle,
+            attr: 'data-updated',
+            arrow: sortToggle.querySelector<HTMLElement>('.sort-arrow'),
+            ariaLabelFor: dir => `Sort: ${dir === 'asc' ? 'oldest first' : 'newest first'}`,
+          }
+        : undefined,
+      tag: {
+        attr: 'data-tags',
+        activeWrap: document.querySelector<HTMLElement>('[data-active-tag]'),
+        activeName: document.querySelector<HTMLElement>('[data-active-tag-name]'),
+        clearButton: document.querySelector<HTMLButtonElement>('[data-tag-clear]'),
+      },
     });
   }
-
-  filterPills.forEach(b => b.addEventListener('click', () => {
-    state.filter = b.dataset.filter || 'all';
-    setPressed(filterPills, x => x.dataset.filter === state.filter);
-    apply();
-  }));
-
-  sortToggle?.addEventListener('click', () => {
-    state.sort = state.sort === 'desc' ? 'asc' : 'desc';
-    if (sortArrow) sortArrow.textContent = state.sort === 'asc' ? '↑' : '↓';
-    if (sortToggle) sortToggle.setAttribute('aria-label', `Sort: ${state.sort === 'asc' ? 'oldest first' : 'newest first'}`);
-    apply();
-  });
-
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement | null;
-    const tagBtn = target?.closest<HTMLElement>('[data-tag]');
-    if (tagBtn) {
-      e.preventDefault();
-      const tag = tagBtn.dataset.tag || '';
-      state.tag = state.tag === tag ? null : tag;
-      apply();
-      return;
-    }
-  });
-
-  tagClear?.addEventListener('click', () => {
-    state.tag = null;
-    apply();
-  });
-
-  const topicsToggle = document.querySelector<HTMLButtonElement>('[data-topics-toggle]');
-  const topicsMoreLabel = document.querySelector<HTMLElement>('[data-topics-more-label]');
-  const overflowTopics = Array.from(document.querySelectorAll<HTMLElement>('[data-topic-index]'))
-    .filter(el => Number(el.dataset.topicIndex) >= 8);
-  const overflowCount = overflowTopics.length;
-  topicsToggle?.addEventListener('click', () => {
-    const expanded = topicsToggle.getAttribute('aria-expanded') === 'true';
-    const next = !expanded;
-    topicsToggle.setAttribute('aria-expanded', String(next));
-    overflowTopics.forEach(el => { el.hidden = !next; });
-    if (topicsMoreLabel) {
-      topicsMoreLabel.textContent = next ? 'show fewer' : `show ${overflowCount} more`;
-    }
-  });
 </script>
 
-<style is:global>
-  /* Hero ──────────────────────────────────────────────────────────────── */
-  .vault .hero {
-    padding: 36px 0 44px;
-    border-bottom: 0.5px solid var(--hairline);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 64px;
-    align-items: end;
-  }
-  .vault .hero-eyebrow {
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin: 0;
-  }
-  .vault .hero-title {
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 56px;
-    line-height: 1.05;
-    letter-spacing: -0.015em;
-    margin: 14px 0 0;
-    color: var(--ink);
-    text-wrap: balance;
-  }
-  .vault .hero-title em {
-    font-style: italic;
-    color: var(--mute);
-  }
-  .vault .hero-description {
-    margin: 22px 0 0;
-    max-width: 620px;
-    font-family: var(--display-font);
-    font-size: 17px;
-    line-height: 1.55;
-    color: var(--mute);
-    text-wrap: pretty;
-  }
-
-  .vault .stats {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .vault .stat-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-    border-top: 0.5px solid var(--hairline);
-  }
-  .vault .stat-label { font-size: 11px; color: var(--mute); }
-  .vault .stat-label.faint { color: var(--faint); }
-  .vault .stat-value {
-    font-size: 13px;
-    color: var(--ink);
-    font-variant-numeric: tabular-nums;
-  }
-  .vault .stat-value.mute { color: var(--mute); font-size: 11px; }
-  .vault .stat-foot {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 10px;
-  }
-
-  /* Two-column layout ─────────────────────────────────────────────────── */
-  .vault .layout {
+<style>
+  .layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 240px;
     gap: 64px;
     padding-top: 16px;
   }
-  .vault .layout[data-has-sidebar="false"] {
+  .layout[data-has-sidebar="false"] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Filter bar ────────────────────────────────────────────────────────── */
-  .vault .filter-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 0;
-    flex-wrap: wrap;
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--bg);
-    border-bottom: 0.5px solid var(--hairline);
-    margin-bottom: 4px;
-  }
-  .vault .filter-pills {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .vault .pill {
-    appearance: none;
-    border: 0.5px solid var(--hairline);
-    background: transparent;
-    color: var(--mute);
-    padding: 5px 11px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 8px;
-    transition: all .12s;
-  }
-  .vault .pill:hover { border-color: var(--mute); }
-  .vault .pill[aria-pressed="true"] {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
-  }
-  .vault .pill-count { font-size: 10px; opacity: 0.55; }
-  .vault .pill[aria-pressed="true"] .pill-count { opacity: 0.7; }
-
-  .vault .sort-button {
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: var(--mute);
-    font-size: 11px;
-    padding: 2px 0;
-    cursor: pointer;
-    border-bottom: 1px solid var(--accent);
-    font-family: var(--mono-font);
-    color: var(--ink);
-    display: inline-flex;
-    align-items: baseline;
-    gap: 3px;
-  }
-  .vault .sort-button:hover { color: var(--accent); }
-
-  /* Active tag chip ───────────────────────────────────────────────────── */
-  .vault .active-tag {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: var(--surface);
-    border: 0.5px solid var(--hairline);
-    border-radius: 6px;
-  }
-  .vault .active-tag[hidden] { display: none; }
-  .vault .active-tag-label { font-size: 11px; color: var(--faint); }
-  .vault .active-tag-name { font-size: 12px; color: var(--accent); }
-  .vault .active-tag-clear {
-    margin-left: auto;
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: var(--mute);
-    cursor: pointer;
-    font-size: 11px;
-  }
-
-  /* Entries — stream layout (always-visible excerpt + tags, no hover anim) ─ */
-  .vault .entries {
+  .entries {
     display: flex;
     flex-direction: column;
   }
-  .vault .entry {
-    padding: 28px 0;
-  }
-  .vault .entry:not([hidden]) ~ .entry:not([hidden]) {
-    border-top: 0.5px solid var(--hairline);
-  }
-  .vault .entry[hidden] { display: none; }
 
-  .vault .entry-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 8px;
-    font-size: 11px;
-  }
-  .vault .entry-date {
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
-  }
-  .vault .entry-type { color: var(--accent); }
-  .vault .entry-meta {
-    margin-left: auto;
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .vault .entry-title {
-    margin: 0;
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 28px;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-    text-wrap: balance;
-  }
-  .vault .entry-title a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .vault .entry-title a:hover { color: var(--accent); }
-
-  .vault .entry-excerpt {
-    margin: 12px 0 0;
-    max-width: 700px;
-    font-family: var(--display-font);
-    font-size: 16px;
-    line-height: 1.55;
-    color: var(--mute);
-    text-wrap: pretty;
-  }
-
-  .vault .entry-tags {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-  }
-  .vault .tag-link {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.02em;
-  }
-  .vault .tag-link:hover,
-  .vault .tag-link.is-active { color: var(--accent); }
-
-  .vault .empty-state {
+  .empty-state {
     padding: 40px 0;
     text-align: center;
     color: var(--faint);
     font-size: 14px;
   }
-  .vault .empty-state[hidden] { display: none; }
+  .empty-state[hidden] { display: none; }
 
-  /* Sidebar ───────────────────────────────────────────────────────────── */
-  .vault .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 36px;
-    position: sticky;
-    top: 80px;
-    align-self: start;
-  }
-  .vault .side-title {
-    display: block;
-    font-family: var(--mono-font);
-    font-size: 10.5px;
-    font-weight: 400;
-    color: var(--faint);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin: 0 0 12px;
-    padding-bottom: 8px;
-    border-bottom: 0.5px solid var(--hairline);
-  }
-
-  .vault .topics { display: flex; flex-direction: column; gap: 2px; }
-  .vault .topic {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 5px 0;
-    font-size: 12px;
-    color: var(--mute);
-    text-align: left;
-    border-bottom: 0.5px dashed var(--hairline);
-    transition: color .12s;
-  }
-  .vault .topic:hover { color: var(--ink); }
-  .vault .topic.is-active { color: var(--ink); }
-  .vault .topic .hash { color: var(--faint); }
-  .vault .topic.is-active .hash { color: var(--accent); }
-  .vault .topic-count { color: var(--faint); font-variant-numeric: tabular-nums; }
-  .vault .topic[hidden] { display: none; }
-
-  .vault .topics-more {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-    margin-top: 10px;
-    padding: 4px 0;
-    font-size: 11px;
-    color: var(--accent);
-    text-align: left;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
-    font-family: var(--mono-font);
-  }
-  .vault .topics-more-icon { color: var(--faint); transition: transform .15s; }
-  .vault .topics-more[aria-expanded='true'] .topics-more-icon { transform: rotate(180deg); }
-
-  /* Responsive ────────────────────────────────────────────────────────── */
   @media (max-width: 880px) {
-    .vault .hero {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 32px;
-      padding: 28px 0;
-    }
-    .vault .hero-title { font-size: 40px; }
-    .vault .layout { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-    .vault .sidebar { position: static; }
-    .vault .entry { padding: 22px 0; }
-    .vault .entry-title { font-size: 24px; }
-    .vault .entry-excerpt { font-size: 15px; }
+    .layout { grid-template-columns: minmax(0, 1fr); gap: 40px; }
   }
 </style>

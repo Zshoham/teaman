@@ -1,0 +1,137 @@
+---
+interface Topic {
+  tag: string;
+  count: number;
+}
+
+interface Props {
+  topics: Topic[];
+  /** How many topics to show before the "show more" toggle. */
+  initialShown?: number;
+}
+
+const { topics, initialShown = 8 } = Astro.props;
+const overflow = Math.max(0, topics.length - initialShown);
+---
+
+<aside class="sidebar">
+  <section class="side-section">
+    <h2 class="side-title mono">topics</h2>
+    <div class="topics" data-topics>
+      {topics.map((t, i) => (
+        <button
+          type="button"
+          class="topic mono"
+          data-tag={t.tag}
+          data-topic-index={i}
+          hidden={i >= initialShown}
+        >
+          <span><span class="hash">#</span>{t.tag}</span>
+          <span class="topic-count">{String(t.count).padStart(2, '0')}</span>
+        </button>
+      ))}
+    </div>
+    {overflow > 0 && (
+      <button
+        type="button"
+        class="topics-more mono"
+        data-topics-toggle
+        data-initial-shown={initialShown}
+        aria-expanded="false"
+      >
+        <span data-topics-more-label>show {overflow} more</span>
+        <span class="topics-more-icon" aria-hidden="true">↓</span>
+      </button>
+    )}
+  </section>
+</aside>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-topics-toggle]');
+  if (toggle) {
+    const initialShown = Number(toggle.dataset.initialShown ?? '8');
+    const label = document.querySelector<HTMLElement>('[data-topics-more-label]');
+    const overflowTopics = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-topic-index]')
+    ).filter(el => Number(el.dataset.topicIndex) >= initialShown);
+    const overflowCount = overflowTopics.length;
+
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      const next = !expanded;
+      toggle.setAttribute('aria-expanded', String(next));
+      overflowTopics.forEach(el => { el.hidden = !next; });
+      if (label) {
+        label.textContent = next ? 'show fewer' : `show ${overflowCount} more`;
+      }
+    });
+  }
+</script>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+    position: sticky;
+    top: 80px;
+    align-self: start;
+  }
+  .side-title {
+    display: block;
+    font-family: var(--mono-font);
+    font-size: 10.5px;
+    font-weight: 400;
+    color: var(--faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 0.5px solid var(--hairline);
+  }
+
+  .topics { display: flex; flex-direction: column; gap: 2px; }
+  .topic {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 5px 0;
+    font-size: 12px;
+    color: var(--mute);
+    text-align: left;
+    border-bottom: 0.5px dashed var(--hairline);
+    transition: color .12s;
+  }
+  .topic:hover { color: var(--ink); }
+  .topic.is-active { color: var(--ink); }
+  .topic .hash { color: var(--faint); }
+  .topic.is-active .hash { color: var(--accent); }
+  .topic-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+  .topic[hidden] { display: none; }
+
+  .topics-more {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    margin-top: 10px;
+    padding: 4px 0;
+    font-size: 11px;
+    color: var(--accent);
+    text-align: left;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--mono-font);
+  }
+  .topics-more-icon { color: var(--faint); transition: transform .15s; }
+  .topics-more[aria-expanded='true'] .topics-more-icon { transform: rotate(180deg); }
+
+  @media (max-width: 880px) {
+    .sidebar { position: static; }
+  }
+</style>
