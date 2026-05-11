@@ -240,17 +240,9 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
             </button>
           ))}
         </div>
-        <div class="sort-bar">
-          <span class="sort-label mono">sort</span>
-          {['updated', 'created', 'a–z'].map(s => (
-            <button
-              type="button"
-              class="sort-button mono"
-              data-sort={s}
-              aria-pressed={s === 'updated' ? 'true' : 'false'}
-            >{s}</button>
-          ))}
-        </div>
+        <button type="button" class="sort-button mono" data-sort-toggle aria-label="Sort: newest first">
+          date <span class="sort-arrow" aria-hidden="true">↓</span>
+        </button>
       </div>
 
       <div class="active-tag" data-active-tag hidden>
@@ -327,21 +319,22 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
 </Layout>
 
 <script>
-  type EntryEl = HTMLLIElement;
+  type EntryEl = HTMLElement;
 
   const entriesList = document.querySelector<HTMLUListElement>('[data-entries]');
   const entryEls = Array.from(document.querySelectorAll<EntryEl>('[data-entry]'));
   const filterPills = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter-pills] [data-filter]'));
-  const sortButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-sort]'));
+  const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
+  const sortArrow = sortToggle?.querySelector<HTMLElement>('.sort-arrow') ?? null;
   const empty = document.querySelector<HTMLElement>('[data-empty]');
   const activeTagWrap = document.querySelector<HTMLElement>('[data-active-tag]');
   const activeTagName = document.querySelector<HTMLElement>('[data-active-tag-name]');
   const tagClear = document.querySelector<HTMLButtonElement>('[data-tag-clear]');
 
-  type SortKey = 'updated' | 'created' | 'a–z';
-  const state: { filter: string; sort: SortKey; tag: string | null } = {
+  type SortDir = 'desc' | 'asc';
+  const state: { filter: string; sort: SortDir; tag: string | null } = {
     filter: 'all',
-    sort: 'updated',
+    sort: 'desc',
     tag: null,
   };
 
@@ -351,9 +344,9 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
 
   function apply() {
     const sorted = entryEls.slice().sort((a, b) => {
-      if (state.sort === 'a–z') return (a.dataset.title || '').localeCompare(b.dataset.title || '');
-      const key = state.sort === 'created' ? 'created' : 'updated';
-      return (b.dataset[key] || '').localeCompare(a.dataset[key] || '');
+      const av = a.dataset.updated || '';
+      const bv = b.dataset.updated || '';
+      return state.sort === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
     if (entriesList) sorted.forEach(el => entriesList.appendChild(el));
 
@@ -386,11 +379,12 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
     apply();
   }));
 
-  sortButtons.forEach(b => b.addEventListener('click', () => {
-    state.sort = (b.dataset.sort as SortKey) || 'updated';
-    setPressed(sortButtons, x => x.dataset.sort === state.sort);
+  sortToggle?.addEventListener('click', () => {
+    state.sort = state.sort === 'desc' ? 'asc' : 'desc';
+    if (sortArrow) sortArrow.textContent = state.sort === 'asc' ? '↑' : '↓';
+    if (sortToggle) sortToggle.setAttribute('aria-label', `Sort: ${state.sort === 'asc' ? 'oldest first' : 'newest first'}`);
     apply();
-  }));
+  });
 
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement | null;
@@ -550,17 +544,6 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
   .vault .pill-count { font-size: 10px; opacity: 0.55; }
   .vault .pill[aria-pressed="true"] .pill-count { opacity: 0.7; }
 
-  .vault .sort-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .vault .sort-label {
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
   .vault .sort-button {
     appearance: none;
     border: 0;
@@ -569,13 +552,14 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
     font-size: 11px;
     padding: 2px 0;
     cursor: pointer;
-    border-bottom: 1px solid transparent;
+    border-bottom: 1px solid var(--accent);
     font-family: var(--mono-font);
-  }
-  .vault .sort-button[aria-pressed="true"] {
     color: var(--ink);
-    border-bottom-color: var(--accent);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
   }
+  .vault .sort-button:hover { color: var(--accent); }
 
   /* Active tag chip ───────────────────────────────────────────────────── */
   .vault .active-tag {
