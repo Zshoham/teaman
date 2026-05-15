@@ -3,11 +3,12 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "npm run build:all",
+    "build:astro": "astro build",
     "preview": "astro preview",
     "build:slides": "node scripts/build-slides.mjs",
     "build:search": "node scripts/build-search.mjs",
-    "build:all": "npm run build && npm run build:slides && npm run build:search"
+    "build:all": "npm run build:astro && npm run build:slides && npm run build:search"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.0.0",

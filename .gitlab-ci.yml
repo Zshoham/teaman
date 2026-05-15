@@ -3,10 +3,9 @@ variables:
 
 stages:
   - build
-  - search
   - deploy
 
-build:notes:
+build:site:
   stage: build
   image: node:22-alpine
   cache:
@@ -14,32 +13,7 @@ build:notes:
     paths:
       - site/node_modules/
   script:
-    - cd site && npm ci && npm run build
-  artifacts:
-    paths:
-      - public/
-
-build:slides:
-  stage: build
-  image: node:22-alpine
-  cache:
-    key: node-$CI_COMMIT_REF_SLUG
-    paths:
-      - site/node_modules/
-  script:
-    - cd site && npm ci && node scripts/build-slides.mjs
-  artifacts:
-    paths:
-      - public/slides/
-
-build:search:
-  stage: search
-  image: node:22-alpine
-  needs:
-    - build:notes
-    - build:slides
-  script:
-    - npx pagefind --site public
+    - cd site && npm ci && npm run build:all
   artifacts:
     paths:
       - public/
@@ -47,7 +21,7 @@ build:search:
 pages:
   stage: deploy
   needs:
-    - build:search
+    - build:site
   script:
     - echo "Deploying merged site to GitLab Pages"
   artifacts:
