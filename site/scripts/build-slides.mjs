@@ -47,6 +47,7 @@ try {
   }
 } catch (error) {
   console.error(error);
+  process.exitCode = 1;
+} finally {
   rmSync(slidesTmpDir, { recursive: true, force: true });
-  process.exit(1);
 }
