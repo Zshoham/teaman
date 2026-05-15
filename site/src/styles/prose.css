@@ -92,6 +92,8 @@
 /* Inline code */
 .vault .prose :not(pre) > code {
   font-family: var(--mono-font);
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
   font-size: 0.86em;
   padding: 1px 5px;
   background: var(--surface);
@@ -103,8 +105,13 @@
 .vault .prose pre {
   position: relative;
   font-family: var(--mono-font);
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
   font-size: 13px;
   line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+  text-rendering: auto;
   padding: 14px 16px;
   border: 0.5px solid var(--hairline);
   border-radius: 8px;
@@ -120,6 +127,7 @@
   border: 0;
   font-size: inherit;
   font-family: inherit;
+  white-space: inherit;
 }
 
 /* Language label, top-right of the code block. */
