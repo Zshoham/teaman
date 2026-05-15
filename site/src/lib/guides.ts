@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { resolve, join } from 'path';
+import { join } from 'path';
+import { guidesRoot } from './content-paths';
 
 export interface GuideChapter {
   slug: string;
@@ -13,7 +14,6 @@ export interface Guide {
   dir: string;
 }
 
-const guidesRoot = resolve(process.cwd(), '../content/guides');
 const base = import.meta.env.BASE_URL;
 
 /** URL for a chapter. The first chapter of a guide is served at the guide root. */

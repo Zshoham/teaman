@@ -1,7 +1,8 @@
 import { getCollection } from 'astro:content';
 import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { resolve, join } from 'path';
+import { join } from 'path';
 import { listGuides } from './guides';
+import { slidesRoot } from './content-paths';
 
 export type EntryType = 'note' | 'guide' | 'slides';
 
@@ -38,7 +39,6 @@ function slidesMeta(count: number): string {
 }
 
 const base = import.meta.env.BASE_URL;
-const contentRoot = resolve(process.cwd(), '../content');
 
 export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -105,7 +105,7 @@ export async function loadNoteEntries(): Promise<Entry[]> {
 }
 
 export function loadSlideEntries(): Entry[] {
-  const slidesDir = join(contentRoot, 'slides');
+  const slidesDir = slidesRoot;
   if (!existsSync(slidesDir)) return [];
   return readdirSync(slidesDir)
     .filter(f => f.endsWith('.md') && !f.startsWith('_'))
