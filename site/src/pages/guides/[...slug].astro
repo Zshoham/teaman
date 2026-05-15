@@ -9,7 +9,7 @@ import { readingTimeMeta, wordCount, wordMeta } from '../../lib/entries';
 import '../../styles/prose.css';
 
 export async function getStaticPaths() {
-  const guides = listGuides();
+  const guides = await listGuides();
   const paths: Array<{
     params: { slug: string };
     props: { guideSlug: string; chapterSlug: string };
@@ -32,7 +32,7 @@ export async function getStaticPaths() {
 }
 
 const { guideSlug, chapterSlug } = Astro.props;
-const guide = getGuide(guideSlug);
+const guide = await getGuide(guideSlug);
 if (!guide) throw new Error(`Guide not found: ${guideSlug}`);
 
 const entries = await getCollection('guides');

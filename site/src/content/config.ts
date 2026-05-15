@@ -29,6 +29,16 @@ const guides = defineCollection({
   }),
 });
 
+const guideSummaries = defineCollection({
+  loader: glob({
+    pattern: '**/SUMMARY.md',
+    base: guidesRoot,
+  }),
+  schema: z.object({
+    title: z.string().optional(),
+  }),
+});
+
 const slides = defineCollection({
   loader: glob({ pattern: '**/*.md', base: slidesRoot }),
   schema: z.object({
@@ -38,4 +48,4 @@ const slides = defineCollection({
   }).passthrough(),
 });
 
-export const collections = { notes, guides, slides };
+export const collections = { notes, guides, guideSummaries, slides };

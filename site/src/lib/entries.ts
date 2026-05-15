@@ -1,7 +1,7 @@
 import { getCollection } from 'astro:content';
-import { readFileSync, statSync } from 'fs';
+import { stat } from 'fs/promises';
 import { join } from 'path';
-import { listGuides } from './guides';
+import { guideSlugFromSummaryId, listGuides } from './guides';
 import { slidesRoot } from './content-paths';
 
 export type EntryType = 'note' | 'guide' | 'slides';
@@ -63,14 +63,10 @@ function extractExcerpt(body: string, maxLen = 220): string {
   return para.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
 }
 
-function safeMtime(path: string): Date {
-  try { return statSync(path).mtime; } catch { return new Date(); }
-}
-
-function safeFileDates(path: string): { updated: Date; created: Date } {
+async function safeFileDates(path: string): Promise<{ updated: Date; created: Date }> {
   try {
-    const stat = statSync(path);
-    return { updated: stat.mtime, created: stat.birthtime };
+    const fileStat = await stat(path);
+    return { updated: fileStat.mtime, created: fileStat.birthtime };
   } catch {
     const now = new Date();
     return { updated: now, created: now };
@@ -100,13 +96,13 @@ export async function loadNoteEntries(): Promise<Entry[]> {
 
 export async function loadSlideEntries(): Promise<Entry[]> {
   const slides = await getCollection('slides');
-  return slides
+  const entries = slides
     .filter(s => !s.data.draft && !s.id.startsWith('_'))
-    .map(s => {
+    .map(async s => {
       const body = (s.body ?? '') as string;
       const slideCount = body.split(/^---\s*$/m).filter(part => part.trim()).length || 1;
       const path = join(slidesRoot, `${s.id}.md`);
-      const dates = safeFileDates(path);
+      const dates = await safeFileDates(path);
       return {
         id: `slides-${s.id}`,
         type: 'slides' as const,
@@ -119,18 +115,28 @@ export async function loadSlideEntries(): Promise<Entry[]> {
         href: `${base}slides/${s.id}/`,
       };
     });
+  return Promise.all(entries);
 }
 
 export async function loadGuideEntries(): Promise<Entry[]> {
-  const chapters = await getCollection('guides');
+  const [chapters, summaries, guides] = await Promise.all([
+    getCollection('guides'),
+    getCollection('guideSummaries'),
+    listGuides(),
+  ]);
   const chaptersById = new Map(chapters.map(chapter => [chapter.id, chapter]));
+  const summariesBySlug = new Map(
+    summaries.map(summary => [guideSlugFromSummaryId(summary.id), summary.body ?? '']),
+  );
 
-  return listGuides().map(g => {
+  const entries = guides.map(async g => {
     const summaryPath = join(g.dir, 'SUMMARY.md');
-    const summaryBody = readFileSync(summaryPath, 'utf8');
+    const summaryBody = summariesBySlug.get(g.slug) ?? '';
+    const summaryDates = await safeFileDates(summaryPath);
     let excerpt = '';
     let words = 0;
-    let stat = safeMtime(summaryPath);
+    let updated = summaryDates.updated;
+    let created = summaryDates.created;
 
     for (const chapter of g.chapters) {
       const entry = chaptersById.get(`${g.slug}/${chapter.slug}`);
@@ -139,8 +145,9 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       if (!excerpt) excerpt = extractExcerpt(body);
       words += wordCount(body);
       const chapterPath = join(g.dir, `${chapter.slug}.md`);
-      const chapterStat = safeMtime(chapterPath);
-      if (chapterStat > stat) stat = chapterStat;
+      const chapterDates = await safeFileDates(chapterPath);
+      if (chapterDates.updated > updated) updated = chapterDates.updated;
+      if (chapterDates.created < created) created = chapterDates.created;
     }
 
     if (!excerpt) excerpt = extractExcerpt(summaryBody);
@@ -150,12 +157,13 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       title: g.title,
       excerpt,
       tags: [],
-      updated: isoDate(stat),
-      created: isoDate(stat),
+      updated: isoDate(updated),
+      created: isoDate(created),
       meta: wordMeta(words),
       href: `${base}guides/${g.slug}/`,
     };
   });
+  return Promise.all(entries);
 }
 
 /** Loads notes, slides, and guides and returns a single list sorted by `updated` desc. */

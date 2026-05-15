@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
+import { getCollection } from 'astro:content';
 import { join } from 'path';
 import { guidesRoot } from './content-paths';
 
@@ -24,25 +24,23 @@ export function chapterHref(guide: Guide, chapterSlug: string): string {
     : `${base}guides/${guide.slug}/${chapterSlug}/`;
 }
 
-export function listGuides(): Guide[] {
-  if (!existsSync(guidesRoot)) return [];
-  return readdirSync(guidesRoot).flatMap(name => {
-    const dir = join(guidesRoot, name);
-    if (!statSync(dir).isDirectory()) return [];
-    const summary = join(dir, 'SUMMARY.md');
-    if (!existsSync(summary)) return [];
-    return [parseGuide(name, dir, readFileSync(summary, 'utf8'))];
-  });
+export function guideSlugFromSummaryId(id: string): string {
+  return id.replace(/\/summary$/i, '');
 }
 
-export function getGuide(slug: string): Guide | null {
-  const dir = join(guidesRoot, slug);
-  const summary = join(dir, 'SUMMARY.md');
-  if (!existsSync(summary)) return null;
-  return parseGuide(slug, dir, readFileSync(summary, 'utf8'));
+export async function listGuides(): Promise<Guide[]> {
+  const summaries = await getCollection('guideSummaries');
+  return summaries
+    .map(summary => parseGuide(guideSlugFromSummaryId(summary.id), summary.body ?? ''))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-function parseGuide(slug: string, dir: string, summary: string): Guide {
+export async function getGuide(slug: string): Promise<Guide | null> {
+  const guides = await listGuides();
+  return guides.find(guide => guide.slug === slug) ?? null;
+}
+
+function parseGuide(slug: string, summary: string): Guide {
   let title = slug.replace(/-/g, ' ');
   const chapters: GuideChapter[] = [];
   for (const line of summary.split(/\r?\n/)) {
@@ -51,5 +49,5 @@ function parseGuide(slug: string, dir: string, summary: string): Guide {
     const item = line.match(/^\s*[-*]\s+\[([^\]]+)\]\(\.?\/?(.+?)\.md\)/);
     if (item) chapters.push({ title: item[1], slug: item[2] });
   }
-  return { slug, title, dir, chapters };
+  return { slug, title, dir: join(guidesRoot, slug), chapters };
 }
