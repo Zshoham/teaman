@@ -23,6 +23,7 @@ const base = process.env.SITE_BASE ?? '/';
 export default defineConfig({
   base,
   outDir: '../public',
+  publicDir: './resources',
   integrations: [mdx()],
   vite: {
     server: {

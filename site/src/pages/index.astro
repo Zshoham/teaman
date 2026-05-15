@@ -50,7 +50,7 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
     lastUpdated={lastUpdated}
   />
 
-  <div class="layout" data-has-sidebar={topics.length > 0 ? 'true' : 'false'}>
+  <div class="layout" data-list-layout data-has-sidebar={topics.length > 0 ? 'true' : 'false'}>
     <div class="content">
       <FilterBar filterTabs={filterTabs} />
       <ActiveTagChip />
@@ -69,6 +69,7 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
   import { createListController } from '../scripts/list-controller';
 
   const entriesList = document.querySelector<HTMLElement>('[data-entries]');
+  const layout = document.querySelector<HTMLElement>('[data-list-layout]');
   if (entriesList) {
     const filterPills = Array.from(
       document.querySelectorAll<HTMLButtonElement>('[data-filter-pills] [data-filter]')
@@ -96,6 +97,8 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
         activeWrap: document.querySelector<HTMLElement>('[data-active-tag]'),
         activeName: document.querySelector<HTMLElement>('[data-active-tag-name]'),
         clearButton: document.querySelector<HTMLButtonElement>('[data-tag-clear]'),
+        clickRoot: layout ?? document,
+        tagRoot: layout ?? entriesList,
       },
     });
   }

@@ -1,5 +1,5 @@
 import { getCollection } from 'astro:content';
-import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { listGuides } from './guides';
 import { slidesRoot } from './content-paths';
@@ -48,22 +48,6 @@ export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function stripFrontmatter(md: string): { fm: string; body: string } {
-  if (!md.startsWith('---\n')) return { fm: '', body: md };
-  const end = md.indexOf('\n---\n', 4);
-  if (end === -1) return { fm: '', body: md };
-  return { fm: md.slice(4, end), body: md.slice(end + 5) };
-}
-
-function readFm(fm: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of fm.split('\n')) {
-    const m = line.match(/^([a-zA-Z_][\w-]*)\s*:\s*(.+?)\s*$/);
-    if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return out;
-}
-
 function extractExcerpt(body: string, maxLen = 220): string {
   const cleaned = body
     .replace(/^---\s*$/gm, '')
@@ -81,6 +65,16 @@ function extractExcerpt(body: string, maxLen = 220): string {
 
 function safeMtime(path: string): Date {
   try { return statSync(path).mtime; } catch { return new Date(); }
+}
+
+function safeFileDates(path: string): { updated: Date; created: Date } {
+  try {
+    const stat = statSync(path);
+    return { updated: stat.mtime, created: stat.birthtime };
+  } catch {
+    const now = new Date();
+    return { updated: now, created: now };
+  }
 }
 
 export async function loadNoteEntries(): Promise<Entry[]> {
@@ -104,36 +98,33 @@ export async function loadNoteEntries(): Promise<Entry[]> {
     });
 }
 
-export function loadSlideEntries(): Entry[] {
-  const slidesDir = slidesRoot;
-  if (!existsSync(slidesDir)) return [];
-  return readdirSync(slidesDir)
-    .filter(f => f.endsWith('.md') && !f.startsWith('_'))
-    .map(f => {
-      const path = join(slidesDir, f);
-      const md = readFileSync(path, 'utf8');
-      const { fm, body } = stripFrontmatter(md);
-      const data = readFm(fm);
-      const slideCount = body.split(/^---\s*$/m).filter(s => s.trim()).length || 1;
-      const id = f.replace(/\.md$/, '');
-      const stat = statSync(path);
+export async function loadSlideEntries(): Promise<Entry[]> {
+  const slides = await getCollection('slides');
+  return slides
+    .filter(s => !s.data.draft && !s.id.startsWith('_'))
+    .map(s => {
+      const body = (s.body ?? '') as string;
+      const slideCount = body.split(/^---\s*$/m).filter(part => part.trim()).length || 1;
+      const path = join(slidesRoot, `${s.id}.md`);
+      const dates = safeFileDates(path);
       return {
-        id: `slides-${id}`,
+        id: `slides-${s.id}`,
         type: 'slides' as const,
-        title: data.title ?? id.replace(/-/g, ' '),
+        title: s.data.title ?? s.id.replace(/-/g, ' '),
         excerpt: extractExcerpt(body),
-        tags: data.tags
-          ? data.tags.replace(/^\[|\]$/g, '').split(',').map(t => t.trim()).filter(Boolean)
-          : [],
-        updated: isoDate(stat.mtime),
-        created: isoDate(stat.birthtime ?? stat.mtime),
+        tags: s.data.tags ?? [],
+        updated: isoDate(dates.updated),
+        created: isoDate(dates.created),
         meta: slidesMeta(slideCount),
-        href: `${base}slides/${id}/`,
+        href: `${base}slides/${s.id}/`,
       };
     });
 }
 
-export function loadGuideEntries(): Entry[] {
+export async function loadGuideEntries(): Promise<Entry[]> {
+  const chapters = await getCollection('guides');
+  const chaptersById = new Map(chapters.map(chapter => [chapter.id, chapter]));
+
   return listGuides().map(g => {
     const summaryPath = join(g.dir, 'SUMMARY.md');
     const summaryBody = readFileSync(summaryPath, 'utf8');
@@ -142,11 +133,12 @@ export function loadGuideEntries(): Entry[] {
     let stat = safeMtime(summaryPath);
 
     for (const chapter of g.chapters) {
-      const chapterPath = join(g.dir, `${chapter.slug}.md`);
-      if (!existsSync(chapterPath)) continue;
-      const body = readFileSync(chapterPath, 'utf8');
+      const entry = chaptersById.get(`${g.slug}/${chapter.slug}`);
+      if (!entry) continue;
+      const body = entry.body ?? '';
       if (!excerpt) excerpt = extractExcerpt(body);
       words += wordCount(body);
+      const chapterPath = join(g.dir, `${chapter.slug}.md`);
       const chapterStat = safeMtime(chapterPath);
       if (chapterStat > stat) stat = chapterStat;
     }
@@ -170,8 +162,8 @@ export function loadGuideEntries(): Entry[] {
 export async function loadAllEntries(): Promise<Entry[]> {
   const [notes, slides, guides] = await Promise.all([
     loadNoteEntries(),
-    Promise.resolve(loadSlideEntries()),
-    Promise.resolve(loadGuideEntries()),
+    loadSlideEntries(),
+    loadGuideEntries(),
   ]);
   return [...notes, ...slides, ...guides].sort((a, b) => b.updated.localeCompare(a.updated));
 }

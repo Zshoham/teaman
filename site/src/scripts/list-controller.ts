@@ -41,6 +41,8 @@ export interface TagConfig {
   formatName?: (tag: string) => string;
   /** Root for delegated tag-click handling. Defaults to document. */
   clickRoot?: Document | HTMLElement;
+  /** Root for active tag chrome updates. Defaults to clickRoot, then container. */
+  tagRoot?: Document | HTMLElement;
 }
 
 export interface ListControllerConfig {
@@ -127,6 +129,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
   const applyTagChrome = () => {
     if (!cfg.tag) return;
     const { activeWrap, activeName, formatName } = cfg.tag;
+    const tagRoot = cfg.tag.tagRoot ?? cfg.tag.clickRoot ?? cfg.container;
     if (activeWrap) {
       if (activeTag && activeName) {
         activeWrap.hidden = false;
@@ -135,7 +138,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
         activeWrap.hidden = true;
       }
     }
-    document.querySelectorAll<HTMLElement>('[data-tag]').forEach(el => {
+    tagRoot.querySelectorAll<HTMLElement>('[data-tag]').forEach(el => {
       el.classList.toggle('is-active', el.dataset.tag === activeTag);
     });
   };
