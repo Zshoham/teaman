@@ -48,7 +48,7 @@ export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function extractExcerpt(body: string, maxLen = 220): string {
+export function extractExcerpt(body: string, maxLen = 220): string {
   const cleaned = body
     .replace(/^---\s*$/gm, '')
     .replace(/^#+\s.*$/gm, '')

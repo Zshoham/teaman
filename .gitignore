@@ -1,5 +1,7 @@
 # Build output
 public/
+test-results/
+playwright-report/
 
 # Dependencies
 node_modules/

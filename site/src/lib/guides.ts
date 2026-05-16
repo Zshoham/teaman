@@ -40,7 +40,7 @@ export async function getGuide(slug: string): Promise<Guide | null> {
   return guides.find(guide => guide.slug === slug) ?? null;
 }
 
-function parseGuide(slug: string, summary: string): Guide {
+export function parseGuide(slug: string, summary: string): Guide {
   let title = slug.replace(/-/g, ' ');
   const chapters: GuideChapter[] = [];
   for (const line of summary.split(/\r?\n/)) {

@@ -4,19 +4,7 @@ import remarkWikiLink from 'remark-wiki-link';
 import rehypeCallouts from 'rehype-callouts';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
-
-// The page layout already renders a title (from frontmatter for notes, from
-// SUMMARY.md for guide chapters). Authors keep a `# Title` line at the top of
-// their files for Obsidian/GitHub previews — strip it so it doesn't render
-// twice on the site.
-function remarkStripLeadingH1() {
-  return (tree) => {
-    const i = tree.children.findIndex(c => c.type !== 'yaml' && c.type !== 'toml');
-    if (i !== -1 && tree.children[i].type === 'heading' && tree.children[i].depth === 1) {
-      tree.children.splice(i, 1);
-    }
-  };
-}
+import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
 
 const base = process.env.SITE_BASE ?? '/';
 

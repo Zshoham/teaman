@@ -2,31 +2,11 @@ import { readdirSync, readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join, basename } from 'path';
 import * as pagefind from 'pagefind';
+import { parseDeck } from '../src/lib/parse-deck.mjs';
 
 const publicDir = fileURLToPath(new URL('../../public', import.meta.url));
 const slidesSrcDir = fileURLToPath(new URL('../../content/slides', import.meta.url));
 const siteBase = process.env.SITE_BASE ?? '/';
-
-function parseDeck(markdown) {
-  let title = null;
-  let body = markdown;
-
-  if (body.startsWith('---\n')) {
-    const end = body.indexOf('\n---\n', 4);
-    if (end !== -1) {
-      const frontmatter = body.slice(4, end);
-      body = body.slice(end + 5);
-      const titleMatch = frontmatter.match(/^title:\s*(.+?)\s*$/m);
-      if (titleMatch) title = titleMatch[1].replace(/^["']|["']$/g, '');
-    }
-  }
-
-  // Drop slide separators (lines that are exactly `---`) so they don't
-  // get treated as frontmatter or chunk markers by pagefind.
-  body = body.replace(/^---\s*$/gm, '');
-
-  return { title, content: body.trim() };
-}
 
 const { index, errors: createErrors } = await pagefind.createIndex({
   forceLanguage: 'en',
