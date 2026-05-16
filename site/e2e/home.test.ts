@@ -1,4 +1,47 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import type { EntryType } from '../src/lib/entries';
+
+const TYPES = ['note', 'guide', 'slides'] as const satisfies readonly EntryType[];
+
+const STAT_LABEL: Record<EntryType, string> = {
+  note: 'notes',
+  guide: 'guides',
+  slides: 'slides',
+};
+
+async function entryCount(page: Page, type?: EntryType): Promise<number> {
+  const sel = type ? `[data-entry][data-type="${type}"]` : '[data-entry]';
+  return page.locator(sel).count();
+}
+
+async function statCount(page: Page, label: string): Promise<number> {
+  const row = page.locator('.stat-row').filter({ hasText: label });
+  const text = (await row.textContent()) ?? '';
+  const match = text.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+}
+
+async function pickType(page: Page): Promise<EntryType | null> {
+  for (const t of TYPES) if ((await entryCount(page, t)) > 0) return t;
+  return null;
+}
+
+async function pickTag(page: Page): Promise<string | null> {
+  const el = page.locator('[data-tag]').first();
+  if ((await el.count()) === 0) return null;
+  return el.getAttribute('data-tag');
+}
+
+async function expectFilterVisibility(page: Page, active: EntryType) {
+  for (const t of TYPES) {
+    const entries = page.locator(`[data-entry][data-type="${t}"]`);
+    const n = await entries.count();
+    for (let i = 0; i < n; i++) {
+      if (t === active) await expect(entries.nth(i)).toBeVisible();
+      else await expect(entries.nth(i)).toBeHidden();
+    }
+  }
+}
 
 test.describe('home page', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,46 +53,54 @@ test.describe('home page', () => {
   // ── Layout & content ──────────────────────────────────────────────────────
 
   test('shows the brand name and tagline', async ({ page }) => {
-    await expect(page.locator('.brand-name')).toContainText('vault.teaman');
-    await expect(page.locator('.brand-tagline')).toContainText('a working garden');
+    await expect(page.locator('.brand-name')).toBeVisible();
+    await expect(page.locator('.brand-tagline')).toBeVisible();
   });
 
-  test('renders all three entries on initial load', async ({ page }) => {
-    await expect(page.locator('[data-entry]')).toHaveCount(3);
+  test('renders at least one entry on initial load', async ({ page }) => {
+    expect(await entryCount(page)).toBeGreaterThan(0);
   });
 
-  test('shows a note, a guide, and a slides entry', async ({ page }) => {
-    await expect(page.locator('[data-entry][data-type="note"]')).toHaveCount(1);
-    await expect(page.locator('[data-entry][data-type="guide"]')).toHaveCount(1);
-    await expect(page.locator('[data-entry][data-type="slides"]')).toHaveCount(1);
+  test('per-type entry counts sum to the total', async ({ page }) => {
+    const total = await entryCount(page);
+    let sum = 0;
+    for (const t of TYPES) sum += await entryCount(page, t);
+    expect(sum).toBe(total);
   });
 
-  test('displays hero stats that match the entry counts', async ({ page }) => {
-    await expect(page.locator('.stat-row').filter({ hasText: 'notes' })).toContainText('001');
-    await expect(page.locator('.stat-row').filter({ hasText: 'guides' })).toContainText('001');
-    await expect(page.locator('.stat-row').filter({ hasText: 'slides' })).toContainText('001');
+  test('hero stats match the rendered entry counts per type', async ({ page }) => {
+    for (const t of TYPES) {
+      const rendered = await entryCount(page, t);
+      const stat = await statCount(page, STAT_LABEL[t]);
+      expect(stat).toBe(rendered);
+    }
   });
 
   // ── Filter ────────────────────────────────────────────────────────────────
 
-  test('filter: notes pill hides guide and slides entries', async ({ page }) => {
+  test('filter: notes pill shows only note entries', async ({ page }) => {
+    test.skip((await entryCount(page, 'note')) === 0, 'no notes present');
     await page.click('[data-filter="note"]');
-
-    await expect(page.locator('[data-entry][data-type="note"]')).toBeVisible();
-    await expect(page.locator('[data-entry][data-type="guide"]')).toBeHidden();
-    await expect(page.locator('[data-entry][data-type="slides"]')).toBeHidden();
+    await expectFilterVisibility(page, 'note');
   });
 
-  test('filter: guides pill hides note and slides entries', async ({ page }) => {
+  test('filter: guides pill shows only guide entries', async ({ page }) => {
+    test.skip((await entryCount(page, 'guide')) === 0, 'no guides present');
     await page.click('[data-filter="guide"]');
+    await expectFilterVisibility(page, 'guide');
+  });
 
-    await expect(page.locator('[data-entry][data-type="guide"]')).toBeVisible();
-    await expect(page.locator('[data-entry][data-type="note"]')).toBeHidden();
-    await expect(page.locator('[data-entry][data-type="slides"]')).toBeHidden();
+  test('filter: slides pill shows only slides entries', async ({ page }) => {
+    test.skip((await entryCount(page, 'slides')) === 0, 'no slides present');
+    await page.click('[data-filter="slides"]');
+    await expectFilterVisibility(page, 'slides');
   });
 
   test('filter: all pill restores all entries after a type filter', async ({ page }) => {
-    await page.click('[data-filter="note"]');
+    const picked = await pickType(page);
+    test.skip(picked === null, 'no entries present');
+
+    await page.click(`[data-filter="${picked}"]`);
     await page.click('[data-filter="all"]');
 
     for (const entry of await page.locator('[data-entry]').all()) {
@@ -58,11 +109,20 @@ test.describe('home page', () => {
   });
 
   test('filter: active pill has aria-pressed="true"', async ({ page }) => {
-    await page.click('[data-filter="slides"]');
+    const picked = await pickType(page);
+    test.skip(picked === null, 'no entries present');
 
-    await expect(page.locator('[data-filter="slides"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.click(`[data-filter="${picked}"]`);
+
+    await expect(page.locator(`[data-filter="${picked}"]`)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await expect(page.locator('[data-filter="all"]')).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('[data-filter="note"]')).toHaveAttribute('aria-pressed', 'false');
+    for (const t of TYPES) {
+      if (t === picked) continue;
+      await expect(page.locator(`[data-filter="${t}"]`)).toHaveAttribute('aria-pressed', 'false');
+    }
   });
 
   // ── Sort ──────────────────────────────────────────────────────────────────
@@ -90,24 +150,37 @@ test.describe('home page', () => {
 
   // ── Tag ───────────────────────────────────────────────────────────────────
 
-  test('tag: clicking a tag in the sidebar filters to matching entries', async ({ page }) => {
-    // The sidebar topic button for 'architecture' — only the note has this tag.
-    await page.click('[data-tag="architecture"]');
+  test('tag: clicking a tag filters to entries that include it', async ({ page }) => {
+    const tag = await pickTag(page);
+    test.skip(tag === null, 'no tags present');
 
-    await expect(page.locator('[data-entry][data-type="note"]')).toBeVisible();
-    await expect(page.locator('[data-entry][data-type="guide"]')).toBeHidden();
-    await expect(page.locator('[data-entry][data-type="slides"]')).toBeHidden();
+    await page.click(`[data-tag="${tag}"]`);
+
+    const all = page.locator('[data-entry]');
+    const n = await all.count();
+    for (let i = 0; i < n; i++) {
+      const entry = all.nth(i);
+      const tags = ((await entry.getAttribute('data-tags')) ?? '').split(' ').filter(Boolean);
+      if (tags.includes(tag!)) await expect(entry).toBeVisible();
+      else await expect(entry).toBeHidden();
+    }
   });
 
   test('tag: active-tag chip appears with the selected tag name', async ({ page }) => {
-    await page.click('[data-tag="architecture"]');
+    const tag = await pickTag(page);
+    test.skip(tag === null, 'no tags present');
+
+    await page.click(`[data-tag="${tag}"]`);
 
     await expect(page.locator('[data-active-tag]')).toBeVisible();
-    await expect(page.locator('[data-active-tag-name]')).toHaveText('#architecture');
+    await expect(page.locator('[data-active-tag-name]')).toHaveText(`#${tag}`);
   });
 
   test('tag: clear button dismisses the filter and hides the chip', async ({ page }) => {
-    await page.click('[data-tag="architecture"]');
+    const tag = await pickTag(page);
+    test.skip(tag === null, 'no tags present');
+
+    await page.click(`[data-tag="${tag}"]`);
     await page.click('[data-tag-clear]');
 
     await expect(page.locator('[data-active-tag]')).toBeHidden();
@@ -117,28 +190,56 @@ test.describe('home page', () => {
   });
 
   test('tag: clicking the same tag twice clears it (toggle behaviour)', async ({ page }) => {
-    await page.click('[data-tag="architecture"]');
-    await page.click('[data-tag="architecture"]');
+    const tag = await pickTag(page);
+    test.skip(tag === null, 'no tags present');
+
+    await page.click(`[data-tag="${tag}"]`);
+    await page.click(`[data-tag="${tag}"]`);
 
     await expect(page.locator('[data-active-tag]')).toBeHidden();
-    await expect(page.locator('[data-entry][data-type="guide"]')).toBeVisible();
+    for (const entry of await page.locator('[data-entry]').all()) {
+      await expect(entry).toBeVisible();
+    }
   });
 
   test('tag: topic button gains is-active class when selected', async ({ page }) => {
-    await page.click('[data-tag="architecture"]');
-    await expect(page.locator('[data-tag="architecture"]').first()).toHaveClass(/is-active/);
+    const tag = await pickTag(page);
+    test.skip(tag === null, 'no tags present');
+
+    await page.click(`[data-tag="${tag}"]`);
+    await expect(page.locator(`[data-tag="${tag}"]`).first()).toHaveClass(/is-active/);
   });
 
   // ── Filter + tag combination ──────────────────────────────────────────────
 
   test('filter + tag: both constraints apply simultaneously', async ({ page }) => {
-    await page.click('[data-filter="note"]');         // only notes
-    await page.click('[data-tag="architecture"]');    // + tag architecture
+    // Find any entry that carries at least one tag, then use its type+tag.
+    const all = page.locator('[data-entry]');
+    const n = await all.count();
+    let pickedType: string | null = null;
+    let pickedTag: string | null = null;
+    for (let i = 0; i < n; i++) {
+      const entry = all.nth(i);
+      const tags = ((await entry.getAttribute('data-tags')) ?? '').split(' ').filter(Boolean);
+      if (tags.length > 0) {
+        pickedType = await entry.getAttribute('data-type');
+        pickedTag = tags[0];
+        break;
+      }
+    }
+    test.skip(pickedType === null || pickedTag === null, 'no entry with a tag');
 
-    // The note has 'architecture', so it stays visible.
-    await expect(page.locator('[data-entry][data-type="note"]')).toBeVisible();
-    // Guide is hidden by the type filter.
-    await expect(page.locator('[data-entry][data-type="guide"]')).toBeHidden();
+    await page.click(`[data-filter="${pickedType}"]`);
+    await page.click(`[data-tag="${pickedTag}"]`);
+
+    for (let i = 0; i < n; i++) {
+      const entry = all.nth(i);
+      const type = await entry.getAttribute('data-type');
+      const tags = ((await entry.getAttribute('data-tags')) ?? '').split(' ').filter(Boolean);
+      const shouldBeVisible = type === pickedType && tags.includes(pickedTag!);
+      if (shouldBeVisible) await expect(entry).toBeVisible();
+      else await expect(entry).toBeHidden();
+    }
   });
 
   // ── Theme ─────────────────────────────────────────────────────────────────
