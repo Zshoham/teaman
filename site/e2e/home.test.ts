@@ -32,15 +32,30 @@ async function pickTag(page: Page): Promise<string | null> {
   return el.getAttribute('data-tag');
 }
 
+/** The home list is paginated, so not every matching entry is on-screen. */
+const HOME_PAGE_SIZE = 10;
+
+/**
+ * After a type filter: no off-type entry is visible, and at least one on-type
+ * entry is visible (assuming the type has any entries at all).
+ */
 async function expectFilterVisibility(page: Page, active: EntryType) {
   for (const t of TYPES) {
-    const entries = page.locator(`[data-entry][data-type="${t}"]`);
-    const n = await entries.count();
-    for (let i = 0; i < n; i++) {
-      if (t === active) await expect(entries.nth(i)).toBeVisible();
-      else await expect(entries.nth(i)).toBeHidden();
-    }
+    if (t === active) continue;
+    const off = page.locator(`[data-entry][data-type="${t}"]`);
+    const n = await off.count();
+    for (let i = 0; i < n; i++) await expect(off.nth(i)).toBeHidden();
   }
+  const onType = page.locator(`[data-entry][data-type="${active}"]:not([hidden])`);
+  expect(await onType.count()).toBeGreaterThan(0);
+}
+
+/** Visible entries when no filter/tag is applied: up to HOME_PAGE_SIZE. */
+async function expectUnfilteredVisible(page: Page) {
+  const total = await page.locator('[data-entry]').count();
+  await expect(page.locator('[data-entry]:not([hidden])')).toHaveCount(
+    Math.min(total, HOME_PAGE_SIZE)
+  );
 }
 
 test.describe('home page', () => {
@@ -103,9 +118,7 @@ test.describe('home page', () => {
     await page.click(`[data-filter="${picked}"]`);
     await page.click('[data-filter="all"]');
 
-    for (const entry of await page.locator('[data-entry]').all()) {
-      await expect(entry).toBeVisible();
-    }
+    await expectUnfilteredVisible(page);
   });
 
   test('filter: active pill has aria-pressed="true"', async ({ page }) => {
@@ -184,9 +197,7 @@ test.describe('home page', () => {
     await page.click('[data-tag-clear]');
 
     await expect(page.locator('[data-active-tag]')).toBeHidden();
-    for (const entry of await page.locator('[data-entry]').all()) {
-      await expect(entry).toBeVisible();
-    }
+    await expectUnfilteredVisible(page);
   });
 
   test('tag: clicking the same tag twice clears it (toggle behaviour)', async ({ page }) => {
@@ -197,9 +208,7 @@ test.describe('home page', () => {
     await page.click(`[data-tag="${tag}"]`);
 
     await expect(page.locator('[data-active-tag]')).toBeHidden();
-    for (const entry of await page.locator('[data-entry]').all()) {
-      await expect(entry).toBeVisible();
-    }
+    await expectUnfilteredVisible(page);
   });
 
   test('tag: topic button gains is-active class when selected', async ({ page }) => {
@@ -232,14 +241,62 @@ test.describe('home page', () => {
     await page.click(`[data-filter="${pickedType}"]`);
     await page.click(`[data-tag="${pickedTag}"]`);
 
+    // Paging caps how many matches show at once, but: no off-criteria entry
+    // should be visible, and every visible entry must match BOTH constraints.
     for (let i = 0; i < n; i++) {
       const entry = all.nth(i);
       const type = await entry.getAttribute('data-type');
       const tags = ((await entry.getAttribute('data-tags')) ?? '').split(' ').filter(Boolean);
-      const shouldBeVisible = type === pickedType && tags.includes(pickedTag!);
-      if (shouldBeVisible) await expect(entry).toBeVisible();
-      else await expect(entry).toBeHidden();
+      const matches = type === pickedType && tags.includes(pickedTag!);
+      if (!matches) await expect(entry).toBeHidden();
     }
+    const visible = page.locator('[data-entry]:not([hidden])');
+    expect(await visible.count()).toBeGreaterThan(0);
+  });
+
+  // ── Load more ─────────────────────────────────────────────────────────────
+
+  test('load more: button reveals additional entries when clicked', async ({ page }) => {
+    const total = await page.locator('[data-entry]').count();
+    test.skip(total <= HOME_PAGE_SIZE, 'not enough entries to paginate');
+
+    await expectUnfilteredVisible(page);
+    const button = page.locator('[data-load-more]');
+    await expect(button).toBeVisible();
+
+    await button.click();
+    await expect(page.locator('[data-entry]:not([hidden])')).toHaveCount(
+      Math.min(total, HOME_PAGE_SIZE * 2)
+    );
+  });
+
+  test('load more: hides itself after every match is revealed', async ({ page }) => {
+    const total = await page.locator('[data-entry]').count();
+    test.skip(total <= HOME_PAGE_SIZE, 'not enough entries to paginate');
+
+    const button = page.locator('[data-load-more]');
+    const visibleEntries = page.locator('[data-entry]:not([hidden])');
+    let expectedVisible = Math.min(total, HOME_PAGE_SIZE);
+    while (expectedVisible < total) {
+      await expect(button).toBeVisible();
+      await button.click();
+      expectedVisible = Math.min(total, expectedVisible + HOME_PAGE_SIZE);
+      await expect(visibleEntries).toHaveCount(expectedVisible);
+    }
+    await expect(button).toBeHidden();
+  });
+
+  test('load more: filter pill resets paging back to the first page', async ({ page }) => {
+    const total = await page.locator('[data-entry]').count();
+    test.skip(total <= HOME_PAGE_SIZE, 'not enough entries to paginate');
+
+    await page.locator('[data-load-more]').click();
+    await expect
+      .poll(() => page.locator('[data-entry]:not([hidden])').count())
+      .toBeGreaterThan(HOME_PAGE_SIZE);
+
+    await page.click('[data-filter="all"]');
+    await expectUnfilteredVisible(page);
   });
 
   // ── Theme ─────────────────────────────────────────────────────────────────

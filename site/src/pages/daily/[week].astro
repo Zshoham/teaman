@@ -1,0 +1,51 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import WeekStrip from '../../components/daily/WeekStrip.astro';
+import DaySection from '../../components/daily/DaySection.astro';
+import { loadDailyWeeks } from '../../lib/dailies';
+import { fmtDayRange } from '../../lib/format';
+
+export async function getStaticPaths() {
+  const weeks = await loadDailyWeeks();
+  return weeks.map(w => ({ params: { week: w.id }, props: { weekId: w.id, weeks } }));
+}
+
+const { weekId, weeks } = Astro.props as {
+  weekId: string;
+  weeks: Awaited<ReturnType<typeof loadDailyWeeks>>;
+};
+
+const week = weeks.find(w => w.id === weekId);
+if (!week) throw new Error(`Unknown daily week: ${weekId}`);
+
+const caption = fmtDayRange(week.start, week.end, { month: 'long', year: true });
+const docTitle = `daily — ${fmtDayRange(week.start, week.end)}`;
+const footerLeft = `${week.days.length} ${week.days.length === 1 ? 'day' : 'days'} · ${week.totalWords.toLocaleString()} words`;
+---
+
+<Layout title={docTitle} footerLeft={footerLeft}>
+  <WeekStrip weeks={weeks} currentId={week.id} />
+
+  <article class="week" aria-label={`Daily notes for ${caption}`}>
+    <div class="week-caption mono">{caption}</div>
+
+    {week.days.map((day, i) => (
+      <DaySection day={day} isFirst={i === 0} />
+    ))}
+  </article>
+</Layout>
+
+<style>
+  .week {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  .week-caption {
+    text-align: center;
+    padding: 40px 0 8px;
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+</style>

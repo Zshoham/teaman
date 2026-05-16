@@ -1,0 +1,102 @@
+---
+import { render } from 'astro:content';
+import type { DailyEntry } from '../../lib/dailies';
+import { WEEKDAY_LONG, dayAnchor } from '../../lib/dailies';
+import { fmtLongDay } from '../../lib/format';
+import '../../styles/prose.css';
+
+interface Props {
+  day: DailyEntry;
+  /** First day in the week skips the ornamental divider and extra top padding. */
+  isFirst?: boolean;
+}
+
+const { day, isFirst = false } = Astro.props;
+const weekdayLong = WEEKDAY_LONG[day.weekday];
+const longDate = fmtLongDay(day.date);
+const { Content } = await render(day.entry);
+---
+
+<section class:list={['day', { 'day-first': isFirst }]} id={dayAnchor(day.date)} data-day={day.date}>
+  {!isFirst && (
+    <div class="day-divider mono" aria-hidden="true">· · ·</div>
+  )}
+
+  <header class="day-head">
+    <h2 class="day-title">{weekdayLong}</h2>
+    <span class="day-date mono">{longDate}</span>
+  </header>
+
+  <div class="day-body prose">
+    <Content />
+  </div>
+
+  {day.tags.length > 0 && (
+    <div class="day-tags">
+      {day.tags.map(tag => (
+        <span class="day-tag mono">#{tag}</span>
+      ))}
+    </div>
+  )}
+</section>
+
+<style>
+  .day { padding: 72px 0 0; scroll-margin-top: 100px; }
+  .day-first { padding-top: 32px; }
+
+  .day-divider {
+    color: var(--faint);
+    font-size: 14px;
+    letter-spacing: 0.6em;
+    text-align: center;
+    margin-bottom: 56px;
+  }
+
+  .day-head {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .day-title {
+    margin: 0;
+    font-family: var(--display-font);
+    font-weight: 400;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .day-date {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--faint);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* `.prose` (from prose.css) carries the rich-text typography defaults; we
+     only nudge the font-size up to match the dailies' "long-form note" feel. */
+  .day-body {
+    font-size: 18px;
+  }
+
+  .day-tags {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 28px;
+  }
+  .day-tag {
+    font-size: 11px;
+    color: var(--faint);
+    letter-spacing: 0.02em;
+  }
+
+  @media (max-width: 640px) {
+    .day-title { font-size: 34px; }
+    .day { padding-top: 56px; }
+    .day-first { padding-top: 24px; }
+    .day-divider { margin-bottom: 40px; }
+  }
+</style>

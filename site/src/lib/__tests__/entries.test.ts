@@ -6,13 +6,11 @@ vi.mock('fs/promises', () => ({ stat: vi.fn() }));
 
 import { getCollection } from 'astro:content';
 import {
-  wordMeta,
-  readingTimeMeta,
   isoDate,
-  wordCount,
-  extractExcerpt,
+  loadDailyNoteEntries,
   loadNoteEntries,
 } from '../entries';
+import { extractExcerpt, readingTimeMeta, wordCount, wordMeta } from '../text';
 
 // ── Pure utilities ────────────────────────────────────────────────────────────
 
@@ -174,5 +172,31 @@ describe('loadNoteEntries', () => {
   it('returns an empty array when the collection is empty', async () => {
     vi.mocked(getCollection).mockResolvedValue([] as any);
     expect(await loadNoteEntries()).toEqual([]);
+  });
+});
+
+describe('loadDailyNoteEntries', () => {
+  beforeEach(() => {
+    vi.mocked(getCollection).mockReset();
+  });
+
+  it('builds daily index entries from the authored date id', async () => {
+    vi.mocked(getCollection).mockResolvedValue([
+      {
+        id: '2026-05-04',
+        data: { date: new Date('2026-05-04T00:00:00.000Z'), tags: ['focus'] },
+        body: 'Daily note body.',
+      },
+    ] as any);
+
+    const entries = await loadDailyNoteEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 'daily-2026-05-04',
+      title: 'Monday, may 4',
+      updated: '2026-05-04',
+      created: '2026-05-04',
+      href: '/daily/2026-05-03/#day-2026-05-04',
+    });
   });
 });

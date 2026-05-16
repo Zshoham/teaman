@@ -20,7 +20,7 @@ if (createErrors.length) {
 // until JS runs, so pagefind would only see a stub title).
 const { errors: dirErrors, page_count } = await index.addDirectory({
   path: publicDir,
-  glob: '{index.html,{collections,guides,notes}/**/*.html}',
+  glob: '{index.html,{collections,daily,guides,notes}/**/*.html}',
 });
 if (dirErrors.length) {
   console.error('pagefind.addDirectory errors:', dirErrors);

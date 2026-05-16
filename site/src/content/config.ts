@@ -1,6 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { guidesRoot, notesRoot, slidesRoot } from '../lib/content-paths';
+import { dailiesRoot, guidesRoot, notesRoot, slidesRoot } from '../lib/content-paths';
 
 const notes = defineCollection({
   loader: glob({ pattern: '**/*.md', base: notesRoot }),
@@ -48,4 +48,13 @@ const slides = defineCollection({
   }).passthrough(),
 });
 
-export const collections = { notes, guides, guideSummaries, slides };
+const dailies = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: dailiesRoot }),
+  schema: z.object({
+    date: z.coerce.date(),
+    tags: z.array(z.string()).optional(),
+    draft: z.boolean().optional(),
+  }),
+});
+
+export const collections = { notes, guides, guideSummaries, slides, dailies };

@@ -3,7 +3,7 @@ import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { fmtDate } from '../../lib/format';
-import { readingTimeMeta, wordCount, wordMeta } from '../../lib/entries';
+import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 import '../../styles/prose.css';
 
 export async function getStaticPaths() {

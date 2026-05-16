@@ -1,0 +1,178 @@
+---
+import type { DailyWeek } from '../../lib/dailies';
+import { weekHref } from '../../lib/dailies';
+import { fmtDayRange, fmtWeeksAgo } from '../../lib/format';
+import DatePicker from './DatePicker.astro';
+
+interface Props {
+  weeks: DailyWeek[];
+  currentId: string;
+}
+
+const { weeks, currentId } = Astro.props;
+const currentIdx = weeks.findIndex(w => w.id === currentId);
+const prev = currentIdx >= 0 && currentIdx < weeks.length - 1 ? weeks[currentIdx + 1] : null;
+const next = currentIdx > 0 ? weeks[currentIdx - 1] : null;
+
+// `weeks` is newest-first (consumed that way elsewhere). The strip renders
+// oldest → newest left-to-right so the chevron directions match the visual
+// motion: left = older = leftward; right = newer = rightward.
+const chipWeeks = weeks.slice().reverse();
+---
+
+<div class="strip" data-week-strip>
+  <div class="strip-row">
+    {prev
+      ? (
+        <a class="nav-btn" href={weekHref(prev)} title={`previous week — ${fmtDayRange(prev.start, prev.end)}`} aria-label="Previous week">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+        </a>
+      ) : (
+        <span class="nav-btn nav-btn-disabled" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+        </span>
+      )
+    }
+
+    <div class="chips" data-strip-chips>
+      {chipWeeks.map(w => {
+        const active = w.id === currentId;
+        const range = fmtDayRange(w.start, w.end);
+        return (
+          <a
+            class:list={['chip', { 'chip-active': active }]}
+            href={weekHref(w)}
+            data-week={w.id}
+            data-current={active ? 'true' : 'false'}
+            aria-current={active ? 'page' : undefined}
+          >
+            <span class="chip-range mono">{range}</span>
+            <span class="chip-ago mono">{fmtWeeksAgo(w.start)}</span>
+          </a>
+        );
+      })}
+    </div>
+
+    {next
+      ? (
+        <a class="nav-btn" href={weekHref(next)} title={`next week — ${fmtDayRange(next.start, next.end)}`} aria-label="Next week">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+        </a>
+      ) : (
+        <span class="nav-btn nav-btn-disabled" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+        </span>
+      )
+    }
+
+    <DatePicker weeks={weeks} currentId={currentId} />
+  </div>
+</div>
+
+<script>
+  // Center the active chip whenever the strip first paints. Each week change
+  // is a full page load, so this runs on every visit.
+  const chips = document.querySelector<HTMLElement>('[data-strip-chips]');
+  const active = chips?.querySelector<HTMLElement>('[data-current="true"]');
+  if (chips && active) {
+    const target = active.offsetLeft - chips.clientWidth / 2 + active.clientWidth / 2;
+    chips.scrollTo({ left: Math.max(0, target), behavior: 'instant' as ScrollBehavior });
+  }
+</script>
+
+<style>
+  .strip {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--hairline);
+    padding: 14px 0 12px;
+  }
+  .strip-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .chips {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    scroll-behavior: smooth;
+    -webkit-mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+  }
+
+  .chip {
+    flex: 0 0 auto;
+    padding: 8px 14px 9px;
+    border-radius: 7px;
+    border: 0.5px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .chip:hover {
+    border-color: var(--mute);
+    background: var(--surface);
+  }
+  .chip-active,
+  .chip-active:hover {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .chip-range {
+    font-size: 12px;
+    color: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip-ago {
+    font-size: 10px;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .chip-active .chip-ago {
+    color: var(--bg);
+    opacity: 0.65;
+  }
+
+  .nav-btn {
+    appearance: none;
+    cursor: pointer;
+    border: 0.5px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+    padding: 0 14px;
+    border-radius: 7px;
+    min-width: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .nav-btn:hover {
+    border-color: var(--ink);
+    background: var(--surface);
+  }
+  .nav-btn-disabled {
+    cursor: default;
+    color: var(--faint);
+    pointer-events: none;
+  }
+  .nav-btn :global(svg) { display: block; }
+
+  @media (max-width: 640px) {
+    .nav-btn { padding: 0 10px; min-width: 32px; }
+  }
+</style>

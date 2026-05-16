@@ -45,6 +45,15 @@ export interface TagConfig {
   tagRoot?: Document | HTMLElement;
 }
 
+export interface LoadMoreConfig {
+  /** Button toggled visible while more matched items can be revealed. */
+  button: HTMLElement;
+  /** How many items to reveal per page. */
+  pageSize: number;
+  /** Formats the button's text given the remaining matched-but-hidden count. */
+  label?: (remaining: number) => string;
+}
+
 export interface ListControllerConfig {
   /** The element that directly contains the items (parent of the items). */
   container: HTMLElement;
@@ -55,6 +64,7 @@ export interface ListControllerConfig {
   filter?: FilterConfig;
   sort?: SortConfig;
   tag?: TagConfig;
+  loadMore?: LoadMoreConfig;
 }
 
 export type SortDir = 'asc' | 'desc';
@@ -89,6 +99,13 @@ export function createListController(cfg: ListControllerConfig): ListController 
   let filterValue = filterDefault;
   let sortDir: SortDir = cfg.sort?.initial ?? 'desc';
   let activeTag: string | null = null;
+  let page = 1;
+
+  // Changing the filter or active tag should drop the page count — otherwise
+  // a user who scrolled deep into one list keeps the same page when they
+  // switch contexts, which feels random. Sort flips do not reset; they only
+  // change the order of the already-revealed window.
+  const resetPage = () => { page = 1; };
 
   let rafId: number | null = null;
   let needsSort = false;
@@ -115,15 +132,30 @@ export function createListController(cfg: ListControllerConfig): ListController 
   };
 
   const applyVisibility = () => {
-    let visible = 0;
+    const pageSize = cfg.loadMore?.pageSize;
+    const limit = pageSize ? pageSize * page : Infinity;
+    let matched = 0;
+    let shown = 0;
     for (const it of items) {
       const matchFilter = filterValue === filterDefault || it.filterValue === filterValue;
       const matchTag = !activeTag || it.tags.includes(activeTag);
-      const show = matchFilter && matchTag;
+      const eligible = matchFilter && matchTag;
+      let show = false;
+      if (eligible) {
+        matched++;
+        if (shown < limit) {
+          show = true;
+          shown++;
+        }
+      }
       it.el.hidden = !show;
-      if (show) visible++;
     }
-    if (cfg.emptyState) cfg.emptyState.hidden = visible > 0;
+    if (cfg.emptyState) cfg.emptyState.hidden = matched > 0;
+    if (cfg.loadMore) {
+      const remaining = matched - shown;
+      cfg.loadMore.button.hidden = remaining <= 0;
+      if (cfg.loadMore.label) cfg.loadMore.button.textContent = cfg.loadMore.label(remaining);
+    }
   };
 
   const applyTagChrome = () => {
@@ -164,6 +196,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
     };
     const onClick = (b: HTMLElement) => () => {
       filterValue = b.dataset.filter || filterDefault;
+      resetPage();
       setPressed();
       schedule(false);
     };
@@ -196,6 +229,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
       e.preventDefault();
       const tag = tagEl.dataset.tag || '';
       activeTag = activeTag === tag ? null : tag;
+      resetPage();
       schedule(false);
     };
     root.addEventListener('click', onClick);
@@ -205,11 +239,22 @@ export function createListController(cfg: ListControllerConfig): ListController 
     if (clearBtn) {
       const onClear = () => {
         activeTag = null;
+        resetPage();
         schedule(false);
       };
       clearBtn.addEventListener('click', onClear);
       cleanups.push(() => clearBtn.removeEventListener('click', onClear));
     }
+  }
+
+  if (cfg.loadMore) {
+    const { button } = cfg.loadMore;
+    const onClick = () => {
+      page++;
+      schedule(false);
+    };
+    button.addEventListener('click', onClick);
+    cleanups.push(() => button.removeEventListener('click', onClick));
   }
 
   // Initial sort + paint without waiting for rAF.

@@ -5,3 +5,4 @@ export const contentRoot = fileURLToPath(new URL('../../../content', import.meta
 export const notesRoot = join(contentRoot, 'notes');
 export const guidesRoot = join(contentRoot, 'guides');
 export const slidesRoot = join(contentRoot, 'slides');
+export const dailiesRoot = join(contentRoot, 'dailies');

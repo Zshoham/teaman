@@ -1,9 +1,18 @@
 ---
 import { SITE_CONFIG } from '../config';
 import ThemeToggle from './ThemeToggle.astro';
+import { loadDailyWeeks, weekHref } from '../lib/dailies';
 
 const base = import.meta.env.BASE_URL;
 const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
+
+// Link straight at the latest week. `/daily/` works too (it redirects), but
+// the redirect renders a brief intermediate page in static builds — pointing
+// at the resolved week URL keeps the click instant.
+const dailyDir = `${base}daily/`;
+const dailyWeeks = await loadDailyWeeks();
+const dailyHref = dailyWeeks[0] ? weekHref(dailyWeeks[0]) : dailyDir;
+const onDaily = Astro.url.pathname.startsWith(dailyDir);
 ---
 
 <header class="vault-header">
@@ -15,6 +24,14 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
     <span class="brand-name mono">{SITE_CONFIG.brand}</span>
     <span class="brand-tagline mono">/ {SITE_CONFIG.tagline}</span>
   </a>
+
+  <nav class="header-nav" aria-label="Sections">
+    <a
+      href={dailyHref}
+      class:list={['nav-link mono', { 'nav-link-active': onDaily }]}
+      aria-current={onDaily ? 'page' : undefined}
+    >daily</a>
+  </nav>
 
   <div class="header-tools">
     <pagefind-modal-trigger>
@@ -42,9 +59,9 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
 
 <style>
   .vault-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     gap: 24px;
     padding: 28px 0 22px;
     border-bottom: 0.5px solid var(--hairline);
@@ -87,6 +104,30 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
     display: flex;
     align-items: center;
     gap: 18px;
+    justify-self: end;
+  }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    justify-self: center;
+  }
+  .nav-link {
+    font-size: 12px;
+    color: var(--mute);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+    transition: color .12s, border-color .12s;
+  }
+  .nav-link:hover {
+    color: var(--ink);
+  }
+  .nav-link-active,
+  .nav-link-active:hover {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
   }
 
   .search-trigger {
@@ -129,8 +170,16 @@ const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
   }
 
   @media (max-width: 880px) {
-    .vault-header { flex-wrap: wrap; row-gap: 16px; }
-    .header-tools { width: 100%; justify-content: space-between; }
+    .vault-header {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'brand nav'
+        'tools tools';
+      row-gap: 16px;
+    }
+    .brand { grid-area: brand; }
+    .header-nav { grid-area: nav; justify-self: end; }
+    .header-tools { grid-area: tools; width: 100%; justify-self: stretch; justify-content: space-between; }
     .search-trigger { width: 100%; max-width: 320px; }
   }
 </style>

@@ -452,6 +452,158 @@ describe('refresh', () => {
   });
 });
 
+// ── load more ─────────────────────────────────────────────────────────────────
+
+describe('loadMore', () => {
+  function buildPagingRig(itemCount: number) {
+    const container = document.createElement('div');
+    const items: HTMLElement[] = [];
+    for (let i = 0; i < itemCount; i++) {
+      const el = makeItem({
+        'data-type': 'note',
+        'data-updated': `2026-05-${String(itemCount - i).padStart(2, '0')}`,
+        'data-tags': i % 2 === 0 ? 'topic-a' : 'topic-b',
+      });
+      items.push(el);
+      container.appendChild(el);
+    }
+    const button = document.createElement('button');
+    document.body.appendChild(container);
+    return { container, items, button };
+  }
+
+  it('shows only the first page of items on initial render', () => {
+    const { container, items, button } = buildPagingRig(25);
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      loadMore: { button, pageSize: 10 },
+    });
+
+    const visible = items.filter(i => !i.hidden);
+    expect(visible).toHaveLength(10);
+    expect(button.hidden).toBe(false);
+  });
+
+  it('formats the load-more label with the remaining-count callback', () => {
+    const { container, button } = buildPagingRig(25);
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      loadMore: { button, pageSize: 10, label: r => `load more · ${r}` },
+    });
+    expect(button.textContent).toBe('load more · 15');
+  });
+
+  it('reveals the next page on click', () => {
+    const { container, items, button } = buildPagingRig(25);
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      loadMore: { button, pageSize: 10, label: r => String(r) },
+    });
+
+    button.click();
+    flushRAF();
+
+    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+    expect(button.hidden).toBe(false);
+    expect(button.textContent).toBe('5');
+  });
+
+  it('hides the button when no more matched items remain', () => {
+    const { container, button } = buildPagingRig(15);
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      loadMore: { button, pageSize: 10 },
+    });
+
+    button.click();
+    flushRAF();
+
+    expect(button.hidden).toBe(true);
+  });
+
+  it('resets paging when a filter pill is clicked', () => {
+    const { container, items, button } = buildPagingRig(25);
+    // Make 5 items match a separate filter so we have <pageSize matches.
+    items.slice(0, 5).forEach(i => i.setAttribute('data-type', 'guide'));
+
+    const pills = ['all', 'note', 'guide'].map(v => {
+      const b = document.createElement('button');
+      b.dataset.filter = v;
+      return b;
+    });
+
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      filter: { pills, attr: 'data-type' },
+      loadMore: { button, pageSize: 10 },
+    });
+
+    // Page deep into the full list, then switch filter — pages should reset.
+    button.click();
+    flushRAF();
+    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+
+    pills[2].click(); // guide (5 matches)
+    flushRAF();
+    expect(items.filter(i => !i.hidden)).toHaveLength(5);
+    expect(button.hidden).toBe(true);
+
+    pills[0].click(); // back to all — should restart at page 1
+    flushRAF();
+    expect(items.filter(i => !i.hidden)).toHaveLength(10);
+  });
+
+  it('resets paging when a tag is selected', () => {
+    const { container, items, button } = buildPagingRig(25);
+
+    const tagBtn = document.createElement('button');
+    tagBtn.dataset.tag = 'topic-a';
+    container.appendChild(tagBtn);
+
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      tag: { attr: 'data-tags', clickRoot: container },
+      loadMore: { button, pageSize: 10 },
+    });
+
+    button.click();
+    flushRAF();
+    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+
+    tagBtn.click();
+    flushRAF();
+    // Indices 0,2,4,...,24 have topic-a → 13 matches. Page is reset to 1 → cap at 10.
+    expect(items.filter(i => !i.hidden)).toHaveLength(10);
+  });
+
+  it('keeps paging stable when sort direction toggles', () => {
+    const { container, items, button } = buildPagingRig(25);
+    const sortToggle = document.createElement('button');
+
+    createListController({
+      container,
+      itemSelector: '[data-entry]',
+      sort: { toggle: sortToggle, attr: 'data-updated' },
+      loadMore: { button, pageSize: 10 },
+    });
+
+    button.click();
+    flushRAF();
+    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+
+    sortToggle.click();
+    flushRAF();
+    // Same window size, different members.
+    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+  });
+});
+
 // ── destroy ───────────────────────────────────────────────────────────────────
 
 describe('destroy', () => {

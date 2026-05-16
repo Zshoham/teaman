@@ -1,0 +1,11 @@
+---
+// /daily/ → redirect to the most-recent week.
+import { loadDailyWeeks, weekHref } from '../../lib/dailies';
+
+const weeks = await loadDailyWeeks();
+const latest = weeks[0];
+if (!latest) {
+  return new Response('No daily notes yet.', { status: 404 });
+}
+return Astro.redirect(weekHref(latest));
+---

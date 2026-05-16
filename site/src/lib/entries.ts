@@ -3,6 +3,9 @@ import { stat } from 'fs/promises';
 import { join } from 'path';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { slidesRoot } from './content-paths';
+import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, type WeekdayShort } from './dailies';
+import { fmtLongDay } from './format';
+import { extractExcerpt, wordCount, wordMeta } from './text';
 
 export type EntryType = 'note' | 'guide' | 'slides';
 
@@ -25,15 +28,6 @@ export interface Entry {
   href: string;
 }
 
-export function wordMeta(words: number): string {
-  return `${words.toLocaleString()} words`;
-}
-
-export function readingTimeMeta(words: number): string {
-  const minutes = Math.max(1, Math.ceil(words / 220));
-  return `${minutes} min read`;
-}
-
 function slidesMeta(count: number): string {
   return `${count} ${count === 1 ? 'slide' : 'slides'}`;
 }
@@ -42,25 +36,6 @@ const base = import.meta.env.BASE_URL;
 
 export function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-export function wordCount(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-export function extractExcerpt(body: string, maxLen = 220): string {
-  const cleaned = body
-    .replace(/^---\s*$/gm, '')
-    .replace(/^#+\s.*$/gm, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, p, a) => a || p)
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\*\*|__|`/g, '');
-  const para = cleaned.split(/\n\s*\n/).map(s => s.trim()).find(Boolean) ?? '';
-  if (para.length <= maxLen) return para;
-  return para.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
 }
 
 async function safeFileDates(path: string): Promise<{ updated: Date; created: Date }> {
@@ -166,12 +141,48 @@ export async function loadGuideEntries(): Promise<Entry[]> {
   return Promise.all(entries);
 }
 
+const WEEKDAY_FROM_INDEX: WeekdayShort[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function dailyDateId(entry: { id: string; data: { date: Date } }): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(entry.id)) return entry.id;
+  return isoDate(entry.data.date);
+}
+
+/**
+ * Daily notes show up in the index alongside regular notes. Each daily file
+ * becomes one entry whose href deep-links to its anchor inside the week page.
+ */
+export async function loadDailyNoteEntries(): Promise<Entry[]> {
+  const dailies = await getCollection('dailies');
+  return dailies
+    .filter(d => !d.data.draft)
+    .map(d => {
+      const body = (d.body ?? '') as string;
+      const iso = dailyDateId(d);
+      const date = new Date(`${iso}T00:00:00`);
+      const weekday = WEEKDAY_LONG[WEEKDAY_FROM_INDEX[date.getDay()]];
+      const weekId = isoDate(sundayOf(date));
+      return {
+        id: `daily-${iso}`,
+        type: 'note' as const,
+        title: `${weekday}, ${fmtLongDay(iso)}`,
+        excerpt: extractExcerpt(body),
+        tags: d.data.tags ?? [],
+        updated: iso,
+        created: iso,
+        meta: wordMeta(wordCount(body)),
+        href: `${weekHref({ id: weekId })}#${dayAnchor(iso)}`,
+      };
+    });
+}
+
 /** Loads notes, slides, and guides and returns a single list sorted by `updated` desc. */
 export async function loadAllEntries(): Promise<Entry[]> {
-  const [notes, slides, guides] = await Promise.all([
+  const [notes, dailies, slides, guides] = await Promise.all([
     loadNoteEntries(),
+    loadDailyNoteEntries(),
     loadSlideEntries(),
     loadGuideEntries(),
   ]);
-  return [...notes, ...slides, ...guides].sort((a, b) => b.updated.localeCompare(a.updated));
+  return [...notes, ...dailies, ...slides, ...guides].sort((a, b) => b.updated.localeCompare(a.updated));
 }

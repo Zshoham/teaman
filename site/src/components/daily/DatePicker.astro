@@ -1,0 +1,375 @@
+---
+import type { DailyWeek } from '../../lib/dailies';
+import {
+  addDays,
+  isoDate,
+  sundayOf,
+  weekHref,
+  WEEKDAY_INITIALS,
+} from '../../lib/dailies';
+
+interface Props {
+  weeks: DailyWeek[];
+  currentId: string;
+}
+
+const { weeks, currentId } = Astro.props;
+
+// Map: ISO Sunday date → week. Used to mark week-rows with notes.
+const bySunday: Record<string, DailyWeek> = Object.fromEntries(weeks.map(w => [w.start, w]));
+
+// Data bounds — restrict month nav to the months that actually contain weeks.
+const sorted = weeks.slice().sort((a, b) => a.start.localeCompare(b.start));
+const earliest = new Date(`${sorted[0]?.start ?? isoDate(new Date())}T00:00:00`);
+const latest = new Date(`${sorted[sorted.length - 1]?.start ?? isoDate(new Date())}T00:00:00`);
+const minMonth = `${earliest.getFullYear()}-${String(earliest.getMonth() + 1).padStart(2, '0')}`;
+const maxMonth = `${latest.getFullYear()}-${String(latest.getMonth() + 1).padStart(2, '0')}`;
+
+// Pre-render every month between earliest and latest (inclusive). The popover
+// hides all but one at a time and the month-nav buttons swap which is shown.
+interface MonthView {
+  key: string; // 'YYYY-MM'
+  year: number;
+  month: number;
+  label: string;
+  rows: Array<{
+    sundayIso: string;
+    days: Array<{ day: number; inMonth: boolean }>;
+    week: DailyWeek | null;
+    active: boolean;
+  }>;
+}
+
+function monthLabel(year: number, month: number): string {
+  return new Date(year, month, 1).toLocaleString('en-US', { month: 'long' }).toLowerCase();
+}
+
+function buildMonth(year: number, month: number): MonthView {
+  // First Sunday of the month's calendar view.
+  const first = new Date(year, month, 1);
+  const start = sundayOf(first);
+  const rows: MonthView['rows'] = [];
+  let cursor = start;
+  for (let r = 0; r < 6; r++) {
+    const sundayIso = isoDate(cursor);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(cursor, i);
+      days.push({ day: d.getDate(), inMonth: d.getMonth() === month });
+    }
+    const week = bySunday[sundayIso] ?? null;
+    rows.push({
+      sundayIso,
+      days,
+      week,
+      active: !!week && week.id === currentId,
+    });
+    cursor = addDays(cursor, 7);
+    if (cursor.getMonth() !== month && r >= 3) break;
+  }
+  return {
+    key: `${year}-${String(month + 1).padStart(2, '0')}`,
+    year,
+    month,
+    label: monthLabel(year, month),
+    rows,
+  };
+}
+
+const months: MonthView[] = [];
+{
+  let y = earliest.getFullYear();
+  let m = earliest.getMonth();
+  while (y < latest.getFullYear() || (y === latest.getFullYear() && m <= latest.getMonth())) {
+    months.push(buildMonth(y, m));
+    m += 1;
+    if (m > 11) { m = 0; y += 1; }
+  }
+}
+
+// Decide which month to show first — the month of the current week.
+const currentWeek = weeks.find(w => w.id === currentId) ?? weeks[0];
+const currentDate = new Date(`${currentWeek.start}T00:00:00`);
+const initialKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+---
+
+<div class="archive" data-archive>
+  <button
+    type="button"
+    class="archive-btn"
+    data-archive-toggle
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    title="jump to a week"
+  >
+    <span class="mono">archive</span>
+    <svg
+      class="archive-caret"
+      width="10" height="10" viewBox="0 0 16 16"
+      fill="none" stroke="currentColor" stroke-width="1.25"
+      stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6l4 4 4-4"/>
+    </svg>
+  </button>
+
+  <div class="popover" role="dialog" aria-label="Pick a week" data-archive-popover hidden>
+    <div class="picker-header">
+      <button type="button" class="picker-nav" data-archive-prev aria-label="Previous month">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>
+      </button>
+      <div class="picker-label" data-archive-label>
+        {months.map(m => (
+          <span
+            class="month-label mono"
+            data-month={m.key}
+            data-active={m.key === initialKey ? 'true' : 'false'}
+            hidden={m.key !== initialKey}
+          >
+            {m.label}
+            <span class="month-year">{m.year}</span>
+          </span>
+        ))}
+      </div>
+      <button type="button" class="picker-nav" data-archive-next aria-label="Next month">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+      </button>
+    </div>
+
+    <div class="weekday-row">
+      <span />
+      {WEEKDAY_INITIALS.map((d, i) => (
+        <span class="weekday-cell mono" data-i={i}>{d}</span>
+      ))}
+      <span />
+    </div>
+
+    <div class="months">
+      {months.map(month => (
+        <div
+          class="month"
+          data-month={month.key}
+          data-min={month.key === minMonth ? 'true' : 'false'}
+          data-max={month.key === maxMonth ? 'true' : 'false'}
+          hidden={month.key !== initialKey}
+        >
+          {month.rows.map(row => {
+            const monthIso = String(month.month + 1).padStart(2, '0');
+            const hasNotes = !!row.week;
+            const baseClass = ['week-row', { 'week-row-active': row.active, 'week-row-empty': !hasNotes }] as const;
+            return hasNotes ? (
+              <a
+                class:list={baseClass}
+                href={weekHref(row.week!)}
+                title={`jump to week of ${row.sundayIso}`}
+              >
+                <span class="row-month mono">{monthIso}</span>
+                {row.days.map(d => (
+                  <span class:list={['row-day mono', { 'row-day-out': !d.inMonth }]}>{d.day}</span>
+                ))}
+                <span class="row-dot row-dot-on" aria-hidden="true" />
+              </a>
+            ) : (
+              <span class:list={baseClass}>
+                <span class="row-month mono">{monthIso}</span>
+                {row.days.map(d => (
+                  <span class:list={['row-day mono', { 'row-day-out': !d.inMonth }]}>{d.day}</span>
+                ))}
+                <span class="row-dot" aria-hidden="true" />
+              </span>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+
+    <div class="picker-foot">
+      <span class="mono picker-foot-label">pick a week</span>
+      <span class="mono picker-foot-key">
+        <span class="row-dot row-dot-on inline" aria-hidden="true" />
+        has notes
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { initArchive } from '../../scripts/daily-archive';
+  initArchive();
+</script>
+
+<style>
+  .archive { position: relative; display: inline-flex; }
+  .archive-btn {
+    appearance: none;
+    cursor: pointer;
+    border: 0.5px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+    padding: 0 12px;
+    border-radius: 7px;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+    font-size: 12px;
+    transition: border-color .12s, background .12s;
+  }
+  .archive-btn:hover,
+  .archive-btn[aria-expanded='true'] {
+    border-color: var(--ink);
+    background: var(--surface);
+  }
+  .archive-caret { color: var(--faint); }
+
+  .popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 308px;
+    background: var(--surface);
+    border: 0.5px solid var(--hairline);
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    z-index: 12;
+    padding: 14px;
+  }
+  .popover[hidden] { display: none; }
+
+  .picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .picker-label {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .month-label[hidden] { display: none; }
+  .month-year { color: var(--faint); margin-left: 8px; }
+
+  .picker-nav {
+    appearance: none;
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    border: 0.5px solid var(--hairline);
+    background: transparent;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .picker-nav:hover {
+    border-color: var(--ink);
+    background: var(--bg);
+  }
+  .picker-nav:disabled {
+    cursor: default;
+    color: var(--faint);
+    border-color: var(--hairline);
+    background: transparent;
+  }
+  .picker-nav :global(svg) { display: block; }
+
+  .weekday-row,
+  .week-row {
+    display: grid;
+    grid-template-columns: 24px repeat(7, 1fr) 16px;
+    gap: 4px;
+    align-items: center;
+  }
+  .weekday-row { margin-bottom: 6px; }
+  .weekday-cell {
+    font-size: 10px;
+    color: var(--faint);
+    text-align: center;
+    letter-spacing: 0.08em;
+  }
+
+  .months > .month[hidden] { display: none; }
+  .month {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .week-row {
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    border-radius: 5px;
+    outline: 0.5px solid transparent;
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+    transition: background .12s, outline-color .12s;
+  }
+  .week-row.week-row-empty { cursor: default; }
+  a.week-row:hover { background: var(--bg); }
+  .week-row-active {
+    background: var(--bg);
+    outline-color: var(--ink);
+  }
+
+  .row-month {
+    font-size: 9px;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .row-day {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    padding: 4px 0;
+  }
+  .row-day-out { color: var(--mute); opacity: 0.55; }
+  .week-row-empty .row-day,
+  .week-row-empty .row-day-out {
+    color: var(--faint);
+    opacity: 0.55;
+  }
+
+  .row-dot {
+    display: inline-block;
+    justify-self: center;
+    width: 5px;
+    height: 5px;
+    border-radius: 99px;
+    background: transparent;
+  }
+  .row-dot-on { background: var(--accent); opacity: 0.9; }
+  .row-dot-on.inline {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .week-row-active .row-dot-on { opacity: 1; }
+
+  .picker-foot {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 0.5px solid var(--hairline);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--faint);
+    letter-spacing: 0.08em;
+  }
+  .picker-foot-label { text-transform: uppercase; }
+  .picker-foot-key { display: inline-flex; align-items: center; }
+</style>
