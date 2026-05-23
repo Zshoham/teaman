@@ -1,8 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import WeekStrip from '../../components/daily/WeekStrip.astro';
+import { WeekStrip } from '../../components/daily/WeekStrip';
 import DaySection from '../../components/daily/DaySection.astro';
 import { loadDailyWeeks } from '../../lib/dailies';
+import type { DailyWeekShape } from '../../lib/dailies-shared';
 import { fmtDayRange } from '../../lib/format';
 
 export async function getStaticPaths() {
@@ -18,13 +19,14 @@ const { weekId, weeks } = Astro.props as {
 const week = weeks.find(w => w.id === weekId);
 if (!week) throw new Error(`Unknown daily week: ${weekId}`);
 
+const stripWeeks: DailyWeekShape[] = weeks.map(({ id, start, end }) => ({ id, start, end }));
 const caption = fmtDayRange(week.start, week.end, { month: 'long', year: true });
 const docTitle = `daily — ${fmtDayRange(week.start, week.end)}`;
 const footerLeft = `${week.days.length} ${week.days.length === 1 ? 'day' : 'days'} · ${week.totalWords.toLocaleString()} words`;
 ---
 
 <Layout title={docTitle} footerLeft={footerLeft}>
-  <WeekStrip weeks={weeks} currentId={week.id} />
+  <WeekStrip weeks={stripWeeks} currentId={week.id} client:load />
 
   <article class="mx-auto max-w-[680px]" aria-label={`Daily notes for ${caption}`}>
     <div class="pt-10 pb-2 text-center font-mono text-[11px] uppercase tracking-[0.16em] text-faint">{caption}</div>

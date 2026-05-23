@@ -7,13 +7,15 @@ import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
 
+import react from '@astrojs/react';
+
 const base = process.env.SITE_BASE ?? '/';
 
 export default defineConfig({
   base,
   outDir: '../public',
   publicDir: './resources',
-  integrations: [mdx()],
+  integrations: [mdx(), react()],
   vite: {
     plugins: [tailwindcss()],
     server: {

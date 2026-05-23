@@ -37,7 +37,7 @@ test.describe('daily notes', () => {
     await page.click('[data-archive-toggle]');
     await expect(popover).toBeVisible();
     // Only the currently-visible month panel has rendered week-rows on-screen.
-    await expect(popover.locator('.month:not([hidden]) .row-dot-on').first()).toBeVisible();
+    await expect(popover.locator('.month .row-dot-on').first()).toBeVisible();
 
     await page.keyboard.press('Escape');
     await expect(popover).toBeHidden();
@@ -48,7 +48,7 @@ test.describe('daily notes', () => {
     await page.click('[data-archive-toggle]');
 
     const popover = page.locator('[data-archive-popover]');
-    const visibleLabel = popover.locator('.month-label:not([hidden])');
+    const visibleLabel = popover.locator('.month-label');
     const initialLabel = await visibleLabel.textContent();
     expect(initialLabel).toBeTruthy();
 

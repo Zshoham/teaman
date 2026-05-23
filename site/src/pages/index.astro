@@ -3,11 +3,11 @@ import Layout from '../layouts/Layout.astro';
 import { SITE_CONFIG } from '../config';
 import { loadAllEntries } from '../lib/entries';
 import { fmtDate } from '../lib/format';
-import Hero from '../components/home/Hero.astro';
-import FilterBar from '../components/home/FilterBar.astro';
-import ActiveTagChip from '../components/home/ActiveTagChip.astro';
-import EntryCard from '../components/home/EntryCard.astro';
-import TopicsSidebar from '../components/home/TopicsSidebar.astro';
+import { Hero } from '../components/home/Hero';
+import { FilterBar } from '../components/home/FilterBar';
+import { ActiveTagChip } from '../components/home/ActiveTagChip';
+import { EntryCard } from '../components/home/EntryCard';
+import { TopicsSidebar } from '../components/home/TopicsSidebar';
 
 const entries = await loadAllEntries();
 
@@ -72,13 +72,13 @@ const hasSidebar = topics.length > 0;
       </div>
       <button
         type="button"
-        class="mx-auto mt-8 block cursor-pointer rounded-md border border-hairline bg-transparent px-4.5 py-2 font-[inherit] text-[12px] tabular-nums tracking-wide text-ink transition-colors hover:border-ink hover:bg-surface focus-visible:border-ink focus-visible:bg-surface focus-visible:outline-none [&[hidden]]:hidden"
+        class="mx-auto mt-8 block cursor-pointer rounded-md border border-border bg-transparent px-4.5 py-2 font-[inherit] text-[12px] tabular-nums tracking-wide text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none [&[hidden]]:hidden"
         data-load-more
         hidden
       >load more</button>
     </div>
 
-    {hasSidebar && <TopicsSidebar topics={topics} />}
+    {hasSidebar && <TopicsSidebar topics={topics} client:load />}
   </div>
 </Layout>
 

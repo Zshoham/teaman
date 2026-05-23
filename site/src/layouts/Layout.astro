@@ -62,7 +62,7 @@ const docTitle = title
       <slot />
     </main>
 
-    <footer class="mt-16 flex flex-wrap items-baseline justify-between gap-4 border-t border-hairline px-0 pt-8 pb-12 font-mono text-[11px] text-faint">
+    <footer class="mt-16 flex flex-wrap items-baseline justify-between gap-4 border-t border-border px-0 pt-8 pb-12 font-mono text-[11px] text-faint">
       <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
       {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
     </footer>

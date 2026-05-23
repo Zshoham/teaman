@@ -1,6 +1,6 @@
 ---
 import { SITE_CONFIG } from '../config';
-import ThemeToggle from './ThemeToggle.astro';
+import { ThemeToggle } from './ThemeToggle';
 import { loadDailyWeeks, weekHref } from '../lib/dailies';
 
 const base = import.meta.env.BASE_URL;
@@ -15,15 +15,15 @@ const dailyHref = dailyWeeks[0] ? weekHref(dailyWeeks[0]) : dailyDir;
 const onDaily = Astro.url.pathname.startsWith(dailyDir);
 ---
 
-<header class="grid grid-cols-[1fr_auto] gap-4 border-b border-hairline pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6">
-  <a href={base} class="brand flex items-center gap-2.5 text-ink no-underline">
+<header class="grid grid-cols-[1fr_auto] gap-4 border-b border-border pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6">
+  <a href={base} class="brand flex items-center gap-2.5 text-foreground no-underline">
     {logoUrl
       ? <span
           class="inline-block h-5 w-5 bg-current"
           style={`--brand-logo: url('${logoUrl}'); -webkit-mask: var(--brand-logo) center / contain no-repeat; mask: var(--brand-logo) center / contain no-repeat;`}
           aria-hidden="true"
         ></span>
-      : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-accent" aria-hidden="true"></span>
+      : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
     <span class="brand-name font-mono text-[13px] font-medium tracking-wide">{SITE_CONFIG.brand}</span>
     <span class="brand-tagline ml-1 font-mono text-[11px] text-faint">/ {SITE_CONFIG.tagline}</span>
@@ -38,8 +38,8 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
       class:list={[
         'border-b py-0.5 font-mono text-[12px] no-underline transition-colors',
         onDaily
-          ? 'border-accent text-ink'
-          : 'border-transparent text-mute hover:text-ink',
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
       ]}
       aria-current={onDaily ? 'page' : undefined}
     >daily</a>
@@ -49,16 +49,16 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
     <pagefind-modal-trigger class="w-full max-w-[320px] md:w-auto">
       <button
         type="button"
-        class="flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-hairline bg-transparent py-1.5 pr-2 pl-3 font-[inherit] text-ink transition-colors hover:border-ink hover:bg-surface focus-visible:border-ink focus-visible:bg-surface focus-visible:outline-none md:w-60"
+        class="flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent py-1.5 pr-2 pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-60"
         aria-label="Search the vault"
       >
         <span class="font-mono text-[13px] leading-none text-faint" aria-hidden="true">⌕</span>
-        <span class="flex-1 min-w-0 text-left text-[13px] text-faint">search the vault</span>
-        <span class="shrink-0 rounded-sm border border-hairline bg-bg px-1.5 py-[3px] font-mono text-[10px] leading-none text-faint" aria-hidden="true">/</span>
+        <span class="flex-1 min-w-0 text-left text-[13px] text-muted-foreground">search the vault</span>
+        <span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-[10px] leading-none text-faint" aria-hidden="true">/</span>
       </button>
     </pagefind-modal-trigger>
 
-    <ThemeToggle />
+    <ThemeToggle client:load />
   </div>
 </header>
 

@@ -1,9 +1,9 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import GuideTOC from '../../components/guide/GuideTOC.astro';
-import GuideNav from '../../components/guide/GuideNav.astro';
+import { Breadcrumbs } from '../../components/Breadcrumbs';
+import { GuideTOC } from '../../components/guide/GuideTOC';
+import { GuideNav } from '../../components/guide/GuideNav';
 import { listGuides, getGuide } from '../../lib/guides';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
@@ -59,9 +59,9 @@ const words = wordCount(entry.body ?? '');
       <GuideTOC guide={guide} currentSlug={chapterSlug} />
 
       <div class="min-w-0 max-w-[720px]">
-        <header class="mb-8 border-b border-hairline pb-6">
+        <header class="mb-8 border-b border-border pb-6">
           <p class="guide-eyebrow m-0 font-mono text-[11px] uppercase tracking-wider text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
-          <h1 class="guide-title mt-3 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-ink md:text-[40px]">{currentTitle}</h1>
+          <h1 class="guide-title mt-3 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[40px]">{currentTitle}</h1>
           <p class="mt-4 font-mono text-[11px] text-faint">{wordMeta(words)} · {readingTimeMeta(words)}</p>
         </header>
 

@@ -1,81 +1,230 @@
 @import 'tailwindcss';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 @plugin '@tailwindcss/typography';
 
 /* Theme toggle uses [data-theme='dark'] on <html> rather than the
    prefers-color-scheme media query — bind Tailwind's dark variant to it. */
 @custom-variant dark (&:where([data-theme='dark'] *, [data-theme='dark']));
 
-@theme {
-  --color-bg: #f6f3ec;
-  --color-surface: #fbf9f4;
-  --color-ink: #1a1814;
-  --color-mute: rgba(26, 24, 20, 0.55);
-  --color-faint: rgba(26, 24, 20, 0.32);
-  --color-hairline: rgba(26, 24, 20, 0.12);
-  --color-accent: #b9542a;
-  --color-accent-soft: rgba(185, 84, 42, 0.10);
+/* ────────────────────────────────────────────────────────────────
+   Darkmatter theme via tweakcn, palette only — typography stays
+   on our existing serif / sans / mono trio so prose and headings
+   keep their content-site feel rather than going terminal-mono.
+   ──────────────────────────────────────────────────────────────── */
+:root {
+  --background: oklch(1.0000 0 0);
+  --foreground: oklch(0.2101 0.0318 264.6645);
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.2101 0.0318 264.6645);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.2101 0.0318 264.6645);
+  --primary: oklch(0.6716 0.1368 48.5130);
+  --primary-foreground: oklch(1.0000 0 0);
+  --secondary: oklch(0.5360 0.0398 196.0280);
+  --secondary-foreground: oklch(1.0000 0 0);
+  --muted: oklch(0.9670 0.0029 264.5419);
+  --muted-foreground: oklch(0.5510 0.0234 264.3637);
+  --accent: oklch(0.9491 0 0);
+  --accent-foreground: oklch(0.2101 0.0318 264.6645);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --destructive-foreground: oklch(0.9851 0 0);
+  --border: oklch(0.9276 0.0058 264.5313);
+  --input: oklch(0.9276 0.0058 264.5313);
+  --ring: oklch(0.6716 0.1368 48.5130);
+  --chart-1: oklch(0.5940 0.0443 196.0233);
+  --chart-2: oklch(0.7214 0.1337 49.9802);
+  --chart-3: oklch(0.8721 0.0864 68.5474);
+  --chart-4: oklch(0.6268 0 0);
+  --chart-5: oklch(0.6830 0 0);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.9670 0.0029 264.5419);
+  --sidebar-foreground: oklch(0.2101 0.0318 264.6645);
+  --sidebar-primary: oklch(0.6716 0.1368 48.5130);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(1.0000 0 0);
+  --sidebar-accent-foreground: oklch(0.2101 0.0318 264.6645);
+  --sidebar-border: oklch(0.9276 0.0058 264.5313);
+  --sidebar-ring: oklch(0.6716 0.1368 48.5130);
 
+  /* Faintest meta tone — sits below muted-foreground for ultra-quiet copy. */
+  --faint: oklch(0.7000 0.0150 264.5419);
+
+  --shadow-color: #000000;
+  --shadow-opacity: 0.05;
+  --shadow-blur: 4px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0rem;
+  --spacing: 0.25rem;
+  --shadow-2xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 0px 1px 4px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow-md: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 2px 4px -1px hsl(0 0% 0% / 0.05);
+  --shadow-lg: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 4px 6px -1px hsl(0 0% 0% / 0.05);
+  --shadow-xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.05), 0px 8px 10px -1px hsl(0 0% 0% / 0.05);
+  --shadow-2xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.13);
+  --tracking-normal: 0rem;
+}
+
+[data-theme='dark'] {
+  --background: oklch(0.1797 0.0043 308.1928);
+  --foreground: oklch(0.8109 0 0);
+  --card: oklch(0.1822 0 0);
+  --card-foreground: oklch(0.8109 0 0);
+  --popover: oklch(0.1797 0.0043 308.1928);
+  --popover-foreground: oklch(0.8109 0 0);
+  --primary: oklch(0.7214 0.1337 49.9802);
+  --primary-foreground: oklch(0.1797 0.0043 308.1928);
+  --secondary: oklch(0.5940 0.0443 196.0233);
+  --secondary-foreground: oklch(0.1797 0.0043 308.1928);
+  --muted: oklch(0.2520 0 0);
+  --muted-foreground: oklch(0.6268 0 0);
+  --accent: oklch(0.3211 0 0);
+  --accent-foreground: oklch(0.8109 0 0);
+  --destructive: oklch(0.5940 0.0443 196.0233);
+  --destructive-foreground: oklch(0.1797 0.0043 308.1928);
+  --border: oklch(0.2520 0 0);
+  --input: oklch(0.2520 0 0);
+  --ring: oklch(0.7214 0.1337 49.9802);
+  --chart-1: oklch(0.5940 0.0443 196.0233);
+  --chart-2: oklch(0.7214 0.1337 49.9802);
+  --chart-3: oklch(0.8721 0.0864 68.5474);
+  --chart-4: oklch(0.6268 0 0);
+  --chart-5: oklch(0.6830 0 0);
+  --sidebar: oklch(0.1822 0 0);
+  --sidebar-foreground: oklch(0.8109 0 0);
+  --sidebar-primary: oklch(0.7214 0.1337 49.9802);
+  --sidebar-primary-foreground: oklch(0.1797 0.0043 308.1928);
+  --sidebar-accent: oklch(0.3211 0 0);
+  --sidebar-accent-foreground: oklch(0.8109 0 0);
+  --sidebar-border: oklch(0.2520 0 0);
+  --sidebar-ring: oklch(0.7214 0.1337 49.9802);
+
+  --faint: oklch(0.4500 0 0);
+}
+
+@theme {
   --font-serif: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
-:root[data-theme='dark'] {
-  --color-bg: #15171a;
-  --color-surface: #1b1d21;
-  --color-ink: #ece7dc;
-  --color-mute: rgba(236, 231, 220, 0.60);
-  --color-faint: rgba(236, 231, 220, 0.34);
-  --color-hairline: rgba(236, 231, 220, 0.12);
-  --color-accent: #e08a4a;
-  --color-accent-soft: rgba(224, 138, 74, 0.12);
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-faint: var(--faint);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+  --tracking-normal: var(--tracking-normal);
+  --shadow-2xl: var(--shadow-2xl);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-md: var(--shadow-md);
+  --shadow: var(--shadow);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-2xs: var(--shadow-2xs);
+  --spacing: var(--spacing);
+  --letter-spacing: var(--letter-spacing);
+  --color-shadow-color: var(--shadow-color);
 }
 
 html, body { margin: 0; padding: 0; }
 body {
-  font-family: var(--font-sans);
-  color: var(--color-ink);
-  background: var(--color-bg);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
-::selection { background: var(--color-accent-soft); }
+::selection { background: var(--accent); }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    letter-spacing: var(--tracking-normal);
+  }
+}
 
 /* Tabular numerals helper used by various meta strips. */
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Prose — wire Tailwind Typography's variables into the vault palette,
+/* Prose — wire Tailwind Typography's variables into the theme,
    then add the few framework integrations the plugin doesn't cover. */
 .prose {
-  --tw-prose-body: var(--color-ink);
-  --tw-prose-headings: var(--color-ink);
-  --tw-prose-lead: var(--color-mute);
-  --tw-prose-links: var(--color-ink);
-  --tw-prose-bold: var(--color-ink);
-  --tw-prose-counters: var(--color-faint);
-  --tw-prose-bullets: var(--color-faint);
-  --tw-prose-hr: var(--color-hairline);
-  --tw-prose-quotes: var(--color-mute);
-  --tw-prose-quote-borders: var(--color-accent);
-  --tw-prose-captions: var(--color-faint);
-  --tw-prose-code: var(--color-ink);
-  --tw-prose-pre-code: var(--color-ink);
-  --tw-prose-pre-bg: var(--color-surface);
-  --tw-prose-th-borders: var(--color-hairline);
-  --tw-prose-td-borders: var(--color-hairline);
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--foreground);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--faint);
+  --tw-prose-bullets: var(--faint);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--muted-foreground);
+  --tw-prose-quote-borders: var(--primary);
+  --tw-prose-captions: var(--faint);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--muted);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
   font-family: var(--font-serif);
   max-width: none;
 }
 .prose code { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; }
-.prose pre  { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; border: 0.5px solid var(--color-hairline); }
+.prose pre  { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; border: 0.5px solid var(--border); }
 .prose :where(code):not(:where(pre code))::before,
 .prose :where(code):not(:where(pre code))::after { content: ''; }
 .prose :where(code):not(:where(pre code)) {
   padding: 1px 5px;
-  background: var(--color-surface);
-  border: 0.5px solid var(--color-hairline);
+  background: var(--muted);
+  border: 0.5px solid var(--border);
   border-radius: 4px;
   font-weight: 400;
 }
@@ -83,7 +232,7 @@ body {
 /* Heading anchors (rehype-autolink-headings). */
 .prose .heading-anchor {
   margin-left: 0.4em;
-  color: var(--color-faint);
+  color: var(--faint);
   text-decoration: none;
   font-weight: 400;
   opacity: 0;
@@ -91,30 +240,30 @@ body {
 }
 .prose :is(h1,h2,h3,h4):hover > .heading-anchor,
 .prose .heading-anchor:focus { opacity: 1; }
-.prose .heading-anchor:hover { color: var(--color-accent); }
+.prose .heading-anchor:hover { color: var(--primary); }
 
 /* Callouts (rehype-callouts). */
 .prose .callout {
   margin: 1.5em 0;
   padding: 14px 16px;
-  border: 0.5px solid var(--color-hairline);
-  border-left: 3px solid var(--color-accent);
+  border: 0.5px solid var(--border);
+  border-left: 3px solid var(--primary);
   border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-ink);
+  background: var(--muted);
+  color: var(--foreground);
 }
 .prose .callout-title {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--primary);
 }
 
 /* Shiki dual-theme dark swap. Astro emits the light theme inline; for dark
    it stashes the dark values in `--shiki-dark-*` vars on every token. */
-:root[data-theme='dark'] .astro-code,
-:root[data-theme='dark'] .astro-code span {
+[data-theme='dark'] .astro-code,
+[data-theme='dark'] .astro-code span {
   color: var(--shiki-dark) !important;
   background-color: var(--shiki-dark-bg) !important;
   font-style: var(--shiki-dark-font-style) !important;
@@ -124,30 +273,30 @@ body {
 
 /* Tag chips toggle `.is-active` via list-controller — keep a global rule
    so the JS doesn't need to know about utility classes. */
-.is-active { color: var(--color-accent); }
+.is-active { color: var(--primary); }
 
-/* Pagefind UI inherits the vault palette via its --pf-* hooks. */
+/* Pagefind UI inherits the theme via its --pf-* hooks. */
 pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox {
   --pf-font: var(--font-sans);
-  --pf-background: var(--color-bg);
-  --pf-text: var(--color-ink);
-  --pf-text-secondary: var(--color-mute);
-  --pf-text-muted: var(--color-faint);
-  --pf-border: var(--color-hairline);
-  --pf-border-focus: var(--color-ink);
+  --pf-background: var(--background);
+  --pf-text: var(--foreground);
+  --pf-text-secondary: var(--muted-foreground);
+  --pf-text-muted: var(--faint);
+  --pf-border: var(--border);
+  --pf-border-focus: var(--foreground);
   --pf-border-radius: 7px;
-  --pf-hover: var(--color-surface);
-  --pf-mark: var(--color-accent);
-  --pf-outline-focus: var(--color-accent);
+  --pf-hover: var(--muted);
+  --pf-mark: var(--primary);
+  --pf-outline-focus: var(--primary);
   --pf-outline-width: 1px;
   --pf-modal-backdrop: rgba(0, 0, 0, 0.35);
   --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.10);
   --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
-  --pf-skeleton: var(--color-surface);
-  --pf-skeleton-shine: var(--color-hairline);
+  --pf-skeleton: var(--muted);
+  --pf-skeleton-shine: var(--border);
 }
-:root[data-theme='dark'] :is(pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox) {
+[data-theme='dark'] :is(pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox) {
   --pf-modal-backdrop: rgba(0, 0, 0, 0.6);
   --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
