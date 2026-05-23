@@ -15,7 +15,10 @@ const dailyHref = dailyWeeks[0] ? weekHref(dailyWeeks[0]) : dailyDir;
 const onDaily = Astro.url.pathname.startsWith(dailyDir);
 ---
 
-<header class="grid grid-cols-[1fr_auto] gap-4 border-b border-border pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6">
+<header
+  id="site-header"
+  class="sticky top-0 z-30 grid grid-cols-[1fr_auto] gap-4 border-b border-border bg-background pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6"
+>
   <a href={base} class="brand flex items-center gap-2.5 text-foreground no-underline">
     {logoUrl
       ? <span
@@ -63,6 +66,18 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
 </header>
 
 <script>
+  // Publish the sticky header's height as --header-h so in-page sticky
+  // elements (filter bar, week strip, sidebars) can pin just below it
+  // rather than sliding underneath. The header wraps to extra rows at
+  // narrow widths, so measure it instead of hardcoding a breakpoint value.
+  const header = document.getElementById('site-header');
+  if (header) {
+    const setHeaderH = () =>
+      document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+    setHeaderH();
+    new ResizeObserver(setHeaderH).observe(header);
+  }
+
   // '/' opens the pagefind modal — matches the kbd hint in the search box.
   window.addEventListener('keydown', (e) => {
     if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;

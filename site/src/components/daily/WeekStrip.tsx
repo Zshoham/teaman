@@ -38,7 +38,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
     "inline-flex h-auto min-w-[38px] items-center justify-center rounded-md border border-border bg-transparent px-3 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted md:px-3.5";
 
   return (
-    <div className="sticky top-0 z-[8] border-b border-border bg-background pt-3.5 pb-3" data-week-strip>
+    <div className="sticky top-[var(--header-h)] z-[8] border-b border-border bg-background pt-3.5 pb-3" data-week-strip>
       <div className="flex items-stretch gap-2.5">
         {prev ? (
           <a

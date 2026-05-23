@@ -50,6 +50,11 @@
   /* Faintest meta tone — sits below muted-foreground for ultra-quiet copy. */
   --faint: oklch(0.7000 0.0150 264.5419);
 
+  /* Height of the sticky site header; kept in sync by SiteHeader's script.
+     The fallback approximates the single-row desktop header so in-page
+     sticky offsets are roughly right before that script runs. */
+  --header-h: 76px;
+
   --shadow-color: #000000;
   --shadow-opacity: 0.05;
   --shadow-blur: 4px;

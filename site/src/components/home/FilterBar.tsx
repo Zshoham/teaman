@@ -14,7 +14,7 @@ interface Props {
 
 export function FilterBar({ filterTabs, defaultFilter = "all" }: Props) {
   return (
-    <div className="sticky top-0 z-[5] -mx-px mb-1 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background py-3.5">
+    <div className="sticky top-[var(--header-h)] z-[5] -mx-px mb-1 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background py-3.5">
       <div className="flex flex-wrap gap-1.5" data-filter-pills>
         {filterTabs.map((t) => (
           <button

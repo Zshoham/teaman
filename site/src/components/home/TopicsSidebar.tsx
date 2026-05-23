@@ -19,7 +19,7 @@ export function TopicsSidebar({ topics, initialShown = 8 }: Props) {
   const overflow = Math.max(0, topics.length - initialShown);
 
   return (
-    <aside className="flex flex-col gap-9 self-start md:sticky md:top-20">
+    <aside className="flex flex-col gap-9 self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)]">
       <section>
         <h2 className="m-0 mb-3 border-b border-border pb-2 font-mono text-[10.5px] font-normal uppercase tracking-[0.1em] text-faint">
           topics

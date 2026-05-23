@@ -10,7 +10,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
   const currentIdx = guide.chapters.findIndex((c) => c.slug === currentSlug);
 
   return (
-    <aside className="guide-toc self-start md:sticky md:top-6 md:pr-2">
+    <aside className="guide-toc self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)] md:pr-2">
       <h2 className="m-0 mb-4 border-b border-border pb-2.5 font-mono text-[10.5px] font-normal uppercase tracking-[0.1em] text-faint">
         {guide.title}
       </h2>
