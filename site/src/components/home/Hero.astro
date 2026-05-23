@@ -12,101 +12,28 @@ interface Props {
 const { eyebrow, title, description, statRows, lastUpdated } = Astro.props;
 ---
 
-<section class="hero">
-  <div class="hero-text">
-    <p class="hero-eyebrow mono">{eyebrow}</p>
-    <h1 class="hero-title" set:html={title}></h1>
-    <p class="hero-description" set:html={description}></p>
+<section class="grid items-end gap-8 border-b border-hairline py-9 md:grid-cols-[minmax(0,1fr)_280px] md:gap-16 md:pt-9 md:pb-11">
+  <div>
+    <p class="m-0 font-mono text-[11px] uppercase tracking-[0.08em] text-faint">{eyebrow}</p>
+    <h1
+      class="mt-3.5 font-serif text-4xl leading-[1.05] font-normal tracking-tight text-balance text-ink md:text-[56px] [&>em]:italic [&>em]:text-mute"
+      set:html={title}
+    ></h1>
+    <p
+      class="mt-5 max-w-[620px] font-serif text-[17px] leading-relaxed text-mute text-pretty"
+      set:html={description}
+    ></p>
   </div>
-  <aside class="stats">
+  <aside class="flex flex-col gap-1.5">
     {statRows.map(([label, n]) => (
-      <div class="stat-row">
-        <span class="stat-label mono">{label}</span>
-        <span class="stat-value mono">{String(n).padStart(3, '0')}</span>
+      <div class="stat-row flex items-baseline justify-between gap-3 border-t border-hairline py-1.5 font-mono">
+        <span class="text-[11px] text-mute">{label}</span>
+        <span class="tabular-nums text-[13px] text-ink">{String(n).padStart(3, '0')}</span>
       </div>
     ))}
-    <div class="stat-foot">
-      <span class="stat-label faint mono">last edit</span>
-      <span class="stat-value mute mono">{relTime(lastUpdated)}</span>
+    <div class="flex items-baseline justify-between gap-3 pt-2.5 font-mono">
+      <span class="text-[11px] text-faint">last edit</span>
+      <span class="tabular-nums text-[11px] text-mute">{relTime(lastUpdated)}</span>
     </div>
   </aside>
 </section>
-
-<style>
-  .hero {
-    padding: 36px 0 44px;
-    border-bottom: 0.5px solid var(--hairline);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 64px;
-    align-items: end;
-  }
-  .hero-eyebrow {
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin: 0;
-  }
-  .hero-title {
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 56px;
-    line-height: 1.05;
-    letter-spacing: -0.015em;
-    margin: 14px 0 0;
-    color: var(--ink);
-    text-wrap: balance;
-  }
-  .hero-title :global(em) {
-    font-style: italic;
-    color: var(--mute);
-  }
-  .hero-description {
-    margin: 22px 0 0;
-    max-width: 620px;
-    font-family: var(--display-font);
-    font-size: 17px;
-    line-height: 1.55;
-    color: var(--mute);
-    text-wrap: pretty;
-  }
-
-  .stats {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .stat-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-    border-top: 0.5px solid var(--hairline);
-  }
-  .stat-label { font-size: 11px; color: var(--mute); }
-  .stat-label.faint { color: var(--faint); }
-  .stat-value {
-    font-size: 13px;
-    color: var(--ink);
-    font-variant-numeric: tabular-nums;
-  }
-  .stat-value.mute { color: var(--mute); font-size: 11px; }
-  .stat-foot {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 10px;
-  }
-
-  @media (max-width: 880px) {
-    .hero {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 32px;
-      padding: 28px 0;
-    }
-    .hero-title { font-size: 40px; }
-  }
-</style>

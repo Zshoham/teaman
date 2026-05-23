@@ -13,82 +13,26 @@ interface Props {
 const { filterTabs, defaultFilter = 'all' } = Astro.props;
 ---
 
-<div class="filter-bar">
-  <div class="filter-pills" data-filter-pills>
+<div class="sticky top-0 z-[5] -mx-px mb-1 flex flex-wrap items-center justify-between gap-4 border-b border-hairline bg-bg py-3.5">
+  <div class="flex flex-wrap gap-1.5" data-filter-pills>
     {filterTabs.map(t => (
       <button
         type="button"
-        class="pill"
+        class="inline-flex cursor-pointer items-baseline gap-2 rounded-full border border-hairline bg-transparent px-3 py-1 text-[12px] text-mute transition-colors hover:border-mute aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-bg"
         data-filter={t.id}
         aria-pressed={t.id === defaultFilter ? 'true' : 'false'}
       >
         <span>{t.label}</span>
-        <span class="pill-count mono">{t.count}</span>
+        <span class="font-mono text-[10px] opacity-60">{t.count}</span>
       </button>
     ))}
   </div>
-  <button type="button" class="sort-button mono" data-sort-toggle aria-label="Sort: newest first">
+  <button
+    type="button"
+    class="inline-flex cursor-pointer items-baseline gap-1 border-0 border-b border-accent bg-transparent py-0.5 font-mono text-[11px] text-ink hover:text-accent"
+    data-sort-toggle
+    aria-label="Sort: newest first"
+  >
     date <span class="sort-arrow" aria-hidden="true">↓</span>
   </button>
 </div>
-
-<style>
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 0;
-    flex-wrap: wrap;
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--bg);
-    border-bottom: 0.5px solid var(--hairline);
-    margin-bottom: 4px;
-  }
-  .filter-pills {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .pill {
-    appearance: none;
-    border: 0.5px solid var(--hairline);
-    background: transparent;
-    color: var(--mute);
-    padding: 5px 11px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 8px;
-    transition: all .12s;
-  }
-  .pill:hover { border-color: var(--mute); }
-  .pill[aria-pressed="true"] {
-    background: var(--ink);
-    color: var(--bg);
-    border-color: var(--ink);
-  }
-  .pill-count { font-size: 10px; opacity: 0.55; }
-  .pill[aria-pressed="true"] .pill-count { opacity: 0.7; }
-
-  .sort-button {
-    appearance: none;
-    border: 0;
-    background: transparent;
-    font-size: 11px;
-    padding: 2px 0;
-    cursor: pointer;
-    border-bottom: 1px solid var(--accent);
-    font-family: var(--mono-font);
-    color: var(--ink);
-    display: inline-flex;
-    align-items: baseline;
-    gap: 3px;
-  }
-  .sort-button:hover { color: var(--accent); }
-</style>

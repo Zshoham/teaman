@@ -10,75 +10,28 @@ const { guide, currentSlug } = Astro.props;
 const currentIdx = guide.chapters.findIndex(c => c.slug === currentSlug);
 ---
 
-<aside class="guide-toc">
-  <h2 class="toc-title mono">{guide.title}</h2>
-  <ol class="toc-list">
-    {guide.chapters.map((ch, i) => (
-      <li class={`toc-item ${i === currentIdx ? 'is-current' : ''}`}>
-        <a href={chapterHref(guide, ch.slug)}>
-          <span class="toc-num mono">{String(i + 1).padStart(2, '0')}</span>
-          <span class="toc-label">{ch.title}</span>
-        </a>
-      </li>
-    ))}
+<aside class="guide-toc self-start md:sticky md:top-6 md:pr-2">
+  <h2 class="m-0 mb-4 border-b border-hairline pb-2.5 font-mono text-[10.5px] font-normal uppercase tracking-[0.1em] text-faint">{guide.title}</h2>
+  <ol class="m-0 flex list-none flex-col gap-0.5 p-0">
+    {guide.chapters.map((ch, i) => {
+      const current = i === currentIdx;
+      return (
+        <li class={current ? 'is-current' : ''}>
+          <a
+            href={chapterHref(guide, ch.slug)}
+            class:list={[
+              'flex items-baseline gap-2.5 border-b border-dashed border-hairline py-1.5 text-[13px] no-underline transition-colors',
+              current ? 'text-ink' : 'text-mute hover:text-ink',
+            ]}
+          >
+            <span class:list={[
+              'shrink-0 font-mono text-[10.5px] tabular-nums',
+              current ? 'text-accent' : 'text-faint',
+            ]}>{String(i + 1).padStart(2, '0')}</span>
+            <span class="font-serif text-balance">{ch.title}</span>
+          </a>
+        </li>
+      );
+    })}
   </ol>
 </aside>
-
-<style>
-  .guide-toc {
-    position: sticky;
-    top: 24px;
-    align-self: start;
-    padding-right: 8px;
-  }
-  .toc-title {
-    margin: 0 0 16px;
-    padding-bottom: 10px;
-    font-family: var(--mono-font);
-    font-size: 10.5px;
-    font-weight: 400;
-    color: var(--faint);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    border-bottom: 0.5px solid var(--hairline);
-  }
-  .toc-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .toc-item a {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 6px 0;
-    font-size: 13px;
-    color: var(--mute);
-    text-decoration: none;
-    border-bottom: 0.5px dashed var(--hairline);
-    transition: color .12s;
-  }
-  .toc-item a:hover { color: var(--ink); }
-  .toc-item.is-current a { color: var(--ink); }
-  .toc-num {
-    font-size: 10.5px;
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-  }
-  .toc-item.is-current .toc-num { color: var(--accent); }
-  .toc-label {
-    font-family: var(--display-font);
-    text-wrap: balance;
-  }
-
-  @media (max-width: 880px) {
-    .guide-toc {
-      position: static;
-      padding-right: 0;
-    }
-  }
-</style>

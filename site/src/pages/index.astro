@@ -39,6 +39,8 @@ const statRows: Array<[string, number]> = [
 ].filter(([, n]) => n > 0) as Array<[string, number]>;
 
 const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · last edit ${fmtDate(lastUpdated)}`;
+
+const hasSidebar = topics.length > 0;
 ---
 
 <Layout footerLeft={footerLeft}>
@@ -50,19 +52,33 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
     lastUpdated={lastUpdated}
   />
 
-  <div class="layout" data-list-layout data-has-sidebar={topics.length > 0 ? 'true' : 'false'}>
-    <div class="content">
+  <div
+    class:list={[
+      'grid gap-10 pt-4',
+      hasSidebar ? 'md:grid-cols-[minmax(0,1fr)_240px] md:gap-16' : 'md:grid-cols-1',
+    ]}
+    data-list-layout
+    data-has-sidebar={hasSidebar ? 'true' : 'false'}
+  >
+    <div>
       <FilterBar filterTabs={filterTabs} />
       <ActiveTagChip />
 
-      <div class="entries" data-entries>
+      <div class="flex flex-col" data-entries>
         {entries.map(e => <EntryCard entry={e} />)}
       </div>
-      <div class="empty-state mono" data-empty hidden>nothing matches.</div>
-      <button type="button" class="load-more mono" data-load-more hidden>load more</button>
+      <div class="py-10 text-center font-mono text-sm text-faint [&[hidden]]:hidden" data-empty hidden>
+        nothing matches.
+      </div>
+      <button
+        type="button"
+        class="mx-auto mt-8 block cursor-pointer rounded-md border border-hairline bg-transparent px-4.5 py-2 font-[inherit] text-[12px] tabular-nums tracking-wide text-ink transition-colors hover:border-ink hover:bg-surface focus-visible:border-ink focus-visible:bg-surface focus-visible:outline-none [&[hidden]]:hidden"
+        data-load-more
+        hidden
+      >load more</button>
     </div>
 
-    {topics.length > 0 && <TopicsSidebar topics={topics} />}
+    {hasSidebar && <TopicsSidebar topics={topics} />}
   </div>
 </Layout>
 
@@ -113,55 +129,3 @@ const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entrie
     });
   }
 </script>
-
-<style>
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 240px;
-    gap: 64px;
-    padding-top: 16px;
-  }
-  .layout[data-has-sidebar="false"] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .entries {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .empty-state {
-    padding: 40px 0;
-    text-align: center;
-    color: var(--faint);
-    font-size: 14px;
-  }
-  .empty-state[hidden] { display: none; }
-
-  .load-more {
-    display: block;
-    margin: 32px auto 0;
-    appearance: none;
-    cursor: pointer;
-    background: transparent;
-    color: var(--ink);
-    border: 0.5px solid var(--hairline);
-    border-radius: 7px;
-    padding: 8px 18px 9px;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    font-variant-numeric: tabular-nums;
-    transition: border-color .12s, background .12s, color .12s;
-  }
-  .load-more:hover,
-  .load-more:focus-visible {
-    border-color: var(--ink);
-    background: var(--surface);
-    outline: none;
-  }
-  .load-more[hidden] { display: none; }
-
-  @media (max-width: 880px) {
-    .layout { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  }
-</style>

@@ -10,7 +10,7 @@ const { entry: e } = Astro.props;
 ---
 
 <article
-  class="entry"
+  class="entry py-7 [&:not([hidden])~&:not([hidden])]:border-t [&:not([hidden])~&:not([hidden])]:border-hairline"
   data-entry
   data-type={e.type}
   data-tags={e.tags.join(' ')}
@@ -18,100 +18,28 @@ const { entry: e } = Astro.props;
   data-created={e.created}
   data-title={e.title.toLowerCase()}
 >
-  <div class="entry-head">
-    <span class="entry-date mono">{fmtDate(e.updated)}</span>
-    <span class="entry-type mono">{TYPE_LABEL[e.type]}</span>
-    <span class="entry-meta mono">{e.meta}</span>
+  <div class="mb-2 flex items-baseline gap-3 font-mono text-[11px]">
+    <span class="tabular-nums text-faint">{fmtDate(e.updated)}</span>
+    <span class="text-accent">{TYPE_LABEL[e.type]}</span>
+    <span class="ml-auto tabular-nums whitespace-nowrap text-faint">{e.meta}</span>
   </div>
-  <h3 class="entry-title">
-    <a href={e.href}>{e.title}</a>
+  <h3 class="entry-title m-0 font-serif text-2xl leading-tight font-normal tracking-tight text-balance text-ink md:text-[28px]">
+    <a href={e.href} class="text-inherit no-underline hover:text-accent">{e.title}</a>
   </h3>
-  {e.excerpt && <p class="entry-excerpt">{e.excerpt}</p>}
+  {e.excerpt && (
+    <p class="mt-3 max-w-[700px] font-serif text-[15px] leading-relaxed text-mute text-pretty md:text-base">
+      {e.excerpt}
+    </p>
+  )}
   {e.tags.length > 0 && (
-    <div class="entry-tags">
+    <div class="mt-3 flex flex-wrap gap-2">
       {e.tags.map(tag => (
-        <button type="button" class="tag-link mono" data-tag={tag}>#{tag}</button>
+        <button
+          type="button"
+          class="cursor-pointer border-0 bg-transparent p-0 font-mono text-[11px] tracking-wide text-faint hover:text-accent"
+          data-tag={tag}
+        >#{tag}</button>
       ))}
     </div>
   )}
 </article>
-
-<style>
-  .entry {
-    padding: 28px 0;
-  }
-  .entry:not([hidden]) ~ .entry:not([hidden]) {
-    border-top: 0.5px solid var(--hairline);
-  }
-  .entry[hidden] { display: none; }
-
-  .entry-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 8px;
-    font-size: 11px;
-  }
-  .entry-date {
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
-  }
-  .entry-type { color: var(--accent); }
-  .entry-meta {
-    margin-left: auto;
-    color: var(--faint);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .entry-title {
-    margin: 0;
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 28px;
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-    text-wrap: balance;
-  }
-  .entry-title a {
-    color: inherit;
-    text-decoration: none;
-  }
-  .entry-title a:hover { color: var(--accent); }
-
-  .entry-excerpt {
-    margin: 12px 0 0;
-    max-width: 700px;
-    font-family: var(--display-font);
-    font-size: 16px;
-    line-height: 1.55;
-    color: var(--mute);
-    text-wrap: pretty;
-  }
-
-  .entry-tags {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-  }
-  .tag-link {
-    appearance: none;
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.02em;
-  }
-  .tag-link:hover,
-  .tag-link.is-active { color: var(--accent); }
-
-  @media (max-width: 880px) {
-    .entry { padding: 22px 0; }
-    .entry-title { font-size: 24px; }
-    .entry-excerpt { font-size: 15px; }
-  }
-</style>

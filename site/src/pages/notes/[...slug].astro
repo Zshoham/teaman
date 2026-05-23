@@ -4,7 +4,6 @@ import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
-import '../../styles/prose.css';
 
 export async function getStaticPaths() {
   const notes = await getCollection('notes', n => !n.data.draft);
@@ -21,25 +20,25 @@ const words = wordCount(note.body ?? '');
 ---
 
 <Layout title={note.data.title ?? note.id}>
-  <article class="note">
+  <article class="mx-auto max-w-[720px] pt-3 pb-2 md:pt-6">
     <Breadcrumbs segments={[
       { label: 'index', href: base },
       { label: note.id },
     ]} />
 
-    <header class="note-head">
-      <h1 class="note-title">{note.data.title ?? note.id}</h1>
-      <div class="note-meta mono">
+    <header class="mb-8 border-b border-hairline pb-6">
+      <h1 class="note-title m-0 mb-4 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-ink md:text-[40px]">{note.data.title ?? note.id}</h1>
+      <div class="note-meta flex flex-wrap items-baseline gap-2 font-mono text-[11px] text-faint">
         <span>{wordMeta(words)}</span>
-        <span class="dot">·</span>
+        <span class="opacity-50">·</span>
         <span>{readingTimeMeta(words)}</span>
-        {note.data.date && <span class="dot">·</span>}
+        {note.data.date && <span class="opacity-50">·</span>}
         {note.data.date && <time datetime={note.data.date.toISOString()}>{fmtDate(note.data.date)}</time>}
         {note.data.tags && note.data.tags.length > 0 && (
           <>
-            <span class="dot">·</span>
-            <span class="tags">
-              {note.data.tags.map(tag => <span class="tag">#{tag}</span>)}
+            <span class="opacity-50">·</span>
+            <span class="inline-flex flex-wrap gap-2">
+              {note.data.tags.map(tag => <span class="text-mute">#{tag}</span>)}
             </span>
           </>
         )}
@@ -51,47 +50,3 @@ const words = wordCount(note.body ?? '');
     </div>
   </article>
 </Layout>
-
-<style is:global>
-  .vault .note {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 24px 0 8px;
-  }
-
-  .vault .note-head {
-    margin-bottom: 32px;
-    padding-bottom: 24px;
-    border-bottom: 0.5px solid var(--hairline);
-  }
-  .vault .note-title {
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 40px;
-    line-height: 1.1;
-    letter-spacing: -0.015em;
-    color: var(--ink);
-    margin: 0 0 16px;
-    text-wrap: balance;
-  }
-  .vault .note-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--faint);
-    flex-wrap: wrap;
-  }
-  .vault .note-meta .dot { opacity: 0.5; }
-  .vault .note-meta .tags {
-    display: inline-flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .vault .note-meta .tag { color: var(--mute); }
-
-  @media (max-width: 880px) {
-    .vault .note { padding: 12px 0 8px; }
-    .vault .note-title { font-size: 32px; }
-  }
-</style>

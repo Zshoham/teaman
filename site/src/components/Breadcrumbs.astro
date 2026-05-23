@@ -12,32 +12,14 @@ interface Props {
 const { segments } = Astro.props;
 ---
 
-<p class="crumbs mono">
+<p class="crumbs mb-7 flex flex-wrap items-baseline gap-2 font-mono text-[11px] text-faint">
   {segments.map((s, i) => (
     <>
-      {i > 0 && <span class="sep">/</span>}
+      {i > 0 && <span>/</span>}
       {s.href
-        ? <a href={s.href}>{s.label}</a>
-        : <span class="crumb-current">{s.label}</span>
+        ? <a href={s.href} class="text-mute no-underline hover:text-ink">{s.label}</a>
+        : <span class="text-ink">{s.label}</span>
       }
     </>
   ))}
 </p>
-
-<style>
-  .crumbs {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--faint);
-    margin: 0 0 28px;
-    flex-wrap: wrap;
-  }
-  .crumbs a {
-    color: var(--mute);
-    text-decoration: none;
-  }
-  .crumbs a:hover { color: var(--ink); }
-  .crumb-current { color: var(--ink); }
-</style>

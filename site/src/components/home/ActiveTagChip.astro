@@ -2,33 +2,16 @@
 // Rendered once; visibility and label are toggled by list-controller.
 ---
 
-<div class="active-tag" data-active-tag hidden>
-  <span class="active-tag-label mono">filtered by</span>
-  <span class="active-tag-name mono" data-active-tag-name></span>
-  <button type="button" class="active-tag-clear mono" data-tag-clear>clear ×</button>
+<div
+  class="mb-2 flex items-baseline gap-2.5 rounded-md border border-hairline bg-surface px-3 py-2 font-mono"
+  data-active-tag
+  hidden
+>
+  <span class="text-[11px] text-faint">filtered by</span>
+  <span class="text-[12px] text-accent" data-active-tag-name></span>
+  <button
+    type="button"
+    class="ml-auto cursor-pointer border-0 bg-transparent text-[11px] text-mute"
+    data-tag-clear
+  >clear ×</button>
 </div>
-
-<style>
-  .active-tag {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: var(--surface);
-    border: 0.5px solid var(--hairline);
-    border-radius: 6px;
-  }
-  .active-tag[hidden] { display: none; }
-  .active-tag-label { font-size: 11px; color: var(--faint); }
-  .active-tag-name { font-size: 12px; color: var(--accent); }
-  .active-tag-clear {
-    margin-left: auto;
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: var(--mute);
-    cursor: pointer;
-    font-size: 11px;
-  }
-</style>

@@ -1,5 +1,5 @@
 ---
-import '../styles/tokens.css';
+import '../styles/global.css';
 import { SITE_CONFIG } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
 
@@ -52,111 +52,20 @@ const docTitle = title
   <link rel="stylesheet" href={`${base}pagefind/pagefind-component-ui.css`} />
   <script type="module" is:inline src={`${base}pagefind/pagefind-component-ui.js`}></script>
 </head>
-<body class="vault">
-  <div class="shell">
+<body>
+  <div class="mx-auto max-w-[1180px] px-6 md:px-10">
     <SiteHeader />
 
     <pagefind-modal></pagefind-modal>
 
-    <main class="page">
+    <main class="pt-4">
       <slot />
     </main>
 
-    <footer class="vault-footer mono">
+    <footer class="mt-16 flex flex-wrap items-baseline justify-between gap-4 border-t border-hairline px-0 pt-8 pb-12 font-mono text-[11px] text-faint">
       <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
       {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
     </footer>
   </div>
 </body>
-
-<style is:global>
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-
-  body.vault {
-    font-family: var(--sans-font);
-    color: var(--ink);
-    background: var(--bg);
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-
-  body.vault a { color: inherit; }
-  body.vault ::selection { background: rgba(185, 84, 42, 0.18); }
-
-  .vault .mono {
-    font-family: var(--mono-font);
-    font-feature-settings: 'calt' 0;
-  }
-  .vault .mute  { color: var(--mute); }
-  .vault .faint { color: var(--faint); }
-
-  .vault .shell {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 0 40px;
-  }
-
-  /* Main slot ──────────────────────────────────────────────────────────── */
-  .vault .page {
-    padding-top: 16px;
-  }
-
-  /* Footer ─────────────────────────────────────────────────────────────── */
-  .vault .vault-footer {
-    margin-top: 64px;
-    padding: 32px 0 48px;
-    border-top: 0.5px solid var(--hairline);
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 16px;
-    font-size: 11px;
-    color: var(--faint);
-  }
-
-  /* Pagefind component UI — inherit the vault palette via its --pf-* vars.
-     Targets the custom-element hosts so the values cross into the shadow DOM. */
-  pagefind-modal,
-  pagefind-modal-trigger,
-  pagefind-search,
-  pagefind-searchbox {
-    --pf-font: var(--sans-font);
-    --pf-background: var(--bg);
-    --pf-text: var(--ink);
-    --pf-text-secondary: var(--mute);
-    --pf-text-muted: var(--faint);
-    --pf-border: var(--hairline);
-    --pf-border-focus: var(--ink);
-    --pf-border-radius: 7px;
-    --pf-hover: var(--surface);
-    --pf-mark: var(--accent);
-    --pf-outline-focus: var(--accent);
-    --pf-outline-width: 1px;
-    --pf-modal-backdrop: rgba(0, 0, 0, 0.35);
-    --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.10);
-    --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
-    --pf-skeleton: var(--surface);
-    --pf-skeleton-shine: var(--hairline);
-  }
-
-  :root[data-theme='dark'] pagefind-modal,
-  :root[data-theme='dark'] pagefind-modal-trigger,
-  :root[data-theme='dark'] pagefind-search,
-  :root[data-theme='dark'] pagefind-searchbox {
-    --pf-modal-backdrop: rgba(0, 0, 0, 0.6);
-    --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
-    --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
-  }
-
-  /* Responsive ─────────────────────────────────────────────────────────── */
-  @media (max-width: 880px) {
-    .vault .shell { padding: 0 24px; }
-  }
-</style>
 </html>

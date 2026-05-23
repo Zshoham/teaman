@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Theme toggle uses [data-theme='dark'] on <html> rather than the
+   prefers-color-scheme media query — bind Tailwind's dark variant to it. */
+@custom-variant dark (&:where([data-theme='dark'] *, [data-theme='dark']));
+
+@theme {
+  --color-bg: #f6f3ec;
+  --color-surface: #fbf9f4;
+  --color-ink: #1a1814;
+  --color-mute: rgba(26, 24, 20, 0.55);
+  --color-faint: rgba(26, 24, 20, 0.32);
+  --color-hairline: rgba(26, 24, 20, 0.12);
+  --color-accent: #b9542a;
+  --color-accent-soft: rgba(185, 84, 42, 0.10);
+
+  --font-serif: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #15171a;
+  --color-surface: #1b1d21;
+  --color-ink: #ece7dc;
+  --color-mute: rgba(236, 231, 220, 0.60);
+  --color-faint: rgba(236, 231, 220, 0.34);
+  --color-hairline: rgba(236, 231, 220, 0.12);
+  --color-accent: #e08a4a;
+  --color-accent-soft: rgba(224, 138, 74, 0.12);
+}
+
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--color-accent-soft); }
+
+/* Tabular numerals helper used by various meta strips. */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Prose — wire Tailwind Typography's variables into the vault palette,
+   then add the few framework integrations the plugin doesn't cover. */
+.prose {
+  --tw-prose-body: var(--color-ink);
+  --tw-prose-headings: var(--color-ink);
+  --tw-prose-lead: var(--color-mute);
+  --tw-prose-links: var(--color-ink);
+  --tw-prose-bold: var(--color-ink);
+  --tw-prose-counters: var(--color-faint);
+  --tw-prose-bullets: var(--color-faint);
+  --tw-prose-hr: var(--color-hairline);
+  --tw-prose-quotes: var(--color-mute);
+  --tw-prose-quote-borders: var(--color-accent);
+  --tw-prose-captions: var(--color-faint);
+  --tw-prose-code: var(--color-ink);
+  --tw-prose-pre-code: var(--color-ink);
+  --tw-prose-pre-bg: var(--color-surface);
+  --tw-prose-th-borders: var(--color-hairline);
+  --tw-prose-td-borders: var(--color-hairline);
+  font-family: var(--font-serif);
+  max-width: none;
+}
+.prose code { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; }
+.prose pre  { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; border: 0.5px solid var(--color-hairline); }
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after { content: ''; }
+.prose :where(code):not(:where(pre code)) {
+  padding: 1px 5px;
+  background: var(--color-surface);
+  border: 0.5px solid var(--color-hairline);
+  border-radius: 4px;
+  font-weight: 400;
+}
+
+/* Heading anchors (rehype-autolink-headings). */
+.prose .heading-anchor {
+  margin-left: 0.4em;
+  color: var(--color-faint);
+  text-decoration: none;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.prose :is(h1,h2,h3,h4):hover > .heading-anchor,
+.prose .heading-anchor:focus { opacity: 1; }
+.prose .heading-anchor:hover { color: var(--color-accent); }
+
+/* Callouts (rehype-callouts). */
+.prose .callout {
+  margin: 1.5em 0;
+  padding: 14px 16px;
+  border: 0.5px solid var(--color-hairline);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.prose .callout-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* Shiki dual-theme dark swap. Astro emits the light theme inline; for dark
+   it stashes the dark values in `--shiki-dark-*` vars on every token. */
+:root[data-theme='dark'] .astro-code,
+:root[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* Tag chips toggle `.is-active` via list-controller — keep a global rule
+   so the JS doesn't need to know about utility classes. */
+.is-active { color: var(--color-accent); }
+
+/* Pagefind UI inherits the vault palette via its --pf-* hooks. */
+pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox {
+  --pf-font: var(--font-sans);
+  --pf-background: var(--color-bg);
+  --pf-text: var(--color-ink);
+  --pf-text-secondary: var(--color-mute);
+  --pf-text-muted: var(--color-faint);
+  --pf-border: var(--color-hairline);
+  --pf-border-focus: var(--color-ink);
+  --pf-border-radius: 7px;
+  --pf-hover: var(--color-surface);
+  --pf-mark: var(--color-accent);
+  --pf-outline-focus: var(--color-accent);
+  --pf-outline-width: 1px;
+  --pf-modal-backdrop: rgba(0, 0, 0, 0.35);
+  --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.10);
+  --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --pf-skeleton: var(--color-surface);
+  --pf-skeleton-shine: var(--color-hairline);
+}
+:root[data-theme='dark'] :is(pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox) {
+  --pf-modal-backdrop: rgba(0, 0, 0, 0.6);
+  --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+}

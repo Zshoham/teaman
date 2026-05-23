@@ -26,26 +26,11 @@ const footerLeft = `${week.days.length} ${week.days.length === 1 ? 'day' : 'days
 <Layout title={docTitle} footerLeft={footerLeft}>
   <WeekStrip weeks={weeks} currentId={week.id} />
 
-  <article class="week" aria-label={`Daily notes for ${caption}`}>
-    <div class="week-caption mono">{caption}</div>
+  <article class="mx-auto max-w-[680px]" aria-label={`Daily notes for ${caption}`}>
+    <div class="pt-10 pb-2 text-center font-mono text-[11px] uppercase tracking-[0.16em] text-faint">{caption}</div>
 
     {week.days.map((day, i) => (
       <DaySection day={day} isFirst={i === 0} />
     ))}
   </article>
 </Layout>
-
-<style>
-  .week {
-    max-width: 680px;
-    margin: 0 auto;
-  }
-  .week-caption {
-    text-align: center;
-    padding: 40px 0 8px;
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-</style>

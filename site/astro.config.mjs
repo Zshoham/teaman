@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import mdx from '@astrojs/mdx';
+import tailwindcss from '@tailwindcss/vite';
 import remarkWikiLink from 'remark-wiki-link';
 import rehypeCallouts from 'rehype-callouts';
 import rehypeSlug from 'rehype-slug';
@@ -14,6 +15,7 @@ export default defineConfig({
   publicDir: './resources',
   integrations: [mdx()],
   vite: {
+    plugins: [tailwindcss()],
     server: {
       fs: { allow: ['..'] },
     },

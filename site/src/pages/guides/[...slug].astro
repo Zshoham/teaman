@@ -6,7 +6,6 @@ import GuideTOC from '../../components/guide/GuideTOC.astro';
 import GuideNav from '../../components/guide/GuideNav.astro';
 import { listGuides, getGuide } from '../../lib/guides';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
-import '../../styles/prose.css';
 
 export async function getStaticPaths() {
   const guides = await listGuides();
@@ -49,21 +48,21 @@ const words = wordCount(entry.body ?? '');
 ---
 
 <Layout title={docTitle}>
-  <article class="guide">
+  <article class="pt-6 pb-2">
     <Breadcrumbs segments={[
       { label: 'index', href: base },
       { label: guide.title, href: `${base}guides/${guide.slug}/` },
       ...(idx > 0 ? [{ label: currentTitle }] : []),
     ]} />
 
-    <div class="guide-layout">
+    <div class="grid items-start gap-8 md:grid-cols-[220px_minmax(0,1fr)] md:gap-14">
       <GuideTOC guide={guide} currentSlug={chapterSlug} />
 
-      <div class="guide-body">
-        <header class="guide-head">
-          <p class="guide-eyebrow mono">guide · chapter {idx + 1} of {guide.chapters.length}</p>
-          <h1 class="guide-title">{currentTitle}</h1>
-          <p class="guide-meta mono">{wordMeta(words)} · {readingTimeMeta(words)}</p>
+      <div class="min-w-0 max-w-[720px]">
+        <header class="mb-8 border-b border-hairline pb-6">
+          <p class="guide-eyebrow m-0 font-mono text-[11px] uppercase tracking-wider text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
+          <h1 class="guide-title mt-3 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-ink md:text-[40px]">{currentTitle}</h1>
+          <p class="mt-4 font-mono text-[11px] text-faint">{wordMeta(words)} · {readingTimeMeta(words)}</p>
         </header>
 
         <div class="prose">
@@ -75,57 +74,3 @@ const words = wordCount(entry.body ?? '');
     </div>
   </article>
 </Layout>
-
-<style is:global>
-  .vault .guide {
-    padding: 24px 0 8px;
-  }
-
-  .vault .guide-layout {
-    display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 56px;
-    align-items: start;
-  }
-
-  .vault .guide-body {
-    max-width: 720px;
-    min-width: 0;
-  }
-
-  .vault .guide-head {
-    margin-bottom: 32px;
-    padding-bottom: 24px;
-    border-bottom: 0.5px solid var(--hairline);
-  }
-  .vault .guide-eyebrow {
-    margin: 0;
-    font-size: 11px;
-    color: var(--faint);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .vault .guide-title {
-    font-family: var(--display-font);
-    font-weight: 400;
-    font-size: 40px;
-    line-height: 1.1;
-    letter-spacing: -0.015em;
-    color: var(--ink);
-    margin: 12px 0 0;
-    text-wrap: balance;
-  }
-  .vault .guide-meta {
-    margin: 16px 0 0;
-    font-size: 11px;
-    color: var(--faint);
-  }
-
-  @media (max-width: 880px) {
-    .vault .guide-layout {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 32px;
-    }
-    .vault .guide-title { font-size: 32px; }
-  }
-</style>
