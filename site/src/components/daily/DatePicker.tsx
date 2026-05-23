@@ -17,6 +17,7 @@ import {
 interface Props {
   weeks: DailyWeekShape[];
   currentId: string;
+  triggerClassName?: string;
 }
 
 interface MonthView {
@@ -74,7 +75,7 @@ function buildMonth(
 
 const rowGrid = "grid grid-cols-[24px_repeat(7,1fr)_16px] items-center gap-1 text-center";
 
-export function DatePicker({ weeks, currentId }: Props) {
+export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
   const [open, setOpen] = useState(false);
 
   const { months, initialKey } = useMemo(() => {
@@ -120,15 +121,15 @@ export function DatePicker({ weeks, currentId }: Props) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button
-            variant="outline"
-            className="h-auto min-w-[38px] px-3 [&_svg:not([class*='size-'])]:size-3.5"
+          <button
+            type="button"
+            className={triggerClassName}
             title="jump to a week"
             aria-label="Open week archive"
             data-archive-toggle
           >
-            <CalendarIcon aria-hidden="true" />
-          </Button>
+            <CalendarIcon className="size-3.5" aria-hidden="true" />
+          </button>
         }
       />
       <PopoverContent

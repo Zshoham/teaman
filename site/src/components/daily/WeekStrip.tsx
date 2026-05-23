@@ -98,7 +98,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
           </span>
         )}
 
-        <DatePicker weeks={weeks} currentId={currentId} />
+        <DatePicker weeks={weeks} currentId={currentId} triggerClassName={navCls} />
       </div>
     </div>
   );
