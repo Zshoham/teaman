@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 import remarkWikiLink from 'remark-wiki-link';
@@ -26,22 +27,24 @@ export default defineConfig({
     shikiConfig: {
       themes: { light: 'github-light', dark: 'github-dark' },
     },
-    remarkPlugins: [
-      remarkStripLeadingH1,
-      [remarkWikiLink, {
-        pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
-        hrefTemplate: (permalink) => `${base}notes/${permalink}/`,
-        aliasDivider: '|',
-      }],
-    ],
-    rehypePlugins: [
-      rehypeCallouts,
-      rehypeSlug,
-      [rehypeAutolinkHeadings, {
-        behavior: 'append',
-        properties: { className: ['heading-anchor'], 'aria-label': 'Permalink to this heading' },
-        content: { type: 'text', value: '#' },
-      }],
-    ],
+    processor: unified({
+      remarkPlugins: [
+        remarkStripLeadingH1,
+        [remarkWikiLink, {
+          pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
+          hrefTemplate: (permalink) => `${base}notes/${permalink}/`,
+          aliasDivider: '|',
+        }],
+      ],
+      rehypePlugins: [
+        rehypeCallouts,
+        rehypeSlug,
+        [rehypeAutolinkHeadings, {
+          behavior: 'append',
+          properties: { className: ['heading-anchor'], 'aria-label': 'Permalink to this heading' },
+          content: { type: 'text', value: '#' },
+        }],
+      ],
+    }),
   },
 });

@@ -1,6 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { dailiesRoot, guidesRoot, notesRoot, slidesRoot } from '../lib/content-paths';
+import { dailiesRoot, guidesRoot, notesRoot, slidesRoot } from './lib/content-paths';
 
 const notes = defineCollection({
   loader: glob({ pattern: '**/*.md', base: notesRoot }),
