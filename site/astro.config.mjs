@@ -7,15 +7,19 @@ import rehypeCallouts from 'rehype-callouts';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
+import { normalizeBase } from './src/lib/site-base.mjs';
 
 import react from '@astrojs/react';
 
-const base = process.env.SITE_BASE ?? '/';
+// Normalize the same way the build scripts do (single leading + trailing slash)
+// so `import.meta.env.BASE_URL` and the wiki-link hrefTemplate below never
+// concatenate into broken URLs like `/fooguides/...` for `--base /foo`.
+const base = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 export default defineConfig({
   base,
-  outDir: '../public',
-  publicDir: './resources',
+  outDir: process.env.TEAMAN_OUT ?? '../public',
+  publicDir: process.env.TEAMAN_PUBLIC ?? './resources',
   integrations: [mdx(), react()],
   vite: {
     plugins: [tailwindcss()],

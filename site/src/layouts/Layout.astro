@@ -2,6 +2,12 @@
 import '../styles/global.css';
 import { SITE_CONFIG } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
+import { version as pkgVersion } from '../../package.json';
+
+// Engine version, stamped into <meta name="generator"> so a built site records
+// which `teaman` produced it. The CLI passes TEAMAN_VERSION; otherwise the
+// engine's own package.json version (inlined at build) is used.
+const engineVersion = process.env.TEAMAN_VERSION ?? pkgVersion;
 
 interface Props {
   /**
@@ -21,6 +27,13 @@ const base = import.meta.env.BASE_URL;
 const docTitle = title
   ? `${title} — ${SITE_CONFIG.brand}`
   : `${SITE_CONFIG.brand} — ${SITE_CONFIG.tagline}`;
+
+// Per-vault theme overrides → a `:root` rule layered over global.css defaults.
+const themeCss = SITE_CONFIG.theme
+  ? `:root{${Object.entries(SITE_CONFIG.theme)
+      .map(([token, value]) => `${token.startsWith('--') ? token : `--${token}`}:${value};`)
+      .join('')}}`
+  : '';
 ---
 
 <!doctype html>
@@ -28,7 +41,10 @@ const docTitle = title
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content={`teaman ${engineVersion}`} />
   <title>{docTitle}</title>
+
+  {themeCss && <style set:html={themeCss}></style>}
 
   <script is:inline>
     // Runs before paint to avoid a flash of incorrect theme.

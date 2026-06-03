@@ -81,9 +81,9 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
   // '/' opens the pagefind modal — matches the kbd hint in the search box.
   window.addEventListener('keydown', (e) => {
     if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.matches('input, textarea, [contenteditable], [contenteditable=""]') || t.isContentEditable)) return;
+    const t = e.target;
+    if (t instanceof HTMLElement && (t.matches('input, textarea, [contenteditable], [contenteditable=""]') || t.isContentEditable)) return;
     e.preventDefault();
-    document.querySelector<HTMLButtonElement>('pagefind-modal-trigger button')?.click();
+    document.querySelector('pagefind-modal-trigger button')?.click();
   });
 </script>

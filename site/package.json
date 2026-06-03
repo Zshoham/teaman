@@ -1,6 +1,20 @@
 {
-  "name": "teaman-site",
+  "name": "teaman",
+  "version": "1.0.0",
+  "description": "Static site generator for Obsidian vaults (Astro engine).",
   "type": "module",
+  "bin": {
+    "teaman": "./bin/teaman.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "scripts",
+    "resources",
+    "astro.config.mjs",
+    "components.json",
+    "tsconfig.json"
+  ],
   "scripts": {
     "dev": "astro dev",
     "build": "npm run build:all",
@@ -38,6 +52,7 @@
     "rehype-callouts": "^2.1.2",
     "rehype-slug": "^6.0.0",
     "remark-wiki-link": "^2.0.1",
+    "semver": "^7.8.1",
     "shadcn": "^4.9.0",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0"

@@ -3,10 +3,12 @@ import { fileURLToPath } from 'url';
 import { join, basename } from 'path';
 import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
+import { normalizeBase } from '../src/lib/site-base.mjs';
 
-const publicDir = fileURLToPath(new URL('../../public', import.meta.url));
-const slidesSrcDir = fileURLToPath(new URL('../../content/slides', import.meta.url));
-const siteBase = process.env.SITE_BASE ?? '/';
+const publicDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../../public', import.meta.url));
+const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../../content', import.meta.url));
+const slidesSrcDir = join(vaultDir, 'slides');
+const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 const { index, errors: createErrors } = await pagefind.createIndex({
   forceLanguage: 'en',

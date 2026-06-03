@@ -12,6 +12,9 @@ node_modules/
 # Slidev workaround dir (see slidevjs/slidev#1975)
 site/.slides-build/
 
+# teaman static-asset staging dir (logo + vault/public)
+site/.teaman-public/
+
 # OS
 .DS_Store
 Thumbs.db
