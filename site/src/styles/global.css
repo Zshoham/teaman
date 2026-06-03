@@ -19,7 +19,7 @@
   --card-foreground: oklch(0.2101 0.0318 264.6645);
   --popover: oklch(1.0000 0 0);
   --popover-foreground: oklch(0.2101 0.0318 264.6645);
-  --primary: oklch(0.6716 0.1368 48.5130);
+  --primary: oklch(0.5800 0.1450 48.5130);
   --primary-foreground: oklch(1.0000 0 0);
   --secondary: oklch(0.5360 0.0398 196.0280);
   --secondary-foreground: oklch(1.0000 0 0);
@@ -31,7 +31,7 @@
   --destructive-foreground: oklch(0.9851 0 0);
   --border: oklch(0.9276 0.0058 264.5313);
   --input: oklch(0.9276 0.0058 264.5313);
-  --ring: oklch(0.6716 0.1368 48.5130);
+  --ring: oklch(0.5800 0.1450 48.5130);
   --chart-1: oklch(0.5940 0.0443 196.0233);
   --chart-2: oklch(0.7214 0.1337 49.9802);
   --chart-3: oklch(0.8721 0.0864 68.5474);
@@ -40,15 +40,15 @@
   --radius: 0.75rem;
   --sidebar: oklch(0.9670 0.0029 264.5419);
   --sidebar-foreground: oklch(0.2101 0.0318 264.6645);
-  --sidebar-primary: oklch(0.6716 0.1368 48.5130);
+  --sidebar-primary: oklch(0.5800 0.1450 48.5130);
   --sidebar-primary-foreground: oklch(1.0000 0 0);
   --sidebar-accent: oklch(1.0000 0 0);
   --sidebar-accent-foreground: oklch(0.2101 0.0318 264.6645);
   --sidebar-border: oklch(0.9276 0.0058 264.5313);
-  --sidebar-ring: oklch(0.6716 0.1368 48.5130);
+  --sidebar-ring: oklch(0.5800 0.1450 48.5130);
 
   /* Faintest meta tone — sits below muted-foreground for ultra-quiet copy. */
-  --faint: oklch(0.7000 0.0150 264.5419);
+  --faint: oklch(0.6200 0.0150 264.5419);
 
   /* Height of the sticky site header; kept in sync by SiteHeader's script.
      The fallback approximates the single-row desktop header so in-page
@@ -76,19 +76,19 @@
 
 [data-theme='dark'] {
   --background: oklch(0.1797 0.0043 308.1928);
-  --foreground: oklch(0.8109 0 0);
+  --foreground: oklch(0.8800 0 0);
   --card: oklch(0.1822 0 0);
-  --card-foreground: oklch(0.8109 0 0);
+  --card-foreground: oklch(0.8800 0 0);
   --popover: oklch(0.1797 0.0043 308.1928);
-  --popover-foreground: oklch(0.8109 0 0);
+  --popover-foreground: oklch(0.8800 0 0);
   --primary: oklch(0.7214 0.1337 49.9802);
   --primary-foreground: oklch(0.1797 0.0043 308.1928);
   --secondary: oklch(0.5940 0.0443 196.0233);
   --secondary-foreground: oklch(0.1797 0.0043 308.1928);
   --muted: oklch(0.2520 0 0);
-  --muted-foreground: oklch(0.6268 0 0);
+  --muted-foreground: oklch(0.7100 0 0);
   --accent: oklch(0.3211 0 0);
-  --accent-foreground: oklch(0.8109 0 0);
+  --accent-foreground: oklch(0.8800 0 0);
   --destructive: oklch(0.5940 0.0443 196.0233);
   --destructive-foreground: oklch(0.1797 0.0043 308.1928);
   --border: oklch(0.2520 0 0);
@@ -100,15 +100,15 @@
   --chart-4: oklch(0.6268 0 0);
   --chart-5: oklch(0.6830 0 0);
   --sidebar: oklch(0.1822 0 0);
-  --sidebar-foreground: oklch(0.8109 0 0);
+  --sidebar-foreground: oklch(0.8800 0 0);
   --sidebar-primary: oklch(0.7214 0.1337 49.9802);
   --sidebar-primary-foreground: oklch(0.1797 0.0043 308.1928);
   --sidebar-accent: oklch(0.3211 0 0);
-  --sidebar-accent-foreground: oklch(0.8109 0 0);
+  --sidebar-accent-foreground: oklch(0.8800 0 0);
   --sidebar-border: oklch(0.2520 0 0);
   --sidebar-ring: oklch(0.7214 0.1337 49.9802);
 
-  --faint: oklch(0.4500 0 0);
+  --faint: oklch(0.5800 0 0);
 }
 
 @theme {
@@ -185,7 +185,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
-::selection { background: var(--accent); }
+::selection { background: color-mix(in oklab, var(--primary) 22%, var(--background)); }
 
 @layer base {
   * {
@@ -220,8 +220,16 @@ body {
   --tw-prose-th-borders: var(--border);
   --tw-prose-td-borders: var(--border);
   font-family: var(--font-serif);
+  /* Canonical reading treatment, shared by notes / guides / dailies so every
+     content type renders at the same rhythm. 18px serif with a ~1.7 leading;
+     the column width (~72ch) is owned by each page's article wrapper. All
+     prose-internal sizes are em-relative, so this scales the whole block. */
+  font-size: 1.125rem;
+  line-height: 1.7;
   max-width: none;
 }
+/* Let the browser pull a word down to avoid orphans/short last lines. */
+.prose :where(p, li) { text-wrap: pretty; }
 .prose code { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; }
 .prose pre  { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; border: 0.5px solid var(--border); }
 .prose :where(code):not(:where(pre code))::before,
@@ -232,6 +240,38 @@ body {
   border: 0.5px solid var(--border);
   border-radius: 4px;
   font-weight: 400;
+}
+
+/* Prose headings — bring article subheads into the same refined serif voice
+   as the display titles. The Typography plugin defaults to weight 700/600,
+   but Source Serif 4 is only loaded up to 600, so anything heavier renders as
+   faux-bold; pin h2 to a real 600 and let size (not brute weight) carry the
+   hierarchy. Slight negative tracking + tighter leading match the titles, and
+   the margins bond each heading to the paragraph it introduces. */
+.prose :where(h2, h3, h4) {
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.prose :where(h2) { font-size: 1.5em;  margin-top: 1.9em; margin-bottom: 0.6em; }
+.prose :where(h3) { font-size: 1.2em;  margin-top: 1.7em; margin-bottom: 0.5em; }
+.prose :where(h4) { font-size: 1.05em; margin-top: 1.5em; margin-bottom: 0.4em; }
+/* Bold nested in a heading would jump to 700/800 (faux) — keep it level. */
+.prose :where(h2, h3, h4) strong { font-weight: inherit; }
+
+/* Inline links — quiet underline that sits a little low and warms to the
+   accent on hover, rather than the plugin's default heavy same-color rule. */
+.prose :where(a):not(.heading-anchor) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  transition: color .15s, text-decoration-color .15s;
+}
+.prose :where(a):not(.heading-anchor):hover {
+  color: var(--primary);
+  text-decoration-color: var(--primary);
 }
 
 /* Heading anchors (rehype-autolink-headings). */
