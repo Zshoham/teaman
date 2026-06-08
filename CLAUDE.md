@@ -109,9 +109,12 @@ mergeless.
   warns on links to missing notes using the same slug rule.
 
 The Markdown pipeline (`astro.config.mjs`) also runs `remarkStripLeadingH1` (pages
-render the title themselves), `remarkMermaid` (rewrites ` ```mermaid ` fences to
-`<pre class="mermaid">` so Shiki skips them and `src/scripts/mermaid.ts` renders
-them client-side, theme-reactive), `rehype-callouts` (Obsidian callouts), and slug +
+render the title themselves), `remarkMermaid` / `remarkPlantuml` (rewrite
+` ```mermaid ` / ` ```plantuml ` fences to `<pre class="mermaid">` /
+`<pre class="plantuml">` so Shiki skips them and `src/scripts/mermaid.ts` /
+`src/scripts/plantuml.ts` render them client-side, theme-reactive — PlantUML via
+the lazily-imported `@plantuml/core` engine + its `viz-global.js` Graphviz layout),
+`rehype-callouts` (Obsidian callouts), and slug +
 autolinked headings. Note `astro build` is run from the engine dir with `.astro/`
 cache dropped each build, because the content-layer store is keyed by collection
 name not vault — otherwise a second vault reuses the first vault's cached entries.

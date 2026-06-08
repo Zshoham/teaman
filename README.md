@@ -14,7 +14,7 @@ The vault never contains engine source, only:
 ```
 my-vault/
   teaman.config.js     # site identity + theme (see below)
-  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid)
+  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml)
   guides/   <slug>/SUMMARY.md + chapters
   slides/   *.md        # Slidev decks
   dailies/  YYYY-MM-DD.md

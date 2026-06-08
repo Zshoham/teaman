@@ -249,10 +249,12 @@ body {
   font-weight: 400;
 }
 
-/* Mermaid diagrams render client-side (src/scripts/mermaid.ts) into this block.
-   Drop the code-block chrome and center the SVG; hide the raw definition until
-   it's been turned into SVG to avoid a flash of source text. */
-.prose pre.mermaid {
+/* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
+   diagrams both render client-side into these blocks, so they share the same
+   chrome: drop the code-block styling and center the SVG; hide the raw
+   definition until it's been turned into SVG to avoid a flash of source text. */
+.prose pre.mermaid,
+.prose pre.plantuml {
   background: none;
   border: 0;
   padding: 0;
@@ -260,11 +262,24 @@ body {
   text-align: center;
   line-height: normal;
 }
-.prose pre.mermaid:not([data-processed]) { visibility: hidden; }
-.prose pre.mermaid svg { max-width: 100%; height: auto; }
+.prose pre.mermaid:not([data-processed]),
+.prose pre.plantuml:not([data-processed]) { visibility: hidden; }
+/* Tailwind's preflight makes <svg> display:block, so the parent's text-align
+   doesn't center it — margin-inline:auto does (matters for narrow diagrams that
+   would otherwise hug the left edge). */
+.prose pre.mermaid svg,
+.prose pre.plantuml svg { max-width: 100%; height: auto; margin-inline: auto; }
+/* PlantUML paints its own page-colored backdrop, which doesn't match the site
+   background (most visibly a lighter block in dark mode). Graphviz-laid-out
+   diagrams (state, component, …) carry it two ways: a `background-color` on the
+   root <svg> and a full-canvas <rect> that is the svg's only direct-child rect.
+   Strip both so every diagram sits flush on the page in light and dark mode. */
+.prose pre.plantuml svg { background-color: transparent !important; }
+.prose pre.plantuml svg > rect { fill: transparent; }
 /* Fallback when a diagram fails to parse — a quiet, visible notice rather than
-   raw mermaid source or a silently blank block. */
-.prose pre.mermaid.mermaid-error {
+   raw diagram source or a silently blank block. */
+.prose pre.mermaid.mermaid-error,
+.prose pre.plantuml.plantuml-error {
   visibility: visible;
   font-family: var(--font-mono);
   font-size: 0.85rem;

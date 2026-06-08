@@ -62,5 +62,21 @@ lies about how much is still open.
 > [!info] Rule of thumb
 > If you are not sure which rung you are on, you are probably one rung too high.
 
+## Climbing it
+
+You climb a rung only once the question on the current one is answered — and you
+are allowed to fall back down when a later conversation reopens the structure:
+
+```plantuml
+@startuml
+hide empty description
+[*] --> Wireframe
+Wireframe --> HiFi : shape agreed
+HiFi --> Prototype : reads as finished
+Prototype --> Wireframe : structure reopened
+Prototype --> [*] : survives contact
+@enduml
+```
+
 This is the same discipline as a [[shipping-cadence]]: the form of the artifact
 tells people what kind of response it wants.

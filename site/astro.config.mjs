@@ -8,6 +8,7 @@ import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
 import { remarkMermaid } from './src/lib/remark-mermaid.mjs';
+import { remarkPlantuml } from './src/lib/remark-plantuml.mjs';
 import { normalizeBase } from './src/lib/site-base.mjs';
 
 import react from '@astrojs/react';
@@ -36,6 +37,7 @@ export default defineConfig({
       remarkPlugins: [
         remarkStripLeadingH1,
         remarkMermaid,
+        remarkPlantuml,
         [remarkWikiLink, {
           pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
           hrefTemplate: (permalink) => `${base}notes/${permalink}/`,

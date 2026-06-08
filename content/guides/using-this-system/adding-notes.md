@@ -27,3 +27,45 @@ The following Obsidian syntax is rendered correctly:
 - Standard tags: `#tag`
 
 Dataview queries are **not** rendered — avoid them or use plain markdown equivalents.
+
+## Diagrams
+
+Fenced code blocks tagged `mermaid` or `plantuml` are turned into SVG in the
+browser and follow the light/dark theme toggle. Nothing is rendered at build
+time, so the diagram engines are only downloaded on pages that actually use them.
+
+A **Mermaid** flowchart:
+
+````md
+```mermaid
+flowchart LR
+  idea --> note --> review --> publish
+```
+````
+
+```mermaid
+flowchart LR
+  idea --> note --> review --> publish
+```
+
+A **PlantUML** sequence diagram — write the full `@startuml`/`@enduml` source:
+
+````md
+```plantuml
+@startuml
+Alice -> Bob : capture idea
+Bob --> Alice : link it back
+@enduml
+```
+````
+
+```plantuml
+@startuml
+Alice -> Bob : capture idea
+Bob --> Alice : link it back
+@enduml
+```
+
+PlantUML covers diagram types Mermaid does not, such as mindmaps, component and
+deployment diagrams, and Graphviz-laid-out graphs. A diagram that fails to parse
+renders a small "Diagram could not be rendered" notice in place of the source.

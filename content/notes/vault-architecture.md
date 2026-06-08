@@ -75,6 +75,31 @@ build:slides ─┴─► build:search ─► pages (main branch only)
 - `build:search` → GitLab merges artifacts, runs Pagefind, artifact: full `public/`
 - `pages` → GitLab Pages deploy (only on default branch)
 
+Drawn as a component graph, the data and artifacts flow like this:
+
+```plantuml
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+
+component "build:notes" as notes
+component "build:slides" as slides
+component "build:search\n(Pagefind)" as search
+component "pages\n(GitLab Pages)" as pages
+
+artifact "public/" as pub
+artifact "public/slides/" as pubslides
+artifact "full public/" as pubfull
+
+notes --> pub
+slides --> pubslides
+pub --> search
+pubslides --> search
+search --> pubfull
+pubfull --> pages : main branch only
+@enduml
+```
+
 **Future**: add `changes:` rules per job for incremental builds. A theme change
 should trigger both jobs.
 

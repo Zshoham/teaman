@@ -90,5 +90,12 @@ const themeCss = SITE_CONFIG.theme
     import { initMermaid } from '../scripts/mermaid';
     initMermaid();
   </script>
+
+  <script>
+    // Renders any ```plantuml blocks on the page; no-ops (and skips loading the
+    // multi-megabyte PlantUML engine) when the page has none.
+    import { initPlantuml } from '../scripts/plantuml';
+    initPlantuml();
+  </script>
 </body>
 </html>

@@ -42,6 +42,24 @@ sequenceDiagram
 The manifesto sells the first arrow. The work is all in the last one — pruning
 and promoting — which is unglamorous and never demoed.
 
+The whole surface fits on one small map — and the manifestos almost always
+overbuild the left branch while starving the right:
+
+```plantuml
+@startmindmap
+* tool for thought
+** capture
+*** fast
+*** badly
+** retrieval
+*** search
+*** surface old notes
+** maintenance
+*** prune
+*** promote
+@endmindmap
+```
+
 ## The test
 
 > [!question]+ Does this note pass the one-sentence test?
