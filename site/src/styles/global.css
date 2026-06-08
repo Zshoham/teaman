@@ -195,6 +195,13 @@ body {
     @apply bg-background text-foreground font-sans;
     letter-spacing: var(--tracking-normal);
   }
+  /* Tailwind v4 dropped Preflight's `button { cursor: pointer }`, so
+     buttons fall back to the browser default. Restore the pointer for
+     enabled buttons (theme toggle, filter pills, etc.). */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* Tabular numerals helper used by various meta strips. */
