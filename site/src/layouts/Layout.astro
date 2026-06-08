@@ -83,5 +83,12 @@ const themeCss = SITE_CONFIG.theme
       {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
     </footer>
   </div>
+
+  <script>
+    // Renders any ```mermaid blocks on the page; no-ops (and skips loading
+    // mermaid) when the page has none.
+    import { initMermaid } from '../scripts/mermaid';
+    initMermaid();
+  </script>
 </body>
 </html>

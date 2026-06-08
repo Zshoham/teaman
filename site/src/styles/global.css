@@ -249,6 +249,28 @@ body {
   font-weight: 400;
 }
 
+/* Mermaid diagrams render client-side (src/scripts/mermaid.ts) into this block.
+   Drop the code-block chrome and center the SVG; hide the raw definition until
+   it's been turned into SVG to avoid a flash of source text. */
+.prose pre.mermaid {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 1.5rem 0;
+  text-align: center;
+  line-height: normal;
+}
+.prose pre.mermaid:not([data-processed]) { visibility: hidden; }
+.prose pre.mermaid svg { max-width: 100%; height: auto; }
+/* Fallback when a diagram fails to parse — a quiet, visible notice rather than
+   raw mermaid source or a silently blank block. */
+.prose pre.mermaid.mermaid-error {
+  visibility: visible;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+}
+
 /* Prose headings — bring article subheads into the same refined serif voice
    as the display titles. The Typography plugin defaults to weight 700/600,
    but Source Serif 4 is only loaded up to 600, so anything heavier renders as
@@ -294,23 +316,88 @@ body {
 .prose .heading-anchor:focus { opacity: 1; }
 .prose .heading-anchor:hover { color: var(--primary); }
 
-/* Callouts (rehype-callouts). */
+/* Callouts (rehype-callouts). A per-type --callout-accent drives the icon,
+   title, left rule and a faint background tint, so the type reads at a glance
+   even when the author supplies a custom title. */
 .prose .callout {
-  margin: 1.5em 0;
-  padding: 14px 16px;
+  --callout-accent: var(--primary); /* default; overridden per data-callout */
+  margin: 1.4em 0;
+  padding: 0.5em 0.85em 0.6em;
   border: 0.5px solid var(--border);
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--callout-accent);
   border-radius: 6px;
-  background: var(--muted);
+  background: color-mix(in oklab, var(--callout-accent) 7%, var(--background));
   color: var(--foreground);
 }
-.prose .callout-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--primary);
+/* In dark mode the page base is near-black, so a 7% tint reads as flat. Mix a
+   stronger accent into the lighter --muted surface (and tint the border) so the
+   callout lifts off the background instead of blending in. */
+[data-theme='dark'] .prose .callout {
+  background: color-mix(in oklab, var(--callout-accent) 14%, var(--background));
 }
+.prose .callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--callout-accent);
+}
+.prose .callout-title-icon {
+  display: inline-flex;
+  flex: none;
+  font-size: 1.15rem; /* the SVG is sized 1em, so this is the icon size */
+}
+.prose .callout-title-icon svg { display: block; }
+.prose .callout-content { font-size: 0.95em; }
+.prose .callout-content > :first-child { margin-top: 0.5em; }
+.prose .callout-content > :last-child { margin-bottom: 0; }
+
+/* Foldable callouts render as <details>/<summary>; drop the native marker and
+   rotate the library's fold chevron (pushed to the trailing edge) on open. */
+.prose details.callout > summary.callout-title {
+  cursor: pointer;
+  list-style: none;
+}
+.prose details.callout > summary.callout-title::-webkit-details-marker { display: none; }
+.prose .callout-fold-icon {
+  display: inline-flex;
+  margin-left: auto;
+  flex: none;
+  transition: transform 0.15s ease;
+}
+.prose details.callout[open] > summary .callout-fold-icon { transform: rotate(90deg); }
+
+/* Per-type accents — chosen to read on both light and dark backgrounds. */
+.prose .callout[data-callout='note'],
+.prose .callout[data-callout='info'],
+.prose .callout[data-callout='todo']      { --callout-accent: oklch(0.62 0.15 250); }
+.prose .callout[data-callout='tip'],
+.prose .callout[data-callout='hint'],
+.prose .callout[data-callout='important'],
+.prose .callout[data-callout='abstract'],
+.prose .callout[data-callout='summary'],
+.prose .callout[data-callout='tldr']      { --callout-accent: oklch(0.64 0.12 190); }
+.prose .callout[data-callout='success'],
+.prose .callout[data-callout='check'],
+.prose .callout[data-callout='done']      { --callout-accent: oklch(0.62 0.16 150); }
+.prose .callout[data-callout='question'],
+.prose .callout[data-callout='help'],
+.prose .callout[data-callout='faq']       { --callout-accent: oklch(0.70 0.14 90); }
+.prose .callout[data-callout='warning'],
+.prose .callout[data-callout='caution'],
+.prose .callout[data-callout='attention']{ --callout-accent: oklch(0.70 0.16 65); }
+.prose .callout[data-callout='example']   { --callout-accent: oklch(0.62 0.16 300); }
+.prose .callout[data-callout='quote'],
+.prose .callout[data-callout='cite']      { --callout-accent: var(--muted-foreground); }
+.prose .callout[data-callout='danger'],
+.prose .callout[data-callout='error'],
+.prose .callout[data-callout='failure'],
+.prose .callout[data-callout='fail'],
+.prose .callout[data-callout='missing'],
+.prose .callout[data-callout='bug']       { --callout-accent: oklch(0.62 0.20 25); }
 
 /* Shiki dual-theme dark swap. Astro emits the light theme inline; for dark
    it stashes the dark values in `--shiki-dark-*` vars on every token. */
