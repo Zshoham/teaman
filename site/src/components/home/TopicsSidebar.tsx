@@ -21,7 +21,7 @@ export function TopicsSidebar({ topics, initialShown = 8 }: Props) {
   return (
     <aside className="flex flex-col gap-9 self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)]">
       <section>
-        <h2 className="m-0 mb-3 border-b border-border pb-2 font-mono text-[10.5px] font-normal uppercase tracking-[0.1em] text-faint">
+        <h2 className="m-0 mb-3 border-b border-border pb-2 font-mono text-meta-sm font-normal uppercase tracking-label text-faint">
           topics
         </h2>
         <div className="flex flex-col gap-0.5" data-topics>
@@ -45,7 +45,7 @@ export function TopicsSidebar({ topics, initialShown = 8 }: Props) {
         {overflow > 0 && (
           <button
             type="button"
-            className="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 font-mono text-[11px] text-primary"
+            className="mt-2.5 inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 font-mono text-meta text-primary transition-colors"
             onClick={() => setExpanded((e) => !e)}
             aria-expanded={expanded}
           >

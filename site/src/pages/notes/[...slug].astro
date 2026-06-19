@@ -20,15 +20,15 @@ const words = wordCount(note.body ?? '');
 ---
 
 <Layout title={note.data.title ?? note.id}>
-  <article class="mx-auto max-w-[680px] pt-3 pb-2 md:pt-6">
+  <article class="mx-auto max-w-[var(--measure)] pt-6 pb-2">
     <Breadcrumbs segments={[
       { label: 'index', href: base },
       { label: note.id },
     ]} />
 
     <header class="mb-8 border-b border-border pb-6">
-      <h1 class="note-title m-0 mb-4 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[40px]">{note.data.title ?? note.id}</h1>
-      <div class="note-meta flex flex-wrap items-baseline gap-2 font-mono text-[11px] text-faint">
+      <h1 class="note-title m-0 mb-4 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{note.data.title ?? note.id}</h1>
+      <div class="note-meta flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint">
         <span>{wordMeta(words)}</span>
         <span class="opacity-50">·</span>
         <span>{readingTimeMeta(words)}</span>

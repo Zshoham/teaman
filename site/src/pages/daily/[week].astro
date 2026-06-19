@@ -28,8 +28,8 @@ const footerLeft = `${week.days.length} ${week.days.length === 1 ? 'day' : 'days
 <Layout title={docTitle} footerLeft={footerLeft}>
   <WeekStrip weeks={stripWeeks} currentId={week.id} client:load />
 
-  <article class="mx-auto max-w-[680px]" aria-label={`Daily notes for ${caption}`}>
-    <div class="pt-10 pb-2 text-center font-mono text-[11px] uppercase tracking-[0.16em] text-faint">{caption}</div>
+  <article class="mx-auto max-w-[var(--measure)]" aria-label={`Daily notes for ${caption}`}>
+    <div class="pt-10 pb-2 text-center font-mono text-meta uppercase tracking-label text-faint">{caption}</div>
 
     {week.days.map((day, i) => (
       <DaySection day={day} isFirst={i === 0} />

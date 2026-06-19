@@ -38,7 +38,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
     "inline-flex h-auto min-w-[38px] items-center justify-center rounded-md border border-border bg-transparent px-3 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted md:px-3.5";
 
   return (
-    <div className="sticky top-[var(--header-h)] z-[8] border-b border-border bg-background pt-3.5 pb-3" data-week-strip>
+    <div className="sticky top-[var(--header-h)] z-[8] border-b border-border bg-background py-3" data-week-strip>
       <div className="flex items-stretch gap-2.5">
         {prev ? (
           <a
@@ -69,7 +69,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
                 ref={active ? activeRef : undefined}
                 className={cn(
                   "flex shrink-0 items-baseline gap-2 rounded-md border bg-transparent px-3.5 py-2 whitespace-nowrap text-foreground no-underline transition-colors",
-                  active ? "border-primary" : "border-border hover:border-muted-foreground hover:bg-muted",
+                  active ? "border-primary" : "border-border hover:border-foreground hover:bg-muted",
                 )}
                 href={weekHref(w)}
                 data-week={w.id}
@@ -77,7 +77,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
                 aria-current={active ? "page" : undefined}
               >
                 <span className="tabular-nums font-mono text-[12px] text-inherit">{range}</span>
-                <span className="tabular-nums font-mono text-[10px] text-faint">{fmtWeeksAgo(w.start)}</span>
+                <span className="tabular-nums font-mono text-meta-sm text-faint">{fmtWeeksAgo(w.start)}</span>
               </a>
             );
           })}

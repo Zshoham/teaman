@@ -11,7 +11,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
 
   return (
     <aside className="guide-toc self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)] md:pr-2">
-      <h2 className="m-0 mb-4 border-b border-border pb-2.5 font-mono text-[10.5px] font-normal uppercase tracking-[0.1em] text-faint">
+      <h2 className="m-0 mb-4 border-b border-border pb-2.5 font-mono text-meta-sm font-normal uppercase tracking-label text-faint">
         {guide.title}
       </h2>
       <ol className="m-0 flex list-none flex-col gap-0.5 p-0">
@@ -28,7 +28,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
               >
                 <span
                   className={cn(
-                    "shrink-0 font-mono text-[10.5px] tabular-nums",
+                    "shrink-0 font-mono text-meta-sm tabular-nums",
                     current ? "text-primary" : "text-faint",
                   )}
                 >

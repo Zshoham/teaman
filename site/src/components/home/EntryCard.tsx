@@ -16,7 +16,7 @@ export function EntryCard({ entry: e }: Props) {
       data-created={e.created}
       data-title={e.title.toLowerCase()}
     >
-      <div className="mb-2 flex items-baseline gap-3 font-mono text-[11px]">
+      <div className="mb-2 flex items-baseline gap-3 font-mono text-meta">
         <span className="tabular-nums text-faint">{fmtDate(e.updated)}</span>
         <span className="text-primary">{TYPE_LABEL[e.type]}</span>
         <span className="ml-auto tabular-nums whitespace-nowrap text-faint">{e.meta}</span>
@@ -37,7 +37,7 @@ export function EntryCard({ entry: e }: Props) {
             <button
               key={tag}
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-mono text-[11px] tracking-wide text-faint hover:text-primary"
+              className="cursor-pointer border-0 bg-transparent p-0 font-mono text-meta tracking-wide text-faint hover:text-primary"
               data-tag={tag}
             >
               #{tag}

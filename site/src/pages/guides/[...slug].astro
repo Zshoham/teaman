@@ -55,14 +55,14 @@ const words = wordCount(entry.body ?? '');
       ...(idx > 0 ? [{ label: currentTitle }] : []),
     ]} />
 
-    <div class="grid items-start gap-8 md:grid-cols-[220px_minmax(0,1fr)] md:gap-14">
+    <div class="grid items-start gap-8 md:grid-cols-[240px_minmax(0,1fr)] md:gap-16">
       <GuideTOC guide={guide} currentSlug={chapterSlug} />
 
-      <div class="min-w-0 max-w-[680px]">
+      <div class="min-w-0 max-w-[var(--measure)]">
         <header class="mb-8 border-b border-border pb-6">
-          <p class="guide-eyebrow m-0 font-mono text-[11px] uppercase tracking-wider text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
-          <h1 class="guide-title mt-3 font-serif text-3xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[40px]">{currentTitle}</h1>
-          <p class="mt-4 font-mono text-[11px] text-faint">{wordMeta(words)} · {readingTimeMeta(words)}</p>
+          <p class="guide-eyebrow m-0 font-mono text-meta uppercase tracking-label text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
+          <h1 class="guide-title mt-3 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{currentTitle}</h1>
+          <p class="mt-4 font-mono text-meta text-faint">{wordMeta(words)} · {readingTimeMeta(words)}</p>
         </header>
 
         <div class="prose">

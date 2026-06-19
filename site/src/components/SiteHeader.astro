@@ -29,7 +29,7 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
       : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
     <span class="brand-name font-mono text-[13px] font-medium tracking-wide">{SITE_CONFIG.brand}</span>
-    <span class="brand-tagline ml-1 font-mono text-[11px] text-faint">/ {SITE_CONFIG.tagline}</span>
+    <span class="brand-tagline ml-1 font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
   </a>
 
   <nav
@@ -57,7 +57,7 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
       >
         <span class="font-mono text-[13px] leading-none text-faint" aria-hidden="true">⌕</span>
         <span class="flex-1 min-w-0 text-left text-[13px] text-muted-foreground">search the vault</span>
-        <span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-[10px] leading-none text-faint" aria-hidden="true">/</span>
+        <span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span>
       </button>
     </pagefind-modal-trigger>
 

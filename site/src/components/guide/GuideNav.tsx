@@ -21,7 +21,7 @@ export function GuideNav({ guide, currentSlug }: Props) {
     >
       {prev ? (
         <a className={linkBase} href={chapterHref(guide, prev.slug)}>
-          <span className="text-[10.5px] uppercase tracking-wider text-faint">← previous</span>
+          <span className="text-meta-sm uppercase tracking-label text-faint">← previous</span>
           <span className="font-serif text-[15px] text-balance text-foreground">{prev.title}</span>
         </a>
       ) : (
@@ -32,7 +32,7 @@ export function GuideNav({ guide, currentSlug }: Props) {
           className={cn("guide-nav-link next items-start md:items-end md:text-right", linkBase)}
           href={chapterHref(guide, next.slug)}
         >
-          <span className="text-[10.5px] uppercase tracking-wider text-faint">next →</span>
+          <span className="text-meta-sm uppercase tracking-label text-faint">next →</span>
           <span className="font-serif text-[15px] text-balance text-foreground">{next.title}</span>
         </a>
       ) : (

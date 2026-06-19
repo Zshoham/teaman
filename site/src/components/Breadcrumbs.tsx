@@ -21,7 +21,7 @@ interface Props {
 
 export function Breadcrumbs({ segments }: Props) {
   return (
-    <Breadcrumb className="crumbs mb-7 font-mono text-[11px]">
+    <Breadcrumb className="crumbs mb-7 font-mono text-meta">
       <BreadcrumbList>
         {segments.map((s, i) => (
           <Fragment key={`${s.label}-${i}`}>

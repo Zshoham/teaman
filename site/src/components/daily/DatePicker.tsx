@@ -149,7 +149,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
           >
             <ChevronLeftIcon aria-hidden="true" />
           </Button>
-          <div className="month-label flex-1 text-center font-mono text-[12px] tabular-nums uppercase tracking-[0.08em] text-foreground">
+          <div className="month-label flex-1 text-center font-mono text-[12px] tabular-nums uppercase tracking-label text-foreground">
             {active.label}
             <span className="ml-2 text-faint">{active.year}</span>
           </div>
@@ -168,7 +168,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
         <div className={`${rowGrid} mb-1.5`}>
           <span />
           {WEEKDAY_INITIALS.map((d, i) => (
-            <span key={i} className="font-mono text-[10px] tracking-[0.08em] text-faint">
+            <span key={i} className="font-mono text-meta-sm tracking-label text-faint">
               {d}
             </span>
           ))}
@@ -232,7 +232,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
           })}
         </div>
 
-        <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5 font-mono text-[10px] tracking-[0.08em] text-faint">
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5 font-mono text-meta-sm tracking-label text-faint">
           <span className="uppercase">pick a week</span>
           <span className="inline-flex items-center">
             <span
