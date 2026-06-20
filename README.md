@@ -18,10 +18,17 @@ my-vault/
   guides/   <slug>/SUMMARY.md + chapters
   slides/   *.md        # Slidev decks
   dailies/  YYYY-MM-DD.md
+  decisions/ adr-NNNN.md # architecture decision records (timeline at /decisions/)
   public/   …           # optional static passthrough (logo, images)
 ```
 
 Run `npx teaman init my-vault` to scaffold the config and content dirs.
+
+Each `decisions/adr-NNNN.md` is one Architecture Decision Record: frontmatter
+carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), optional
+`tags`, a one-line `summary`, and optional `supersedes` / `supersededBy` (the `NNNN`
+of a related ADR); the body holds the prose (Context / Decision / Consequences). They
+render as a filterable timeline at `/decisions/` and also appear in the home feed.
 
 ## Commands
 

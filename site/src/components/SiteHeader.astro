@@ -13,6 +13,9 @@ const dailyDir = `${base}daily/`;
 const dailyWeeks = await loadDailyWeeks();
 const dailyHref = dailyWeeks[0] ? weekHref(dailyWeeks[0]) : dailyDir;
 const onDaily = Astro.url.pathname.startsWith(dailyDir);
+
+const decisionsDir = `${base}decisions/`;
+const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
 ---
 
 <header
@@ -46,6 +49,16 @@ const onDaily = Astro.url.pathname.startsWith(dailyDir);
       ]}
       aria-current={onDaily ? 'page' : undefined}
     >daily</a>
+    <a
+      href={decisionsDir}
+      class:list={[
+        'border-b py-0.5 font-mono text-[12px] no-underline transition-colors',
+        onDecisions
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      ]}
+      aria-current={onDecisions ? 'page' : undefined}
+    >decisions</a>
   </nav>
 
   <div class="col-span-2 flex w-full items-center justify-between gap-4 md:col-span-1 md:w-auto md:justify-self-end md:gap-5">

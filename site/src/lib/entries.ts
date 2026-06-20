@@ -2,17 +2,19 @@ import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
 import { join } from 'path';
 import { guideSlugFromSummaryId, listGuides } from './guides';
+import { loadAdrs } from './adr';
 import { slidesRoot } from './content-paths';
 import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, type WeekdayShort } from './dailies';
 import { fmtLongDay } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
-export type EntryType = 'note' | 'guide' | 'slides';
+export type EntryType = 'note' | 'guide' | 'slides' | 'decision';
 
 export const TYPE_LABEL: Record<EntryType, string> = {
   note: 'note',
   guide: 'guide',
   slides: 'slides',
+  decision: 'decision',
 };
 
 export interface Entry {
@@ -181,13 +183,38 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
     });
 }
 
-/** Loads notes, slides, and guides and returns a single list sorted by `updated` desc. */
+/**
+ * Architecture Decision Records show up in the index alongside notes. Each links
+ * to its detail modal on the decisions page via the `#<num>` hash deep-link.
+ */
+export async function loadDecisionEntries(): Promise<Entry[]> {
+  const adrs = await loadAdrs();
+  return adrs.map(a => {
+    const body = (a.entry.body ?? '') as string;
+    return {
+      id: `decision-${a.num}`,
+      type: 'decision' as const,
+      title: `ADR-${a.num} · ${a.title}`,
+      excerpt: a.summary,
+      tags: a.tags,
+      updated: a.date,
+      created: a.date,
+      meta: wordMeta(wordCount(body)),
+      href: `${base}decisions/#${a.num}`,
+    };
+  });
+}
+
+/** Loads notes, slides, guides, and decisions as a single list sorted by `updated` desc. */
 export async function loadAllEntries(): Promise<Entry[]> {
-  const [notes, dailies, slides, guides] = await Promise.all([
+  const [notes, dailies, slides, guides, decisions] = await Promise.all([
     loadNoteEntries(),
     loadDailyNoteEntries(),
     loadSlideEntries(),
     loadGuideEntries(),
+    loadDecisionEntries(),
   ]);
-  return [...notes, ...dailies, ...slides, ...guides].sort((a, b) => b.updated.localeCompare(a.updated));
+  return [...notes, ...dailies, ...slides, ...guides, ...decisions].sort((a, b) =>
+    b.updated.localeCompare(a.updated),
+  );
 }

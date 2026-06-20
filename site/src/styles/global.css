@@ -65,6 +65,13 @@
      both paper and white while staying below --muted-foreground. */
   --faint: oklch(0.5600 0.0150 264.5419);
 
+  /* Decision-record status hues — the one place the palette steps outside the
+     single-accent rule. Shared by the StatusBadge on the decisions timeline and
+     the home feed so a decision's status reads identically in both. */
+  --st-accepted: oklch(0.55 0.085 150);
+  --st-proposed: oklch(0.62 0.11 70);
+  --st-superseded: oklch(0.55 0.055 232);
+
   /* ── Semantic type & layout rungs ──────────────────────────────
      The handful of repeated size / tracking / measure values, named once so
      the editorial scale stays internally consistent and a vault can retune it
@@ -140,6 +147,11 @@
   --sidebar-ring: oklch(0.7214 0.1337 49.9802);
 
   --faint: oklch(0.6300 0 0);
+
+  /* Lift the status hues for the dark base (see light-mode note above). */
+  --st-accepted: oklch(0.74 0.1 150);
+  --st-proposed: oklch(0.78 0.13 75);
+  --st-superseded: oklch(0.72 0.075 232);
 
   /* The light-mode shadows above (3–13% black) vanish on the dark base and
      aren't otherwise overridden, so floating UI would fall back to its ring

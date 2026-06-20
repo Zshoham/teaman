@@ -20,7 +20,7 @@ const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const enginePkg = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'));
 const VERSION = enginePkg.version;
 
-const CONTENT_DIRS = ['notes', 'guides', 'slides', 'dailies'];
+const CONTENT_DIRS = ['notes', 'guides', 'slides', 'dailies', 'decisions'];
 
 // ── tiny terminal helpers ────────────────────────────────────────────────
 const c = {
@@ -302,6 +302,30 @@ async function cmdDoctor(vaultArg) {
       // only supplies the URL slug, not the schema field, so the build rejects
       // a dated filename without frontmatter. Match that here.
       if (!data.date) problems.push(`dailies: ${basename(file)} needs a "date" in frontmatter`);
+    }
+
+    // The decisions collection requires `date` + a valid `status`; lineage
+    // pointers should resolve to an ADR that actually exists in the vault.
+    const decisionsDir = join(vault, 'decisions');
+    if (existsSync(decisionsDir)) {
+      const STATUSES = new Set(['accepted', 'proposed', 'superseded']);
+      const files = walkMd(decisionsDir);
+      const nums = new Set(
+        files.map(f => (basename(f, '.md').match(/(\d+)/) ?? [])[1]).filter(Boolean),
+      );
+      for (const file of files) {
+        const { data } = matter(readFileSync(file, 'utf8'));
+        const name = basename(file);
+        if (!data.date) problems.push(`decisions: ${name} needs a "date" in frontmatter`);
+        if (!data.status) problems.push(`decisions: ${name} needs a "status" (accepted | proposed | superseded)`);
+        else if (!STATUSES.has(data.status)) problems.push(`decisions: ${name} has invalid status "${data.status}"`);
+        for (const key of ['supersedes', 'supersededBy']) {
+          const ref = data[key];
+          if (ref && !nums.has(String(ref))) {
+            warnings.push(`decisions: ${name} ${key} points at missing ADR-${ref}`);
+          }
+        }
+      }
     }
   }
   const guidesDir = join(vault, 'guides');

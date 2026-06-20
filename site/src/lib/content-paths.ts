@@ -15,3 +15,4 @@ export const notesRoot = join(contentRoot, 'notes');
 export const guidesRoot = join(contentRoot, 'guides');
 export const slidesRoot = join(contentRoot, 'slides');
 export const dailiesRoot = join(contentRoot, 'dailies');
+export const decisionsRoot = join(contentRoot, 'decisions');

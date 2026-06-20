@@ -1,6 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { dailiesRoot, guidesRoot, notesRoot, slidesRoot } from './lib/content-paths';
+import { dailiesRoot, decisionsRoot, guidesRoot, notesRoot, slidesRoot } from './lib/content-paths';
 
 const notes = defineCollection({
   loader: glob({ pattern: '**/*.md', base: notesRoot }),
@@ -57,4 +57,17 @@ const dailies = defineCollection({
   }),
 });
 
-export const collections = { notes, guides, guideSummaries, slides, dailies };
+const decisions = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: decisionsRoot }),
+  schema: z.object({
+    title: z.string(),
+    date: z.coerce.date(),
+    status: z.enum(['accepted', 'proposed', 'superseded']),
+    tags: tagList,
+    summary: z.string().optional(),
+    supersedes: z.string().optional(),
+    supersededBy: z.string().optional(),
+  }),
+});
+
+export const collections = { notes, guides, guideSummaries, slides, dailies, decisions };

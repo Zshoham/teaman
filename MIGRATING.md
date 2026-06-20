@@ -23,6 +23,12 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Decisions collection** (minor, additive). A new `decisions/` content type
+  (`adr-NNNN.md`, frontmatter `title` / `date` / `status` / optional `tags` /
+  `summary` / `supersedes` / `supersededBy`) renders a filterable Architecture
+  Decision Record timeline at `/decisions/`, linked from the header nav and the
+  home feed. Vaults without a `decisions/` dir are unaffected. No migration.
+
 - **Slides theme** (minor, additive). Decks are now built with the bundled
   `slidev-theme-teaman` and gain an optional `slides` config block
   (`logo`, `primary`, `secondary`, `footer`). The `logo` rides a footer strip

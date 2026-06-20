@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils";
-import { toggleVariants } from "@/components/ui/toggle";
+import { FilterPill } from "@/components/FilterPill";
 
 interface FilterTab {
   id: string;
@@ -17,19 +16,14 @@ export function FilterBar({ filterTabs, defaultFilter = "all" }: Props) {
     <div className="sticky top-[var(--header-h)] z-[5] -mx-px mb-1 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background py-3">
       <div className="flex flex-wrap gap-1.5" data-filter-pills>
         {filterTabs.map((t) => (
-          <button
+          <FilterPill
             key={t.id}
-            type="button"
-            className={cn(
-              toggleVariants({ variant: "outline", size: "sm" }),
-              "rounded-full gap-2 text-muted-foreground aria-pressed:bg-foreground aria-pressed:text-background aria-pressed:border-foreground",
-            )}
             data-filter={t.id}
             aria-pressed={t.id === defaultFilter ? "true" : "false"}
+            count={t.count}
           >
-            <span>{t.label}</span>
-            <span className="font-mono text-meta-sm opacity-60">{t.count}</span>
-          </button>
+            {t.label}
+          </FilterPill>
         ))}
       </div>
       <button

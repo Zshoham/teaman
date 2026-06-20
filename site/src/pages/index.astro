@@ -29,12 +29,14 @@ const filterTabs = [
   { id: 'note', label: 'notes', count: counts.note ?? 0 },
   { id: 'guide', label: 'guides', count: counts.guide ?? 0 },
   { id: 'slides', label: 'slides', count: counts.slides ?? 0 },
+  { id: 'decision', label: 'decisions', count: counts.decision ?? 0 },
 ].filter(t => t.id === 'all' || t.count > 0);
 
 const statRows: Array<[string, number]> = [
   ['notes', counts.note ?? 0],
   ['guides', counts.guide ?? 0],
   ['slides', counts.slides ?? 0],
+  ['decisions', counts.decision ?? 0],
   ['tags', tagCounts.size],
 ].filter(([, n]) => n > 0) as Array<[string, number]>;
 

@@ -1,0 +1,50 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { render } from 'astro:content';
+import { experimental_AstroContainer as AstroContainer } from 'astro/container';
+import { loadAdrs } from '../../lib/adr';
+import { fmtDate } from '../../lib/format';
+import { AdrTimeline, type AdrView } from '../../components/decisions/AdrTimeline';
+
+const adrs = await loadAdrs();
+
+// Pre-render each ADR's markdown body to an HTML string so the React island can
+// drop it straight into the modal (.prose) — no client-side markdown parsing.
+const container = await AstroContainer.create();
+const views: AdrView[] = await Promise.all(
+  adrs.map(async (a) => {
+    const { Content } = await render(a.entry);
+    return {
+      num: a.num,
+      title: a.title,
+      date: a.date,
+      dateLabel: fmtDate(a.date),
+      status: a.status,
+      tags: a.tags,
+      summary: a.summary,
+      supersedes: a.supersedes,
+      supersededBy: a.supersededBy,
+      bodyHtml: await container.renderToString(Content),
+    };
+  }),
+);
+
+const footerLeft = `${adrs.length} ${adrs.length === 1 ? 'decision' : 'decisions'}`;
+---
+
+<Layout title="Decisions" footerLeft={footerLeft}>
+  <AdrTimeline adrs={views} client:load />
+</Layout>
+
+<style is:global>
+  /* Horizontal offset of the timeline spine: gutter + half the node column.
+     (The status colours live in global.css as shared --st-* tokens.) */
+  .adr-timeline {
+    --spine-x: 146px;
+  }
+  @media (max-width: 760px) {
+    .adr-timeline {
+      --spine-x: 82px;
+    }
+  }
+</style>
