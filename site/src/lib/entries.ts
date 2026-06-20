@@ -3,7 +3,7 @@ import { stat } from 'fs/promises';
 import { join } from 'path';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { slidesRoot } from './content-paths';
-import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, type WeekdayShort } from './dailies';
+import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, type WeekdayShort } from './dailies';
 import { fmtLongDay } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
@@ -161,7 +161,12 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
       const iso = dailyDateId(d);
       const date = new Date(`${iso}T00:00:00`);
       const weekday = WEEKDAY_LONG[WEEKDAY_FROM_INDEX[date.getDay()]];
-      const weekId = isoDate(sundayOf(date));
+      // `date` and `sundayOf` work in *local* time, so format the week id with
+      // the daily module's local isoDate — NOT this file's UTC isoDate. With the
+      // UTC one, a positive-offset build (e.g. UTC+3) formats the local-midnight
+      // Sunday as the previous UTC day, rolling the week back and breaking the
+      // link to the actual /daily/<sunday>/ page.
+      const weekId = localIsoDate(sundayOf(date));
       return {
         id: `daily-${iso}`,
         type: 'note' as const,

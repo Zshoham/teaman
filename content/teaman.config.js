@@ -29,4 +29,13 @@ export default {
   //   '--primary': 'oklch(0.67 0.14 48)',
   //   '--radius': '0.5rem',
   // },
+
+  // Project-wide Slidev styling. Every deck is built with the teaman theme
+  // (Source Serif 4 / Inter / JetBrains Mono, matching the site); these are the
+  // only knobs and apply to all decks without editing any deck.
+  slides: {
+    logo: 'teacup.svg',
+    primary: 'oklch(0.8314 0.1671 85.79)',
+    secondary: 'oklch(0.4253 0.1094 248.83)',
+  },
 };

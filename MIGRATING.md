@@ -21,6 +21,15 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ## Versions
 
+### Unreleased
+
+- **Slides theme** (minor, additive). Decks are now built with the bundled
+  `slidev-theme-teaman` and gain an optional `slides` config block
+  (`logo`, `primary`, `secondary`, `footer`). The `logo` rides a footer strip
+  painted in `secondary` (one fixed backdrop across light/dark); `footer: false`
+  hides it. Existing decks need no change — any per-deck `theme:` is superseded
+  by the engine theme. No migration.
+
 ### 1.0.0
 
 Initial release. No migration.

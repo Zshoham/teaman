@@ -1,0 +1,104 @@
+/* teaman Slidev theme — the editorial voice of the site, on slides.
+ *
+ * Source Serif 4 for display headings, Inter for body/UI, JetBrains Mono for
+ * code; one warm accent (--slidev-theme-primary) used sparingly; paper / near-
+ * black surfaces that match the site. Reads tokens from vars.css so the only
+ * per-project knobs are the two accent colours + the logo. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300..600;1,8..60,400&display=swap');
+
+.slidev-layout {
+  background: var(--teaman-slide-bg);
+  color: var(--teaman-slide-fg);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Display headings: refined serif, size-led hierarchy (no faux-bold) ── */
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3,
+.slidev-layout h4 {
+  font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  color: var(--teaman-slide-fg);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.slidev-layout h1 { font-size: 2.6em; font-weight: 600; margin-bottom: 0.5em; }
+.slidev-layout h2 { font-size: 1.7em; }
+.slidev-layout h3 { font-size: 1.3em; }
+
+/* The opening slide leans bigger and pairs the title with a quiet lede + a
+   short primary rule, echoing the site hero. */
+.slidev-layout.cover h1,
+.slidev-layout.intro h1 {
+  font-size: 3.4em;
+  margin-bottom: 0.35em;
+}
+.slidev-layout.cover h1 + p,
+.slidev-layout.intro h1 + p {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 1.2em;
+  color: var(--teaman-slide-muted);
+  max-width: 36ch;
+}
+.slidev-layout.cover h1::after,
+.slidev-layout.intro h1::after {
+  content: '';
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 2px;
+  background: var(--slidev-theme-primary);
+}
+
+/* ── Inline elements ── */
+.slidev-layout a {
+  color: var(--slidev-theme-primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.slidev-layout strong { color: var(--teaman-slide-fg); font-weight: 600; }
+.slidev-layout em { color: var(--teaman-slide-muted); }
+.slidev-layout blockquote {
+  border-left: 3px solid var(--slidev-theme-secondary);
+  padding-left: 0.9em;
+  color: var(--teaman-slide-muted);
+  font-style: normal;
+}
+.slidev-layout ul > li::marker { color: var(--slidev-theme-primary); }
+
+/* ── Code: JetBrains Mono, quiet bordered surfaces (matches the site) ── */
+.slidev-layout code,
+.slidev-layout pre { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+.slidev-layout :not(pre) > code {
+  background: var(--teaman-slide-code-bg);
+  border: 1px solid var(--teaman-slide-border);
+  border-radius: 4px;
+  padding: 0.08em 0.34em;
+  font-size: 0.88em;
+}
+.slidev-layout pre {
+  background: var(--teaman-slide-code-bg) !important;
+  border: 1px solid var(--teaman-slide-border);
+  border-radius: 8px;
+}
+
+/* ── Tables: hairline rules, sans header (mirrors the site) ── */
+.slidev-layout table { font-size: 0.95em; }
+.slidev-layout th {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  border-bottom-color: var(--teaman-slide-border);
+}
+.slidev-layout td,
+.slidev-layout th { border-color: var(--teaman-slide-border); }
+
+/* Slidev chrome (page number, progress bar) inherits the accent via
+   --slidev-theme-primary, set in vars.css. */

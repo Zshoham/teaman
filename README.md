@@ -57,6 +57,12 @@ export default {
     '--primary': 'oklch(0.67 0.14 48)',
     '--radius': '0.5rem',
   },
+  slides: {                     // project-wide Slidev styling (all optional)
+    logo: 'assets/logo.svg',    // shown on the footer strip of every slide
+    primary: 'oklch(0.62 0.15 48)',
+    secondary: 'oklch(0.58 0.05 196)',
+    footer: true,               // show the footer strip (default true)
+  },
 };
 ```
 
@@ -68,6 +74,24 @@ which is what lets engine upgrades land without a merge. Token names mirror
 `:root` in `site/src/styles/global.css` (e.g. `--primary`, `--background`,
 `--foreground`, `--border`, `--radius`, `--accent`). Unknown tokens are simply
 unused; `teaman doctor` flags them.
+
+### Slides
+
+Every Slidev deck in `slides/` is built with the engine's bundled theme
+(`slidev-theme-teaman`) — Source Serif 4 display, Inter body, JetBrains Mono
+code, one warm accent, matching the site. You don't set a `theme:` in any deck;
+the build applies it to all of them. The only knobs are project-wide, under
+`slides`:
+
+- `logo` — a mark shown on the footer strip of every slide (resolved like
+  `logo`: vault `public/`, then the vault root). Omit for none.
+- `primary` / `secondary` — accent colors (any CSS color). Defaults match the
+  site's warm accent. `secondary` also paints the footer strip, giving the logo
+  one fixed backdrop regardless of the light/dark slide theme.
+- `footer` — show the footer strip carrying the logo (default `true`); set
+  `false` to hide it (and its logo).
+
+These flow into the theme at build time, so decks stay pure content.
 
 ## Versioning & upgrades
 

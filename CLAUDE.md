@@ -86,7 +86,7 @@ serialized through `TEAMAN_CONFIG`). The CLI may pass a partial config;
 `src/config.ts` merges it over `DEFAULT_CONFIG` (with `hero` merged one level deep)
 and exports `SITE_CONFIG`. The authoritative `SiteConfig` shape and its doc comments
 live in `src/config.ts` — keep it in sync with the README and with `KNOWN_KEYS`/
-`KNOWN_HERO_KEYS` in `bin/teaman.mjs` (the `doctor` validator).
+`KNOWN_HERO_KEYS`/`KNOWN_SLIDES_KEYS` in `bin/teaman.mjs` (the `doctor` validator).
 
 **Theming is the only per-vault styling surface**: `config.theme` is a map of CSS
 custom properties layered onto `:root`. Token names mirror `:root` in
@@ -126,7 +126,23 @@ Three sequential stages, all reading the env seam:
 2. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`
    (skipping `_`-prefixed files). Decks are copied into `site/.slides-build/` first
    because Slidev resolves themes relative to the deck file and needs to walk up to
-   `site/node_modules`.
+   `site/node_modules`. Every deck is built with `--theme` pointing at a staged copy
+   of the engine theme `site/slidev-theme-teaman/` (in `.slides-build/theme/`); the
+   build personalizes that copy from the vault's `config.slides` knobs via
+   `scripts/slides-theme.mjs` (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource`
+   + `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed
+   theme keeps sane defaults; no deck frontmatter is ever rewritten. The theme is
+   shipped in the npm package (`files` in `site/package.json`). Decks build with
+   `--base ./ --router-mode hash` (not the site base): Slidev double-applies a
+   sub-path base on in-app nav (→ `/slides/x/slides/x/2` 404), and a static host
+   has no SPA fallback — relative base + hash routing makes decks path-agnostic
+   and deep-link/refresh safe. The site links to a deck by its root URL (slide 1).
+   The relative base's one catch: Slidev's `getSlidePath` bakes `BASE_URL` into
+   the path it passes to `router.push`, so from a deeper route (presenter mode,
+   the overview) that relative path resolves against the current depth and 404s.
+   So build-slides also stages a `.slides-build/vite.config.ts` (`renderViteConfig`)
+   whose Vite plugin patches `getSlidePath` to return an absolute, base-less router
+   path; it fails the build loud if the upstream source no longer matches.
 3. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck via
    `parse-deck.mjs`.

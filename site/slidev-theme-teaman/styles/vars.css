@@ -1,0 +1,26 @@
+/* Colour tokens for the teaman Slidev theme.
+ *
+ * The build (scripts/build-slides.mjs → renderVarsCss) regenerates this file in
+ * the staged theme copy, substituting --slidev-theme-primary / -secondary with
+ * the values from teaman.config.js `slides`. The page tones below are fixed so
+ * decks always match the site's paper / near-black surfaces. This committed
+ * copy is the default (warm accent), kept in sync with renderVarsCss's
+ * fallbacks so the theme renders correctly on its own too. */
+:root {
+  --slidev-theme-primary: oklch(0.62 0.15 48);
+  --slidev-theme-secondary: oklch(0.58 0.05 196);
+
+  --teaman-slide-bg: oklch(0.992 0.004 95);
+  --teaman-slide-fg: oklch(0.21 0.03 264);
+  --teaman-slide-muted: oklch(0.45 0.02 264);
+  --teaman-slide-border: oklch(0.9 0.005 264);
+  --teaman-slide-code-bg: oklch(0.965 0.003 264);
+}
+
+html.dark {
+  --teaman-slide-bg: oklch(0.18 0.004 308);
+  --teaman-slide-fg: oklch(0.92 0 0);
+  --teaman-slide-muted: oklch(0.7 0 0);
+  --teaman-slide-border: oklch(0.3 0 0);
+  --teaman-slide-code-bg: oklch(0.24 0.004 308);
+}

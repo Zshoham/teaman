@@ -73,7 +73,6 @@ No extra tooling. No friction.
 
 # What's Next
 
-- Custom Slidev theme matching the site design
 - Incremental CI builds (only rebuild what changed)
 - Hybrid mdBook rendering inside Astro
 - Quartz as a notes preprocessor for richer graph features

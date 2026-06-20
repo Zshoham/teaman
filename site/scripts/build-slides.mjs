@@ -1,8 +1,8 @@
-import { readdirSync, mkdirSync, existsSync, cpSync, rmSync } from 'fs';
+import { readdirSync, mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { join, basename } from 'path';
-import { normalizeBase } from '../src/lib/site-base.mjs';
+import { join, basename, extname } from 'path';
+import { renderVarsCss, renderLogoConfig, resolveLogoSource, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
 
 const siteDir = fileURLToPath(new URL('..', import.meta.url));
 const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../../content', import.meta.url));
@@ -10,7 +10,12 @@ const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../../public', i
 const slidesSrcDir = join(vaultDir, 'slides');
 const slidesTmpDir = join(siteDir, '.slides-build');
 const publicDir = join(outDir, 'slides');
-const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
+
+// `slides` knobs from teaman.config.js (serialized via TEAMAN_CONFIG by the CLI).
+let slidesConfig = {};
+try {
+  slidesConfig = (JSON.parse(process.env.TEAMAN_CONFIG ?? '{}').slides) ?? {};
+} catch { /* malformed config → fall back to theme defaults */ }
 
 if (!existsSync(slidesSrcDir)) {
   console.log('No slides directory, skipping.');
@@ -30,20 +35,63 @@ if (decks.length === 0) {
 rmSync(slidesTmpDir, { recursive: true, force: true });
 cpSync(slidesSrcDir, slidesTmpDir, { recursive: true });
 
+// Slidev merges a vite.config found in the deck's directory; we use it to patch
+// getSlidePath so presenter/overview navigation works under the relative base
+// (see renderViteConfig + the routing note below).
+writeFileSync(join(slidesTmpDir, 'vite.config.ts'), renderViteConfig());
+
+// Stage the engine's Slidev theme next to the decks and personalise the staged
+// copy with the project's `slides` knobs (accent colours + logo), so every deck
+// builds with one consistent style. The committed theme stays pristine; only the
+// staged copy carries the config. Applied to all decks via `--theme` below — no
+// deck frontmatter is ever touched.
+const themeDir = join(slidesTmpDir, 'theme');
+cpSync(join(siteDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
+writeFileSync(join(themeDir, 'styles', 'vars.css'), renderVarsCss(slidesConfig));
+
+const logoSrc = resolveLogoSource(slidesConfig.logo, {
+  teamanPublic: process.env.TEAMAN_PUBLIC,
+  vaultDir,
+});
+let logoFile = null;
+if (logoSrc) {
+  logoFile = `teaman-slide-logo${extname(logoSrc) || '.svg'}`;
+  const deckPublic = join(slidesTmpDir, 'public');
+  mkdirSync(deckPublic, { recursive: true });
+  copyFileSync(logoSrc, join(deckPublic, logoFile));
+} else if (slidesConfig.logo) {
+  console.warn(`slides.logo "${slidesConfig.logo}" not found in vault/public — skipping slide logo.`);
+}
+writeFileSync(
+  join(themeDir, 'logo.config.ts'),
+  renderLogoConfig(logoFile, { footer: slidesConfig.footer !== false }),
+);
+
 try {
   for (const deck of decks) {
     const name = basename(deck, '.md');
     const tmpDeck = join(slidesTmpDir, deck);
     const outDir = join(publicDir, name);
-    const deckBase = `${siteBase}slides/${name}/`;
 
     mkdirSync(outDir, { recursive: true });
     console.log(`Building deck: ${name}`);
-    execFileSync('npx', [
-      'slidev', 'build', tmpDeck,
-      '--base', deckBase,
-      '--out', outDir,
-    ], {
+    // Path-agnostic build: relative asset base (./) + hash routing. Slidev's
+    // getSlidePath prefixes import.meta.env.BASE_URL while the router is ALSO
+    // created with that base, so a sub-path base (e.g. /slides/intro/) gets
+    // applied twice on in-app nav — "next" lands on /slides/intro/slides/intro/2
+    // → 404. A relative base makes BASE_URL benign (assets resolve relative to
+    // the page, so the deck works under any deploy prefix) and hash routing
+    // keeps slide changes client-side (#/2), so deep links and refresh never hit
+    // the static host's missing SPA fallback (GitLab Pages serves no _redirects).
+    // Decks link in from the site by their root URL, which loads slide 1.
+    // (Flags live in slidevBuildArgs, guarded by a unit test.)
+    //
+    // The relative base has one sharp edge: getSlidePath bakes BASE_URL into the
+    // path it hands router.push, so from a deeper route (presenter /presenter/1,
+    // or the overview) that relative path resolves against the current depth and
+    // 404s. The staged vite.config.ts (renderViteConfig) patches getSlidePath to
+    // return an absolute, base-less router path — see scripts/slides-theme.mjs.
+    execFileSync('npx', slidevBuildArgs(tmpDeck, { out: outDir, theme: themeDir }), {
       cwd: siteDir,
       stdio: 'inherit',
     });

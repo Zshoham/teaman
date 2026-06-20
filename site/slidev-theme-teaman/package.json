@@ -1,0 +1,18 @@
+{
+  "name": "slidev-theme-teaman",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Slidev theme matching the teaman site — Source Serif 4 display, Inter body, JetBrains Mono code, one warm accent. Knobs (primary/secondary/logo) are injected from teaman.config.js at build time.",
+  "keywords": ["slidev-theme", "slidev", "teaman"],
+  "engines": {
+    "slidev": ">=0.48.0"
+  },
+  "slidev": {
+    "defaults": {
+      "aspectRatio": "16/9",
+      "colorSchema": "both",
+      "transition": "fade",
+      "highlighter": "shiki"
+    }
+  }
+}

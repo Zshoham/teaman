@@ -46,6 +46,29 @@ export interface SiteConfig {
    * require a merge. Unknown tokens are harmless (just unused).
    */
   theme?: Record<string, string>;
+  /**
+   * Project-wide styling for Slidev decks. Every deck is built with the engine's
+   * `slidev-theme-teaman` (Source Serif 4 / Inter / JetBrains Mono, matching the
+   * site) — these are the only knobs, applied to all decks without editing any
+   * deck. All optional.
+   */
+  slides?: {
+    /**
+     * Logo shown on the footer strip of every slide. Path resolved like `logo`
+     * (vault `public/`, then the vault root). Omit/`null` for no logo. Only
+     * renders when `footer` is enabled.
+     */
+    logo?: string | null;
+    /** Primary accent (headings rule, links, list markers). Any CSS color. */
+    primary?: string;
+    /** Secondary accent (blockquote rule + the footer strip). Any CSS color. */
+    secondary?: string;
+    /**
+     * Show the footer strip (secondary-coloured band carrying the `logo`) on
+     * every slide. Defaults to `true`; set `false` to hide it (and its logo).
+     */
+    footer?: boolean;
+  };
 }
 
 export const DEFAULT_CONFIG: SiteConfig = {
