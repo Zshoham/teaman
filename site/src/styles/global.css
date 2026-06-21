@@ -3,6 +3,17 @@
 @import "shadcn/tailwind.css";
 @plugin '@tailwindcss/typography';
 
+/* Self-hosted fonts (bundled, never fetched from a CDN at runtime) so a built
+   site renders fully offline. Vite copies the woff2 files into the output and
+   rewrites these URLs to local hashed assets. The trio mirrors the editorial
+   tokens below: Inter (sans/UI), JetBrains Mono (code), Source Serif 4 (prose,
+   upright + italic, with the optical-size axis). The fontsource packages name
+   the families with a ` Variable` suffix — see --font-* tokens below. */
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/jetbrains-mono/index.css';
+@import '@fontsource-variable/source-serif-4/opsz.css';
+@import '@fontsource-variable/source-serif-4/opsz-italic.css';
+
 /* Theme toggle uses [data-theme='dark'] on <html> rather than the
    prefers-color-scheme media query — bind Tailwind's dark variant to it. */
 @custom-variant dark (&:where([data-theme='dark'] *, [data-theme='dark']));
@@ -163,9 +174,12 @@
 }
 
 @theme {
-  --font-serif: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* The self-hosted families (imported at the top of this file) register with a
+     ` Variable` suffix; the plain names stay as fallbacks for any host that has
+     them installed locally. */
+  --font-serif: 'Source Serif 4 Variable', 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 @theme inline {
