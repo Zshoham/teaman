@@ -57,7 +57,7 @@ if (existsSync(slidesSrcDir)) {
 
 // The decisions page is a single client island whose ADR bodies only enter the
 // DOM when a modal opens, so the built HTML can't be crawled per-ADR. Feed each
-// ADR in as its own custom record that deep-links to its modal (#<num>).
+// ADR in as its own custom record that deep-links to its modal (?adr=<num>).
 if (existsSync(decisionsSrcDir)) {
   const files = readdirSync(decisionsSrcDir).filter(f => f.endsWith('.md'));
   for (const file of files) {
@@ -71,7 +71,7 @@ if (existsSync(decisionsSrcDir)) {
       .replace(/^[-*+]\s+/gm, '') // drop bullet markers
       .trim();
     const { errors: recordErrors } = await index.addCustomRecord({
-      url: `${siteBase}decisions/#${num}`,
+      url: `${siteBase}decisions/?adr=${num}`,
       content: `${title}\n${body}`,
       language: 'en',
       meta: { title: `ADR-${num} · ${title}` },

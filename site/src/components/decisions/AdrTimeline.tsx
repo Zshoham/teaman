@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -11,47 +11,30 @@ import { FilterPill } from "@/components/FilterPill";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopicsSidebar } from "@/components/home/TopicsSidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
+  adrRelationLabel,
+  adrRelations,
   adrMatches,
   byNum,
   groupByYear,
+  primaryAdrRelation,
   statusColor,
   statusCounts,
   tagCounts,
   STATUS_LABEL,
   STATUS_ORDER,
-  type AdrStatus,
+  type AdrRelation,
 } from "@/lib/adr-shared";
-
-/** The serializable slice of an ADR the island renders (no Astro entry). */
-export interface AdrView {
-  num: string;
-  title: string;
-  date: string;
-  dateLabel: string;
-  status: AdrStatus;
-  tags: string[];
-  summary: string;
-  supersedes?: string;
-  supersededBy?: string;
-  /** Pre-rendered markdown body HTML for the modal. */
-  bodyHtml: string;
-}
+import { AdrDetailDialog } from "./AdrDetailDialog";
+import type { AdrView } from "./types";
+import { useAdrModalState } from "./useAdrModalState";
 
 type Layout = "spine" | "grouped";
-
-interface Relation {
-  label: string;
-  num: string;
-  dir: "l" | "r";
-  target: AdrView;
-}
 
 const cardBase =
   "group block w-full cursor-pointer rounded-[var(--radius)] border border-border bg-card text-left transition-all hover:-translate-y-px hover:border-[color-mix(in_oklab,var(--primary)_45%,var(--border))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
-function LineageBadge({ rel }: { rel: Relation }) {
+function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
   const Arrow = rel.dir === "r" ? ArrowRightIcon : ArrowLeftIcon;
   return (
     <span className="ml-auto inline-flex flex-none items-center gap-2 rounded-full border border-border bg-muted py-[5px] pr-3 pl-[9px] font-mono text-meta-sm leading-none">
@@ -60,7 +43,7 @@ function LineageBadge({ rel }: { rel: Relation }) {
         style={{ color: statusColor(rel.target.status) }}
       />
       <span className="uppercase tracking-[0.05em] text-faint">
-        {rel.label}
+        {adrRelationLabel(rel, "title")}
       </span>
       <span className="font-medium tabular-nums text-foreground">
         ADR-{rel.num}
@@ -78,9 +61,9 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   );
   const [tags, setTags] = useState<Set<string>>(() => new Set());
   const [layout, setLayout] = useState<Layout>("spine");
-  const [openNum, setOpenNum] = useState<string | null>(null);
 
   const lookup = useMemo(() => byNum(adrs), [adrs]);
+  const { openNum, setOpenNum, shown } = useAdrModalState(lookup);
   const sCounts = useMemo(() => statusCounts(adrs), [adrs]);
   const allTags = useMemo(() => tagCounts(adrs), [adrs]);
   const filtered = useMemo(
@@ -103,27 +86,6 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
     } catch {}
   }, [layout]);
 
-  // Deep-link: open the ADR named in the hash (on mount and on later hash
-  // changes — e.g. a Pagefind result clicked while already on this page), and
-  // reflect the open one back into the hash.
-  useEffect(() => {
-    const openFromHash = () => {
-      const h = decodeURIComponent(location.hash.slice(1));
-      if (h && lookup.has(h)) setOpenNum(h);
-    };
-    openFromHash();
-    window.addEventListener("hashchange", openFromHash);
-    return () => window.removeEventListener("hashchange", openFromHash);
-  }, [lookup]);
-  useEffect(() => {
-    if (openNum) {
-      if (location.hash.slice(1) !== openNum)
-        history.replaceState(null, "", `#${openNum}`);
-    } else if (location.hash) {
-      history.replaceState(null, "", location.pathname + location.search);
-    }
-  }, [openNum]);
-
   const toggleStatus = (s: string) =>
     setStatuses((prev) => {
       const next = new Set(prev);
@@ -141,48 +103,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
     setTags(new Set());
   };
 
-  function lineageOf(a: AdrView): Relation | null {
-    if (a.supersededBy && lookup.has(a.supersededBy))
-      return {
-        label: "Superseded by",
-        num: a.supersededBy,
-        dir: "r",
-        target: lookup.get(a.supersededBy)!,
-      };
-    if (a.supersedes && lookup.has(a.supersedes))
-      return {
-        label: "Supersedes",
-        num: a.supersedes,
-        dir: "l",
-        target: lookup.get(a.supersedes)!,
-      };
-    return null;
-  }
-  function relationsOf(a: AdrView): Relation[] {
-    const out: Relation[] = [];
-    if (a.supersedes && lookup.has(a.supersedes))
-      out.push({
-        label: "supersedes",
-        num: a.supersedes,
-        dir: "l",
-        target: lookup.get(a.supersedes)!,
-      });
-    if (a.supersededBy && lookup.has(a.supersededBy))
-      out.push({
-        label: "superseded by",
-        num: a.supersededBy,
-        dir: "r",
-        target: lookup.get(a.supersededBy)!,
-      });
-    return out;
-  }
-
-  // Keep the last opened ADR mounted through the dialog's exit transition.
-  const lastShown = useRef<AdrView | undefined>(undefined);
-  const current = openNum ? lookup.get(openNum) : undefined;
-  if (current) lastShown.current = current;
-  const shown = current ?? lastShown.current;
-  const rels = shown ? relationsOf(shown) : [];
+  const rels = shown ? adrRelations(shown, lookup) : [];
 
   const resultLine = (
     <div className="font-mono text-meta tabular-nums leading-snug text-faint">
@@ -268,7 +189,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
             </div>
           ) : layout === "spine" ? (
             filtered.map((a) => {
-              const line = lineageOf(a);
+              const line = primaryAdrRelation(a, lookup);
               return (
                 <div key={a.num} className={cn(cellL, "items-start")}>
                   <div className="pt-1 pr-1 pb-10 text-right">
@@ -384,89 +305,15 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
         />
       </div>
 
-      {/* Detail modal */}
-      <Dialog
+      <AdrDetailDialog
         open={openNum != null}
-        onOpenChange={(o: boolean) => {
-          if (!o) setOpenNum(null);
+        shown={shown}
+        relations={rels}
+        onOpenChange={(open) => {
+          if (!open) setOpenNum(null);
         }}
-      >
-        <DialogContent>
-          {shown && (
-            <>
-              <div className="relative border-b border-border px-9 pt-[30px] pb-[22px] max-[760px]:px-[22px]">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-mono text-meta tabular-nums text-primary">
-                    ADR-{shown.num}
-                  </span>
-                  <span className="font-mono text-meta tabular-nums text-faint">
-                    {shown.dateLabel}
-                  </span>
-                  <StatusBadge status={shown.status} />
-                </div>
-                <DialogTitle className="mt-3.5 max-w-[92%] font-serif text-[1.85rem] font-medium leading-tight tracking-[-0.01em] text-pretty">
-                  {shown.title}
-                </DialogTitle>
-                {shown.tags.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-[7px]">
-                    {shown.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="font-mono text-meta-sm text-faint before:opacity-50 before:content-['#']"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="px-9 pt-2 pb-[34px] max-[760px]:px-[22px]">
-                <div
-                  className="prose"
-                  dangerouslySetInnerHTML={{ __html: shown.bodyHtml }}
-                />
-                {rels.length > 0 && (
-                  <div className="mt-[22px] border-t border-border pt-[22px]">
-                    <h2 className="mb-3 font-mono text-meta uppercase tracking-label text-primary">
-                      Related
-                    </h2>
-                    <div className="flex flex-wrap gap-2.5">
-                      {rels.map((r) => {
-                        const Arrow =
-                          r.dir === "r" ? ArrowRightIcon : ArrowLeftIcon;
-                        return (
-                          <button
-                            key={r.num}
-                            type="button"
-                            onClick={() => setOpenNum(r.num)}
-                            style={{
-                              ["--dot" as string]: statusColor(r.target.status),
-                            }}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-muted py-2 pr-[15px] pl-3 font-mono text-meta text-muted-foreground transition-all hover:border-[color-mix(in_oklab,var(--dot)_50%,var(--border))] hover:text-foreground"
-                          >
-                            <Arrow
-                              className="size-3.5 flex-none"
-                              style={{ color: statusColor(r.target.status) }}
-                            />
-                            <span className="uppercase tracking-[0.05em] text-faint">
-                              {r.label}
-                            </span>
-                            <span className="font-medium tabular-nums text-foreground">
-                              ADR-{r.num}
-                            </span>
-                            <span className="text-faint">·</span>{" "}
-                            {r.target.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+        onSelectAdr={setOpenNum}
+      />
     </section>
   );
 }

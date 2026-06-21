@@ -6,10 +6,12 @@ vi.mock('astro:content', () => ({
 
 import { getCollection } from 'astro:content';
 import {
+  adrRelations,
   adrNum,
   adrMatches,
   byNum,
   groupByYear,
+  primaryAdrRelation,
   statusCounts,
   tagCounts,
   loadAdrs,
@@ -79,6 +81,41 @@ describe('byNum', () => {
   it('indexes records by their num', () => {
     const map = byNum([{ num: '0001' }, { num: '0002' }]);
     expect(map.get('0002')).toEqual({ num: '0002' });
+  });
+});
+
+describe('adrRelations', () => {
+  const index = byNum([
+    { num: '0001', title: 'Old' },
+    { num: '0002', title: 'Current', supersedes: '0001', supersededBy: '0003' },
+    { num: '0003', title: 'New' },
+  ]);
+
+  it('returns ordered lineage links for known targets', () => {
+    expect(adrRelations(index.get('0002')!, index)).toEqual([
+      { kind: 'supersedes', num: '0001', dir: 'l', target: index.get('0001') },
+      { kind: 'supersededBy', num: '0003', dir: 'r', target: index.get('0003') },
+    ]);
+  });
+
+  it('ignores missing lineage targets', () => {
+    const adr = { num: '0004', supersedes: '4040' };
+    expect(adrRelations(adr, index)).toEqual([]);
+  });
+});
+
+describe('primaryAdrRelation', () => {
+  it('prefers successor links over predecessor links', () => {
+    const index = byNum([
+      { num: '0001' },
+      { num: '0002', supersedes: '0001', supersededBy: '0003' },
+      { num: '0003' },
+    ]);
+
+    expect(primaryAdrRelation(index.get('0002')!, index)).toMatchObject({
+      kind: 'supersededBy',
+      num: '0003',
+    });
   });
 });
 

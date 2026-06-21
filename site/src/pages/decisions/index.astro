@@ -4,7 +4,8 @@ import { render } from 'astro:content';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { loadAdrs } from '../../lib/adr';
 import { fmtDate } from '../../lib/format';
-import { AdrTimeline, type AdrView } from '../../components/decisions/AdrTimeline';
+import { AdrTimeline } from '../../components/decisions/AdrTimeline';
+import type { AdrView } from '../../components/decisions/types';
 
 const adrs = await loadAdrs();
 

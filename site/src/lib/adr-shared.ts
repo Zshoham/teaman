@@ -47,6 +47,49 @@ export function byNum<T extends { num: string }>(list: T[]): Map<string, T> {
   return new Map(list.map((a) => [a.num, a]));
 }
 
+export interface AdrRelation<T> {
+  kind: 'supersedes' | 'supersededBy';
+  num: string;
+  dir: 'l' | 'r';
+  target: T;
+}
+
+export function adrRelationLabel<T>(
+  relation: AdrRelation<T>,
+  casing: 'title' | 'sentence',
+): string {
+  if (relation.kind === 'supersededBy') {
+    return casing === 'title' ? 'Superseded by' : 'superseded by';
+  }
+  return casing === 'title' ? 'Supersedes' : 'supersedes';
+}
+
+/** Ordered lineage links that point at ADRs present in the current index. */
+export function adrRelations<T extends { supersedes?: string; supersededBy?: string }>(
+  adr: T,
+  index: Map<string, T>,
+): AdrRelation<T>[] {
+  const relations: AdrRelation<T>[] = [];
+  if (adr.supersedes) {
+    const target = index.get(adr.supersedes);
+    if (target) relations.push({ kind: 'supersedes', num: adr.supersedes, dir: 'l', target });
+  }
+  if (adr.supersededBy) {
+    const target = index.get(adr.supersededBy);
+    if (target) relations.push({ kind: 'supersededBy', num: adr.supersededBy, dir: 'r', target });
+  }
+  return relations;
+}
+
+/** The timeline card's single most relevant lineage link, newest successor first. */
+export function primaryAdrRelation<T extends { supersedes?: string; supersededBy?: string }>(
+  adr: T,
+  index: Map<string, T>,
+): AdrRelation<T> | null {
+  const relations = adrRelations(adr, index);
+  return relations.find((r) => r.kind === 'supersededBy') ?? relations[0] ?? null;
+}
+
 /** Groups records by calendar year, newest year first (items keep input order). */
 export function groupByYear<T extends { date: string }>(
   list: T[],

@@ -185,7 +185,7 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
 
 /**
  * Architecture Decision Records show up in the index alongside notes. Each links
- * to its detail modal on the decisions page via the `#<num>` hash deep-link.
+ * to its detail modal on the decisions page via the `?adr=<num>` deep-link.
  */
 export async function loadDecisionEntries(): Promise<Entry[]> {
   const adrs = await loadAdrs();
@@ -200,7 +200,7 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
       updated: a.date,
       created: a.date,
       meta: wordMeta(wordCount(body)),
-      href: `${base}decisions/#${a.num}`,
+      href: `${base}decisions/?adr=${a.num}`,
     };
   });
 }
