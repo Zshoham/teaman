@@ -31,8 +31,10 @@
     "sync:confluence": "node scripts/sync-confluence.mjs"
   },
   "dependencies": {
-    "@astrojs/mdx": "^6.0.1",
-    "@astrojs/react": "^5.0.6",
+    "@astrojs/markdown-remark": "^7.2.0",
+    "@astrojs/markdown-satteri": "^0.3.1",
+    "@astrojs/mdx": "^7.0.0",
+    "@astrojs/react": "^6.0.0",
     "@base-ui/react": "^1.5.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
@@ -42,7 +44,7 @@
     "@slidev/theme-default": "^0.25.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
-    "astro": "^6.4.2",
+    "astro": "^7.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
@@ -65,9 +67,9 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.19",
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.1",
     "happy-dom": "^20.9.0",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^4.3.1",
     "vitest": "^4.1.7"
   },
   "overrides": {

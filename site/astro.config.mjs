@@ -34,6 +34,8 @@ export default defineConfig({
       themes: { light: 'github-light', dark: 'github-dark' },
     },
     processor: unified({
+      gfm: true,
+      smartypants: true,
       remarkPlugins: [
         remarkStripLeadingH1,
         remarkMermaid,
