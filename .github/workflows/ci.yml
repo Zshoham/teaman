@@ -21,10 +21,6 @@ on:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: site
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -34,15 +30,30 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm test
-      # Full pipeline (astro -> slidev -> pagefind) against the bundled content/
+      # Full pipeline (astro -> slidev -> pagefind) against the bundled example/
       # vault; this is the engine's final validation step.
       - run: npm run build:all
 
+  # Consumer path: pack the engine, install the tarball into a throwaway project
+  # outside the repo, and build the example vault through the installed CLI. Runs
+  # its own install of the tarball, so no `npm ci` here — it catches packaging
+  # bugs (missing `files`/`dependencies`, unresolvable bin) the in-repo build can't.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm run test:integration
+
   publish:
-    needs: test
+    needs: [test, integration]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:

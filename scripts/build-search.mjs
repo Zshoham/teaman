@@ -6,8 +6,8 @@ import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { normalizeBase } from '../src/lib/site-base.mjs';
 
-const publicDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../../public', import.meta.url));
-const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../../content', import.meta.url));
+const publicDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
+const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
 const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);

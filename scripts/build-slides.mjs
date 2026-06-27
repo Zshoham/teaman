@@ -4,11 +4,11 @@ import { fileURLToPath } from 'url';
 import { join, basename, extname } from 'path';
 import { renderVarsCss, renderLogoConfig, resolveLogoSource, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
 
-const siteDir = fileURLToPath(new URL('..', import.meta.url));
-const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../../content', import.meta.url));
-const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../../public', import.meta.url));
+const engineDir = fileURLToPath(new URL('..', import.meta.url));
+const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
+const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
 const slidesSrcDir = join(vaultDir, 'slides');
-const slidesTmpDir = join(siteDir, '.slides-build');
+const slidesTmpDir = join(engineDir, '.slides-build');
 const publicDir = join(outDir, 'slides');
 
 // `slides` knobs from teaman.config.js (serialized via TEAMAN_CONFIG by the CLI).
@@ -30,8 +30,8 @@ if (decks.length === 0) {
 }
 
 // Slidev resolves themes from the slide file's directory (slidevjs/slidev#1975).
-// Copy the vault's slides into site/ so slidev can find site/node_modules by
-// walking up the directory tree.
+// Copy the vault's slides into the engine dir so slidev can find node_modules
+// by walking up the directory tree.
 rmSync(slidesTmpDir, { recursive: true, force: true });
 cpSync(slidesSrcDir, slidesTmpDir, { recursive: true });
 
@@ -46,7 +46,7 @@ writeFileSync(join(slidesTmpDir, 'vite.config.ts'), renderViteConfig());
 // staged copy carries the config. Applied to all decks via `--theme` below — no
 // deck frontmatter is ever touched.
 const themeDir = join(slidesTmpDir, 'theme');
-cpSync(join(siteDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
+cpSync(join(engineDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
 writeFileSync(join(themeDir, 'styles', 'vars.css'), renderVarsCss(slidesConfig));
 
 const logoSrc = resolveLogoSource(slidesConfig.logo, {
@@ -92,7 +92,7 @@ try {
     // 404s. The staged vite.config.ts (renderViteConfig) patches getSlidePath to
     // return an absolute, base-less router path — see scripts/slides-theme.mjs.
     execFileSync('npx', slidevBuildArgs(tmpDeck, { out: outDir, theme: themeDir }), {
-      cwd: siteDir,
+      cwd: engineDir,
       stdio: 'inherit',
     });
   }

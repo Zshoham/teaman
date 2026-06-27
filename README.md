@@ -82,7 +82,7 @@ export default {
 `theme` is the **only** per-vault styling surface — a map of CSS custom
 properties layered onto `:root`. There are no per-vault component or CSS files,
 which is what lets engine upgrades land without a merge. Token names mirror
-`:root` in `site/src/styles/global.css` (e.g. `--primary`, `--background`,
+`:root` in `src/styles/global.css` (e.g. `--primary`, `--background`,
 `--foreground`, `--border`, `--radius`, `--accent`). Unknown tokens are simply
 unused; `teaman doctor` flags them.
 
@@ -123,51 +123,53 @@ Because the vault is pure data, upgrading the engine is changing **one number**.
 
 ## Developing the engine
 
-This repo is the engine plus a bundled example vault in `content/`. Work from
-`site/`:
+This repo *is* the engine: the Astro app, CLI, and build scripts live at the repo
+root, plus a bundled example vault in `example/`. Work from the repo root:
 
 ```sh
-cd site
 npm install
-npm run dev      # serves the bundled content/ vault (no CLI needed)
-npm run build    # writes ../public
+npm run dev      # serves the bundled example/ vault (no CLI needed)
+npm run build    # writes ./public
 npm test         # vitest unit suite
 ```
 
 The engine reads the vault, output, base, config, and static dir from
 `TEAMAN_VAULT` / `TEAMAN_OUT` / `TEAMAN_BASE` / `TEAMAN_CONFIG` / `TEAMAN_PUBLIC`;
-when unset it falls back to the bundled `content/` → `public/`, which is why the
+when unset it falls back to the bundled `example/` → `public/`, which is why the
 plain `npm` scripts and tests work in place.
 
 ### Building & previewing the current vault
 
-The `npm run dev` above serves `content/` straight through Astro, which is the
+The `npm run dev` above serves `example/` straight through Astro, which is the
 fastest inner loop. To exercise the **full CLI path** — config serialization,
 Slidev, Pagefind, the `engine` version check — against the bundled vault before
 publishing or cutting a release, drive the local `bin` directly:
 
-The bundled vault lives at the repo root (`content/`), so from inside `site/`
-you reference it as `../content`. Pass the wrong path and the CLI warns
-`no content dirs found` but still builds — you get the home page with **zero
-notes**, which is the usual cause of an empty preview.
+The bundled vault lives at the repo root (`example/`). Pass the wrong path and the
+CLI warns `no content dirs found` but still builds — you get the home page with
+**zero notes**, which is the usual cause of an empty preview.
 
 ```sh
-cd site
 npm install
-node bin/teaman.mjs build ../content      # → content/dist (Astro + Slidev + Pagefind)
-node bin/teaman.mjs preview ../content     # serve content/dist as it'll ship
+node bin/teaman.mjs build ./example      # → example/dist (Astro + Slidev + Pagefind)
+node bin/teaman.mjs preview ./example     # serve example/dist as it'll ship
 ```
 
-`node bin/teaman.mjs dev ../content` is the CLI equivalent of `npm run dev`, and
-`node bin/teaman.mjs doctor ../content` validates `content/teaman.config.js` and
+`node bin/teaman.mjs dev ./example` is the CLI equivalent of `npm run dev`, and
+`node bin/teaman.mjs doctor ./example` validates `example/teaman.config.js` and
 lints the notes without building. Add `--out <dir>`, `--base /sub-path/`, or
-`--port <n>` to mirror a specific deploy target. `content/dist` is throwaway —
+`--port <n>` to mirror a specific deploy target. `example/dist` is throwaway —
 delete it between runs if you want a clean build.
 
 To test the CLI exactly as a consumer would get it (from the packaged tarball
 rather than the working tree), pack and run it against any vault:
 
 ```sh
-cd site && npm pack                          # → zshoham-teaman-<version>.tgz
-npx ./zshoham-teaman-1.0.0.tgz build ../content   # same as a published `npx @zshoham/teaman`
+npm pack                                     # → zshoham-teaman-<version>.tgz
+npx ./zshoham-teaman-1.0.0.tgz build ./example   # same as a published `npx @zshoham/teaman`
 ```
+
+`npm run test:integration` automates exactly this — pack, install the tarball into
+a throwaway project outside the repo, build the `example/` vault, and assert the
+output. It's the only check that catches packaging bugs (an incomplete `files`
+list, a runtime dep stranded in `devDependencies`), so it runs as its own CI job.

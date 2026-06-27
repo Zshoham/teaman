@@ -12,27 +12,28 @@ engine is code**, and the two never mix.
   `teaman.config.js`, and optional `public/` passthrough assets. It carries **no
   engine source**, so upgrading the engine is bumping one version number — there
   is never a merge.
-- The *engine* lives in `site/`. It is the Astro app, the CLI (`site/bin/teaman.mjs`),
-  and the build scripts. The published npm package is the `site/` directory (see
-  `files` in `site/package.json`; `bin.teaman` → `bin/teaman.mjs`).
-- This repo bundles an example vault at the repo root in `content/`, which the
+- The *engine* lives at the repo root. It is the Astro app, the CLI (`bin/teaman.mjs`),
+  and the build scripts. The published npm package is the repo root (see
+  `files` in `package.json`; `bin.teaman` → `bin/teaman.mjs`).
+- This repo bundles an example vault in `example/`, which the
   engine builds in place when no external vault is given. Generated output lands
-  in `public/` (committed build artifact for GitLab Pages) or `<vault>/dist`.
+  in `public/` (a gitignored build artifact) or `<vault>/dist`.
 
 Read `README.md` for the user-facing CLI/config surface and `MIGRATING.md` for the
 semver contract before changing config keys, frontmatter schemas, or URL structure.
 
-## Commands (run from `site/`)
+## Commands (run from the repo root)
 
 ```sh
 npm install
-npm run dev            # Astro dev server on the bundled content/ vault (fastest loop)
+npm run dev            # Astro dev server on the bundled example/ vault (fastest loop)
 npm run build          # full prod build: astro → slides → search  (build:all)
 npm run preview        # preview the production build
 npm test               # vitest unit suite (node env)
 npm run test:watch     # vitest watch
 npm run test:e2e       # Playwright e2e (auto-starts the dev server)
 npm run test:e2e:ui    # Playwright interactive UI
+npm run test:integration  # pack → install tarball outside repo → build example/ (slow)
 ```
 
 Run a single unit test file / pattern:
@@ -42,16 +43,16 @@ npx vitest run -t "fmtDate"
 ```
 
 Exercising the **full CLI path** (config serialization, Slidev, Pagefind, engine
-version check) against the bundled vault — from inside `site/`, the bundled vault
-is `../content`:
+version check) against the bundled vault — from the repo root, the bundled vault
+is `./example`:
 ```sh
-node bin/teaman.mjs build ../content      # → content/dist
-node bin/teaman.mjs dev ../content        # CLI equivalent of `npm run dev`
-node bin/teaman.mjs doctor ../content     # validate config + lint content, no build
+node bin/teaman.mjs build ./example      # → example/dist
+node bin/teaman.mjs dev ./example        # CLI equivalent of `npm run dev`
+node bin/teaman.mjs doctor ./example     # validate config + lint content, no build
 ```
 Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n>`.
-To test exactly as a consumer receives it: `cd site && npm pack` then
-`npx ./zshoham-teaman-<version>.tgz build ../content`.
+To test exactly as a consumer receives it: `npm pack` then
+`npx ./zshoham-teaman-<version>.tgz build ./example`.
 
 ## Architecture
 
@@ -60,7 +61,7 @@ To test exactly as a consumer receives it: `cd site && npm pack` then
 The CLI never edits engine files to point at a vault. Instead `bin/teaman.mjs`
 resolves the vault, merges its config, stages static assets, and spawns Astro/scripts
 with environment variables. **Every engine entry point reads the same env vars and
-falls back to the bundled `content/` → `public/` when they are unset** — which is
+falls back to the bundled `example/` → `public/` when they are unset** — which is
 exactly why the plain `npm` scripts and the test suite work in place:
 
 | Env var | Meaning | Read by |
@@ -73,7 +74,7 @@ exactly why the plain `npm` scripts and the test suite work in place:
 
 Consequences when changing things:
 - Anything that needs the vault root or output dir must read these env vars with the
-  bundled-`content/`/`public/` fallback — don't hardcode paths. Mirror the existing
+  bundled-`example/`/`public/` fallback — don't hardcode paths. Mirror the existing
   pattern in `content-paths.ts` and the two `scripts/*.mjs`.
 - Base-path handling goes through `src/lib/site-base.mjs` `normalizeBase` (single
   leading + trailing slash). Use it everywhere a URL is composed so `--base /foo/`
@@ -124,15 +125,15 @@ name not vault — otherwise a second vault reuses the first vault's cached entr
 Three sequential stages, all reading the env seam:
 1. `astro build` → HTML into `outDir`.
 2. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`
-   (skipping `_`-prefixed files). Decks are copied into `site/.slides-build/` first
+   (skipping `_`-prefixed files). Decks are copied into `.slides-build/` first
    because Slidev resolves themes relative to the deck file and needs to walk up to
-   `site/node_modules`. Every deck is built with `--theme` pointing at a staged copy
-   of the engine theme `site/slidev-theme-teaman/` (in `.slides-build/theme/`); the
+   the engine's `node_modules`. Every deck is built with `--theme` pointing at a staged
+   copy of the engine theme `slidev-theme-teaman/` (in `.slides-build/theme/`); the
    build personalizes that copy from the vault's `config.slides` knobs via
    `scripts/slides-theme.mjs` (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource`
    + `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed
    theme keeps sane defaults; no deck frontmatter is ever rewritten. The theme is
-   shipped in the npm package (`files` in `site/package.json`). Decks build with
+   shipped in the npm package (`files` in `package.json`). Decks build with
    `--base ./ --router-mode hash` (not the site base): Slidev double-applies a
    sub-path base on in-app nav (→ `/slides/x/slides/x/2` 404), and a static host
    has no SPA fallback — relative base + hash routing makes decks path-agnostic
@@ -166,11 +167,20 @@ prefer extending those helpers over duplicating logic in pages.
 - DOM tests need `// @vitest-environment happy-dom` (the default env is `node`); the
   `requestAnimationFrame` stub uses a queue, not synchronous fire — copy the
   list-controller test pattern.
-- E2E (`site/e2e/`, Playwright) auto-starts the dev server via `playwright.config.ts`
+- E2E (`e2e/`, Playwright) auto-starts the dev server via `playwright.config.ts`
   and selects on real component classes (`.crumbs`, `.guide-nav-link.next`). On Arch,
   headless Chromium needs `nspr nss atk at-spi2-core libx11 libxrandr mesa libxcb
   libxkbcommon alsa-lib`.
-- `npm run build` (or `node bin/teaman.mjs doctor ../content`) is the final
+- The integration test (`scripts/integration-test.mjs`, `npm run test:integration`)
+  is the only check that exercises the *packaged* consumer path: `npm pack` → install
+  the tarball into a throwaway project in the OS temp dir → `teaman build` the `example/`
+  vault → assert the artifacts exist. It catches what the in-repo build can't — an
+  incomplete `files` list, a runtime dep stranded in `devDependencies`, or a bin that
+  doesn't resolve once installed. Anything `astro.config.mjs` or `global.css` imports
+  at build time (e.g. `@tailwindcss/vite`, `tailwindcss`) must be a `dependency`, not a
+  `devDependency`. It is **not** part of `npm test` (a real install, ~minutes); CI runs
+  it as its own job.
+- `npm run build` (or `node bin/teaman.mjs doctor ./example`) is the final
   validation step; `doctor` gates CI by exiting non-zero on config/content problems.
 
 ## Conventions
@@ -179,9 +189,11 @@ prefer extending those helpers over duplicating logic in pages.
   for component filenames, kebab-case lowercase for routed content slugs.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
-- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with two jobs.
-  The `test` job runs `npm test` + `npm run build:all` on every push/PR. The
-  `publish` job has `needs: test` (so a release can never ship untested) and only
+- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with three jobs.
+  The `test` job runs `npm test` + `npm run build:all` and the `integration` job
+  runs `npm run test:integration` (the packaged consumer path), both on every
+  push/PR. The `publish` job has `needs: [test, integration]` (so a release can
+  never ship untested or unpackageable) and only
   runs on main pushes / version tags, publishing `@zshoham/teaman` to the public
   npm registry: every `main` commit as a `dev`-tagged prerelease (`X.Y.Z-dev.<sha>`,
   base from package.json), every `vX.Y.Z` tag as a `latest` release. The version is

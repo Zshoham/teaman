@@ -20,7 +20,7 @@ const base = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 export default defineConfig({
   base,
-  outDir: process.env.TEAMAN_OUT ?? '../public',
+  outDir: process.env.TEAMAN_OUT ?? './public',
   publicDir: process.env.TEAMAN_PUBLIC ?? './resources',
   integrations: [mdx(), react()],
   vite: {

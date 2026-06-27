@@ -6,8 +6,8 @@ import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
-const repoDir = fileURLToPath(new URL('../..', import.meta.url));
-const defaultContentDir = join(repoDir, 'content');
+const engineDir = fileURLToPath(new URL('..', import.meta.url));
+const defaultContentDir = join(engineDir, 'example');
 
 // Optional static defaults. Prefer passing --roots or CONFLUENCE_ROOTS so this
 // repository does not have to carry deployment-specific page ids.
@@ -30,7 +30,7 @@ Required:
                          May also be JSON via CONFLUENCE_ROOTS='{"guides":"123"}'
 
 Options:
-  --content-dir PATH      Content directory (default: ../content)
+  --content-dir PATH      Content directory (default: ./example)
   --space KEY             Space key for newly created pages if roots are not enough
   --apply                 Write changes. Without this, prints a dry-run plan.
   --only FOLDERS          Comma-separated content folders to sync.

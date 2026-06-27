@@ -15,13 +15,13 @@ afterEach(() => {
 });
 
 describe('content-paths', () => {
-  it('falls back to the bundled content/ vault when TEAMAN_VAULT is unset', async () => {
+  it('falls back to the bundled example/ vault when TEAMAN_VAULT is unset', async () => {
     const { contentRoot, notesRoot, guidesRoot, slidesRoot, dailiesRoot } = await load(undefined);
-    expect(contentRoot.replace(/\\/g, '/')).toMatch(/\/content$/);
-    expect(notesRoot.replace(/\\/g, '/')).toMatch(/\/content\/notes$/);
-    expect(guidesRoot.replace(/\\/g, '/')).toMatch(/\/content\/guides$/);
-    expect(slidesRoot.replace(/\\/g, '/')).toMatch(/\/content\/slides$/);
-    expect(dailiesRoot.replace(/\\/g, '/')).toMatch(/\/content\/dailies$/);
+    expect(contentRoot.replace(/\\/g, '/')).toMatch(/\/example$/);
+    expect(notesRoot.replace(/\\/g, '/')).toMatch(/\/example\/notes$/);
+    expect(guidesRoot.replace(/\\/g, '/')).toMatch(/\/example\/guides$/);
+    expect(slidesRoot.replace(/\\/g, '/')).toMatch(/\/example\/slides$/);
+    expect(dailiesRoot.replace(/\\/g, '/')).toMatch(/\/example\/dailies$/);
   });
 
   it('uses an absolute TEAMAN_VAULT as the content root', async () => {

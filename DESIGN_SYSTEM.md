@@ -2,13 +2,13 @@
 
 A brief you can hand to Claude (or any designer) to produce **on-brand pages and
 components**. It is the distilled, authoritative description of the look already
-shipping in `site/`. When generating, follow this document; when it conflicts with
+shipping in the engine. When generating, follow this document; when it conflicts with
 a one-off request, prefer this document's *tokens and idioms* and adapt the request
 to them.
 
-> Source of truth in code: `site/src/styles/global.css` (tokens), `site/src/config.ts`
+> Source of truth in code: `src/styles/global.css` (tokens), `src/config.ts`
 > (`config.theme` is the only per-vault override surface), and the components under
-> `site/src/components/`. This file mirrors them — keep it in sync if those change.
+> `src/components/`. This file mirrors them — keep it in sync if those change.
 
 ---
 
@@ -148,7 +148,7 @@ Numerals in meta are always `tabular-nums`. Separators between meta items are a
 ## 5. Components & idioms
 
 Built on shadcn-style primitives over **Base UI** (`@base-ui/react`), styled with
-Tailwind v4 + `cva` variants. Existing primitives in `site/src/components/ui/`:
+Tailwind v4 + `cva` variants. Existing primitives in `src/components/ui/`:
 `button, badge, card, breadcrumb, popover, scroll-area, separator, toggle,
 toggle-group, tooltip`. **Reuse these before inventing.**
 

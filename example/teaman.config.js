@@ -1,7 +1,7 @@
-// Example teaman vault config — also the config for this repo's bundled
-// `content/` vault. Pure data (no functions): the CLI serializes it and hands
-// it to the engine. See ../README.md for the full SiteConfig shape and the
-// available theme tokens (mirrors :root in site/src/styles/global.css).
+// Example teaman vault config — the config for this repo's bundled `example/`
+// vault. Pure data (no functions): the CLI serializes it and hands it to the
+// engine. See ../README.md for the full SiteConfig shape and the available
+// theme tokens (mirrors :root in ../src/styles/global.css).
 export default {
   // Semver range of the engine this vault targets. `teaman` warns when the
   // running engine version falls outside it. Pin tightly (e.g. '~1.0.2') for

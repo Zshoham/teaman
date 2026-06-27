@@ -106,6 +106,8 @@ describe('getSlidePath patch', () => {
     expect(cfg).toContain('@slidev/client/logic/slides.');
     expect(cfg).toMatch(/throw new Error/);
     expect(cfg).toContain('export default');
+    // Mutes @vueuse/core's INVALID_ANNOTATION noise via the Rolldown checks knob.
+    expect(cfg).toContain('invalidAnnotation: false');
   });
 });
 
