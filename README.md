@@ -5,9 +5,13 @@ A static site generator for Obsidian vaults. `teaman` is an installable Astro
 you build it with one command:
 
 ```sh
-npx teaman build ~/vaults/my-notes      # → ~/vaults/my-notes/dist
-npx teaman dev   ~/vaults/my-notes      # live preview
+npx @zshoham/teaman build ~/vaults/my-notes      # → ~/vaults/my-notes/dist
+npx @zshoham/teaman dev   ~/vaults/my-notes      # live preview
 ```
+
+Published to the public npm registry as **`@zshoham/teaman`** — no auth needed to
+install. Tagged releases ship as `latest`; every `main` commit also publishes a
+prerelease under the `dev` tag (`npx @zshoham/teaman@dev`).
 
 The vault never contains engine source, only:
 
@@ -22,7 +26,7 @@ my-vault/
   public/   …           # optional static passthrough (logo, images)
 ```
 
-Run `npx teaman init my-vault` to scaffold the config and content dirs.
+Run `npx @zshoham/teaman init my-vault` to scaffold the config and content dirs.
 
 Each `decisions/adr-NNNN.md` is one Architecture Decision Record: frontmatter
 carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), optional
@@ -107,7 +111,7 @@ Because the vault is pure data, upgrading the engine is changing **one number**.
 - **Pin via `engine`.** Put a semver range (`'^1.0'`, `'~1.0.2'`) in your config.
   Every `teaman` run compares it to the running engine and **warns on mismatch**.
   With the npx model there's no lockfile, so pin tightly for byte-stable rebuilds
-  (e.g. CI: `npx teaman@1.0.2 build`). Built pages carry
+  (e.g. CI: `npx @zshoham/teaman@1.0.2 build`). Built pages carry
   `<meta name="generator" content="teaman X.Y.Z">` for after-the-fact debugging.
 - **Semver contract** — *patch*: fixes/dep bumps, always safe. *minor*: new
   optional config keys, content types, theme tokens — old configs keep working.
@@ -164,6 +168,6 @@ To test the CLI exactly as a consumer would get it (from the packaged tarball
 rather than the working tree), pack and run it against any vault:
 
 ```sh
-cd site && npm pack                          # → teaman-<version>.tgz
-npx ./teaman-1.0.0.tgz build ../content      # same as a published `npx teaman`
+cd site && npm pack                          # → zshoham-teaman-<version>.tgz
+npx ./zshoham-teaman-1.0.0.tgz build ../content   # same as a published `npx @zshoham/teaman`
 ```

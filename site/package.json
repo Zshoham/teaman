@@ -1,10 +1,17 @@
 {
-  "name": "teaman",
+  "name": "@zshoham/teaman",
   "version": "1.0.0",
   "description": "Static site generator for Obsidian vaults (Astro engine).",
   "type": "module",
   "bin": {
     "teaman": "./bin/teaman.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zshoham/teaman.git"
   },
   "files": [
     "bin",

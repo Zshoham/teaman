@@ -1,0 +1,80 @@
+name: CI
+
+# `test` runs on every push/PR. `publish` runs only after `test` passes, and only
+# on main pushes / version tags — so a release can never ship untested.
+#
+# Two release channels to the public npm registry:
+#   - push to main        -> prerelease  X.Y.Z-dev.g<sha> @ dist-tag `dev`
+#   - push tag vX.Y.Z     -> release      X.Y.Z           @ dist-tag `latest`
+# The dev version is just the committed package.json version plus the commit's
+# short SHA — no guessing the next bump level. Stale main runs skip publishing so
+# `@dev` is not repointed backwards when pushes overlap.
+# Auth is npm trusted publishing (OIDC) — no token; the trusted publisher for this
+# repo+workflow is configured in the npm package settings. Publishes carry build
+# provenance automatically.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: site
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # Full pipeline (astro -> slidev -> pagefind) against the bundled content/
+      # vault; this is the engine's final validation step.
+      - run: npm run build:all
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # bundles npm >= 11.5.1, which supports OIDC trusted publishing
+          registry-url: https://registry.npmjs.org
+      # No npm ci needed: the package ships source (see `files` in package.json),
+      # and the `test` job already validated install + build.
+      - name: Resolve version and publish
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            DIST_TAG=latest
+          else
+            # Skip if a newer commit already became origin/main, so an overlapping
+            # stale run can't repoint @dev backwards.
+            git fetch --no-tags --depth=1 origin main
+            CURRENT=$(git rev-parse origin/main)
+            if [[ "$GITHUB_SHA" != "$CURRENT" ]]; then
+              echo "Skipping publish: $GITHUB_SHA is no longer origin/main ($CURRENT)."
+              exit 0
+            fi
+            BASE=$(node -p "require('./package.json').version")
+            SHA=$(git rev-parse --short HEAD)
+            VERSION="$BASE-dev.g$SHA"
+            DIST_TAG=dev
+          fi
+          echo "Publishing $VERSION (dist-tag: $DIST_TAG)"
+          npm version --no-git-tag-version --allow-same-version "$VERSION"
+          npm publish --tag "$DIST_TAG"

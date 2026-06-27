@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `teaman` is a static site generator for Obsidian vaults, shipped as an installable
-**Astro engine** (`npm`/`npx teaman`). The core idea: **the vault is pure data, the
+**Astro engine** (`npm`/`npx @zshoham/teaman`). The core idea: **the vault is pure data, the
 engine is code**, and the two never mix.
 
 - A *vault* contains only content (`notes/ guides/ slides/ dailies/`), a
@@ -51,7 +51,7 @@ node bin/teaman.mjs doctor ../content     # validate config + lint content, no b
 ```
 Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n>`.
 To test exactly as a consumer receives it: `cd site && npm pack` then
-`npx ./teaman-<version>.tgz build ../content`.
+`npx ./zshoham-teaman-<version>.tgz build ../content`.
 
 ## Architecture
 
@@ -179,6 +179,12 @@ prefer extending those helpers over duplicating logic in pages.
   for component filenames, kebab-case lowercase for routed content slugs.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
-- CI (`.gitlab-ci.yml`) builds with `SITE_BASE=/$CI_PROJECT_NAME/` and deploys
-  `public/` to GitLab Pages from the default branch. `public/` is a committed build
-  artifact — don't hand-edit it; call out regenerated `public/` changes separately.
+- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with two jobs.
+  The `test` job runs `npm test` + `npm run build:all` on every push/PR. The
+  `publish` job has `needs: test` (so a release can never ship untested) and only
+  runs on main pushes / version tags, publishing `@zshoham/teaman` to the public
+  npm registry: every `main` commit as a `dev`-tagged prerelease (`X.Y.Z-dev.<sha>`,
+  base from package.json), every `vX.Y.Z` tag as a `latest` release. The version is
+  derived in CI — never hand-bump for dev builds. Auth is npm trusted publishing
+  (OIDC, `id-token: write`) — no token; the publisher is configured in the npm
+  package settings and publishes carry build provenance.
