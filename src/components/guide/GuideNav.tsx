@@ -7,7 +7,7 @@ interface Props {
 }
 
 const linkBase =
-  "flex flex-col gap-1 rounded-md border border-border px-4 py-3.5 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted";
+  "flex flex-col gap-1 rounded-lg border border-border px-4 py-3.5 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted";
 
 export function GuideNav({ guide, currentSlug }: Props) {
   const idx = guide.chapters.findIndex((c) => c.slug === currentSlug);

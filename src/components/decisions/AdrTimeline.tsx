@@ -32,7 +32,7 @@ import { useAdrModalState } from "./useAdrModalState";
 type Layout = "spine" | "grouped";
 
 const cardBase =
-  "group block w-full cursor-pointer rounded-[var(--radius)] border border-border bg-card text-left transition-all hover:-translate-y-px hover:border-[color-mix(in_oklab,var(--primary)_45%,var(--border))] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+  "group block w-full cursor-pointer rounded-lg border border-border bg-card text-left transition-colors hover:border-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
   const Arrow = rel.dir === "r" ? ArrowRightIcon : ArrowLeftIcon;
@@ -42,7 +42,7 @@ function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
         className="size-[13px] flex-none"
         style={{ color: statusColor(rel.target.status) }}
       />
-      <span className="uppercase tracking-[0.05em] text-faint">
+      <span className="uppercase tracking-label-sm text-faint">
         {adrRelationLabel(rel, "title")}
       </span>
       <span className="font-medium tabular-nums text-foreground">
@@ -124,7 +124,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   return (
     <section className="adr-timeline">
       {/* Toolbar */}
-      <div className="sticky top-[var(--header-h)] z-20 flex flex-wrap items-center gap-3.5 border-b border-border bg-background py-3.5">
+      <div className="sticky top-[var(--header-h)] z-20 flex flex-wrap items-center gap-3.5 border-b border-border bg-background py-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {STATUS_ORDER.map((s) => (
             <FilterPill
@@ -151,14 +151,14 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
         >
           <ToggleGroupItem
             value="spine"
-            className="font-mono text-meta uppercase tracking-[0.06em]"
+            className="font-mono text-meta uppercase tracking-label-sm"
           >
             <GitCommitVerticalIcon />
             Spine
           </ToggleGroupItem>
           <ToggleGroupItem
             value="grouped"
-            className="font-mono text-meta uppercase tracking-[0.06em]"
+            className="font-mono text-meta uppercase tracking-label-sm"
           >
             <Rows3Icon />
             Grouped
@@ -209,11 +209,11 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                       onClick={() => setOpenNum(a.num)}
                       className={cn(
                         cardBase,
-                        "px-5 py-[18px] shadow-xs hover:shadow-md",
+                        "px-5 py-[18px]",
                       )}
                     >
                       <div className="mb-2.5 flex items-start gap-2.5">
-                        <span className="font-mono text-meta tabular-nums tracking-[0.02em] text-primary">
+                        <span className="font-mono text-meta tabular-nums text-primary">
                           ADR-{a.num}
                         </span>
                         <StatusBadge status={a.status} className="ml-auto" />
@@ -222,7 +222,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                         {a.title}
                       </h3>
                       {a.summary && (
-                        <p className="mt-2 text-[0.96rem] leading-normal text-muted-foreground text-pretty">
+                        <p className="mt-2 font-serif text-[15px] leading-relaxed text-muted-foreground text-pretty">
                           {a.summary}
                         </p>
                       )}
@@ -231,7 +231,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                           {a.tags.map((t) => (
                             <span
                               key={t}
-                              className="font-mono text-meta-sm text-faint before:opacity-50 before:content-['#']"
+                              className="font-mono text-meta tracking-wide text-faint before:opacity-50 before:content-['#']"
                             >
                               {t}
                             </span>
@@ -254,7 +254,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                   <div className="relative flex justify-center py-3.5">
                     <span className="relative z-10 size-[9px] rounded-full bg-muted-foreground" />
                   </div>
-                  <div className="font-mono text-meta uppercase tracking-[0.06em] text-faint">
+                  <div className="font-mono text-meta uppercase tracking-label-sm text-faint">
                     {group.items.length} decision
                     {group.items.length > 1 ? "s" : ""}
                   </div>

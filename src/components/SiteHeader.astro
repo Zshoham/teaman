@@ -31,7 +31,7 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
         ></span>
       : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
-    <span class="brand-name font-mono text-[13px] font-medium tracking-wide">{SITE_CONFIG.brand}</span>
+    <span class="brand-name font-mono text-meta-lg font-medium tracking-wide">{SITE_CONFIG.brand}</span>
     <span class="brand-tagline ml-1 font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
   </a>
 
@@ -42,7 +42,7 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
     <a
       href={dailyHref}
       class:list={[
-        'border-b py-0.5 font-mono text-[12px] no-underline transition-colors',
+        'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
         onDaily
           ? 'border-primary text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -52,7 +52,7 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
     <a
       href={decisionsDir}
       class:list={[
-        'border-b py-0.5 font-mono text-[12px] no-underline transition-colors',
+        'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
         onDecisions
           ? 'border-primary text-foreground'
           : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -68,8 +68,8 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
         class="flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent py-1.5 pr-2 pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-60"
         aria-label="Search the vault"
       >
-        <span class="font-mono text-[13px] leading-none text-faint" aria-hidden="true">⌕</span>
-        <span class="flex-1 min-w-0 text-left text-[13px] text-muted-foreground">search the vault</span>
+        <span class="font-mono text-meta-lg leading-none text-faint" aria-hidden="true">⌕</span>
+        <span class="flex-1 min-w-0 text-left text-meta-lg text-muted-foreground">search the vault</span>
         <span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span>
       </button>
     </pagefind-modal-trigger>

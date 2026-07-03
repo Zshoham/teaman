@@ -47,7 +47,7 @@ export function AdrDetailDialog({
                   {shown.tags.map((t) => (
                     <span
                       key={t}
-                      className="font-mono text-meta-sm text-faint before:opacity-50 before:content-['#']"
+                      className="font-mono text-meta tracking-wide text-faint before:opacity-50 before:content-['#']"
                     >
                       {t}
                     </span>
@@ -62,7 +62,7 @@ export function AdrDetailDialog({
               />
               {relations.length > 0 && (
                 <div className="mt-[22px] border-t border-border pt-[22px]">
-                  <h2 className="mb-3 font-mono text-meta uppercase tracking-label text-primary">
+                  <h2 className="mb-3 font-mono text-meta uppercase tracking-label text-faint">
                     Related
                   </h2>
                   <div className="flex flex-wrap gap-2.5">
@@ -85,7 +85,7 @@ export function AdrDetailDialog({
                             className="size-3.5 flex-none"
                             style={{ color: statusColor(relation.target.status) }}
                           />
-                          <span className="uppercase tracking-[0.05em] text-faint">
+                          <span className="uppercase tracking-label-sm text-faint">
                             {adrRelationLabel(relation, "sentence")}
                           </span>
                           <span className="font-medium tabular-nums text-foreground">

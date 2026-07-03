@@ -15,7 +15,7 @@ export function ActiveTagChip() {
       hidden
     >
       <span className="text-faint">filtered by</span>
-      <span className="text-primary text-[12px]" data-active-tag-name />
+      <span className="text-primary text-meta-lg" data-active-tag-name />
       <button
         type="button"
         className="ml-auto inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent text-meta text-muted-foreground hover:text-foreground"

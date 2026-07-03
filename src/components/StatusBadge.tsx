@@ -19,7 +19,7 @@ export function StatusBadge({
   return (
     <Badge
       variant="outline"
-      className={cn("gap-1.5 font-mono text-meta uppercase tracking-[0.06em]", className)}
+      className={cn("gap-1.5 font-mono text-meta uppercase tracking-label-sm", className)}
       style={{
         color,
         borderColor: `color-mix(in oklab, ${color} 30%, var(--border))`,

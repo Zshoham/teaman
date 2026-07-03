@@ -53,7 +53,7 @@ export function TopicsSidebar({
                 key={t.tag}
                 type="button"
                 className={cn(
-                  "topic flex cursor-pointer items-baseline justify-between border-0 border-b border-dashed border-border bg-transparent py-1 text-left font-mono text-[12px] text-muted-foreground transition-colors hover:text-foreground [&.is-active]:text-foreground",
+                  "topic flex cursor-pointer items-baseline justify-between border-0 border-b border-dashed border-border bg-transparent py-1 text-left font-mono text-meta-lg text-muted-foreground transition-colors hover:text-foreground [&.is-active]:text-foreground",
                   active && "is-active",
                 )}
                 data-tag={t.tag}

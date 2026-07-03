@@ -149,7 +149,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
           >
             <ChevronLeftIcon aria-hidden="true" />
           </Button>
-          <div className="month-label flex-1 text-center font-mono text-[12px] tabular-nums uppercase tracking-label text-foreground">
+          <div className="month-label flex-1 text-center font-mono text-meta-lg tabular-nums uppercase tracking-label text-foreground">
             {active.label}
             <span className="ml-2 text-faint">{active.year}</span>
           </div>
@@ -198,7 +198,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
                     <span
                       key={di}
                       className={cn(
-                        "tabular-nums font-mono py-1 text-[12px]",
+                        "tabular-nums font-mono py-1 text-meta-lg",
                         d.inMonth ? "text-foreground" : "text-muted-foreground opacity-55",
                       )}
                     >
@@ -218,7 +218,7 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
                 {row.days.map((d, di) => (
                   <span
                     key={di}
-                    className="tabular-nums font-mono py-1 text-[12px] text-faint opacity-55"
+                    className="tabular-nums font-mono py-1 text-meta-lg text-faint opacity-55"
                   >
                     {d.day}
                   </span>

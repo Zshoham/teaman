@@ -22,7 +22,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
               <a
                 href={chapterHref(guide, ch.slug)}
                 className={cn(
-                  "flex items-baseline gap-2.5 border-b border-dashed border-border py-1.5 text-[13px] no-underline transition-colors",
+                  "flex items-baseline gap-2.5 border-b border-dashed border-border py-1.5 text-meta-lg no-underline transition-colors",
                   current ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >

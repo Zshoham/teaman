@@ -76,7 +76,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
                 data-current={active ? "true" : "false"}
                 aria-current={active ? "page" : undefined}
               >
-                <span className="tabular-nums font-mono text-[12px] text-inherit">{range}</span>
+                <span className="tabular-nums font-mono text-meta-lg text-inherit">{range}</span>
                 <span className="tabular-nums font-mono text-meta-sm text-faint">{fmtWeeksAgo(w.start)}</span>
               </a>
             );

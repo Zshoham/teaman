@@ -29,7 +29,7 @@ export function Hero({ eyebrow, title, description, statRows, lastUpdated }: Pro
             className="stat-row flex items-baseline justify-between gap-3 border-t border-border py-1.5 font-mono"
           >
             <span className="text-meta text-muted-foreground">{label}</span>
-            <span className="tabular-nums text-[13px] text-foreground">{String(n).padStart(3, "0")}</span>
+            <span className="tabular-nums text-meta-lg text-foreground">{String(n).padStart(3, "0")}</span>
           </div>
         ))}
         <div className="flex items-baseline justify-between gap-3 pt-2.5 font-mono">

@@ -87,14 +87,17 @@
      The handful of repeated size / tracking / measure values, named once so
      the editorial scale stays internally consistent and a vault can retune it
      via config.theme. Aliased into Tailwind utilities in @theme inline below
-     → text-meta, text-meta-sm, text-display, text-display-lg, tracking-label.
-     --measure is consumed directly via max-w-[var(--measure)]. */
-  --measure: 680px;          /* reading-column width, shared by every article page */
-  --text-meta: 0.6875rem;    /* 11px · mono meta strips, eyebrows, breadcrumbs, tags */
-  --text-meta-sm: 0.625rem;  /* 10px · secondary counts / quiet labels */
-  --text-display: 2.5rem;    /* 40px · note / guide / daily page titles */
-  --text-display-lg: 3.5rem; /* 56px · home hero title */
-  --tracking-label: 0.1em;   /* uppercase mono eyebrow / label tracking */
+   → text-meta-sm, text-meta, text-meta-lg, text-display, text-display-lg,
+   tracking-label, tracking-label-sm. --measure is consumed directly via
+   max-w-[var(--measure)]. */
+   --measure: 680px;          /* reading-column width, shared by every article page */
+   --text-meta-sm: 0.625rem;  /* 10px · secondary counts / quiet labels */
+   --text-meta: 0.6875rem;    /* 11px · mono meta strips, eyebrows, breadcrumbs, tags */
+   --text-meta-lg: 0.8125rem; /* 13px · primary small-mono UI: brand, nav, search, stats, TOC, chips */
+   --text-display: 2.5rem;    /* 40px · note / guide / daily page titles */
+   --text-display-lg: 3.5rem; /* 56px · home hero title */
+   --tracking-label: 0.1em;   /* uppercase mono eyebrow / short label tracking */
+   --tracking-label-sm: 0.06em; /* uppercase mono tracking for longer labels (statuses, relations) */
 
   /* Height of the sticky site header; kept in sync by SiteHeader's script.
      The fallback approximates the single-row desktop header so in-page
@@ -231,8 +234,10 @@
   --tracking-widest: calc(var(--tracking-normal) + 0.1em);
   --tracking-normal: var(--tracking-normal);
   --tracking-label: var(--tracking-label);
-  --text-meta: var(--text-meta);
+  --tracking-label-sm: var(--tracking-label-sm);
   --text-meta-sm: var(--text-meta-sm);
+  --text-meta: var(--text-meta);
+  --text-meta-lg: var(--text-meta-lg);
   --text-display: var(--text-display);
   --text-display-lg: var(--text-display-lg);
   --shadow-2xl: var(--shadow-2xl);
