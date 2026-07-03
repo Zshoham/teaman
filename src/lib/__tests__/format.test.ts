@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fmtDate, fmtDayRange, fmtLongDay, fmtWeeksAgo, relTime, weeksAgo } from '../format';
+import { fmtDate, fmtDayRange, fmtLongDay, fmtWeeksAgo, isoDate, relTime, weeksAgo } from '../format';
 
 describe('fmtDate', () => {
   it('formats a Date object with leading-zero day', () => {
@@ -18,6 +18,18 @@ describe('fmtDate', () => {
     // Use a UTC noon time so getDate() returns the right day in any timezone
     const date = new Date(2026, 2, 15, 12);
     expect(fmtDate(date.toISOString())).toBe('15 mar 2026');
+  });
+});
+
+describe('isoDate', () => {
+  it('produces a YYYY-MM-DD UTC string', () => {
+    expect(isoDate(new Date('2026-01-15T00:00:00Z'))).toBe('2026-01-15');
+    expect(isoDate(new Date('2026-12-31T12:00:00Z'))).toBe('2026-12-31');
+  });
+
+  it('uses UTC, not local time', () => {
+    // A date at UTC midnight should return that UTC date regardless of local TZ
+    expect(isoDate(new Date('2026-06-15T00:00:00Z'))).toBe('2026-06-15');
   });
 });
 

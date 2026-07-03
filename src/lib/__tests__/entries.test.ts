@@ -5,10 +5,12 @@ vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
 vi.mock('fs/promises', () => ({ stat: vi.fn() }));
 
 import { getCollection } from 'astro:content';
+import { stat } from 'fs/promises';
 import {
   isoDate,
   loadDailyNoteEntries,
   loadNoteEntries,
+  loadSlideEntries,
 } from '../entries';
 import { extractExcerpt, readingTimeMeta, wordCount, wordMeta } from '../text';
 
@@ -172,6 +174,77 @@ describe('loadNoteEntries', () => {
   it('returns an empty array when the collection is empty', async () => {
     vi.mocked(getCollection).mockResolvedValue([] as any);
     expect(await loadNoteEntries()).toEqual([]);
+  });
+});
+
+describe('loadSlideEntries', () => {
+  beforeEach(() => {
+    vi.mocked(getCollection).mockReset();
+    vi.mocked(stat).mockReset();
+  });
+
+  it('maps slide entries and uses file dates', async () => {
+    const mtime = new Date('2026-03-10T00:00:00Z');
+    const birthtime = new Date('2026-01-05T00:00:00Z');
+    vi.mocked(stat).mockResolvedValue({ mtime, birthtime } as any);
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: 'intro', data: { title: 'Intro Deck', tags: ['demo'] }, body: 'slide 1\n---\nslide 2' },
+    ] as any);
+
+    const entries = await loadSlideEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 'slides-intro',
+      type: 'slides',
+      title: 'Intro Deck',
+      updated: '2026-03-10',
+      created: '2026-01-05',
+      meta: '2 slides',
+    });
+  });
+
+  it('falls back to now when stat fails with ENOENT (no warning)', async () => {
+    const err = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    vi.mocked(stat).mockRejectedValue(err);
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: 'missing', data: { title: 'Missing' }, body: 'content' },
+    ] as any);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const entries = await loadSlideEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].updated).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('warns on non-ENOENT stat errors (e.g. EACCES)', async () => {
+    const err = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+    vi.mocked(stat).mockRejectedValue(err);
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: 'denied', data: { title: 'Denied' }, body: 'content' },
+    ] as any);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const entries = await loadSlideEntries();
+    expect(entries).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('EACCES'));
+
+    warnSpy.mockRestore();
+  });
+
+  it('filters out drafts and underscore-prefixed slides', async () => {
+    vi.mocked(stat).mockResolvedValue({ mtime: new Date(), birthtime: new Date() } as any);
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: '_internal', data: { title: 'Internal' }, body: 'x' },
+      { id: 'public', data: { draft: false, title: 'Public' }, body: 'x' },
+      { id: 'wip', data: { draft: true, title: 'WIP' }, body: 'x' },
+    ] as any);
+
+    const entries = await loadSlideEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].id).toBe('slides-public');
   });
 });
 

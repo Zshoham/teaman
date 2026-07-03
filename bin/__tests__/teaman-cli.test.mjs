@@ -97,4 +97,52 @@ describe('teaman doctor', () => {
     expect(code).toBe(1);
     expect(stderr).toMatch(/needs a "date" in frontmatter/);
   });
+
+  it('warns on unknown hero keys', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", hero: { title: "ok", subtitle: "bad" } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/unknown hero key "subtitle"/);
+  });
+
+  it('warns on unknown slides keys', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", slides: { accent: "red" } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/unknown slides key "accent"/);
+  });
+
+  it('flags a guide directory missing SUMMARY.md', () => {
+    mkdirSync(join(dir, 'guides', 'my-guide'), { recursive: true });
+    writeFileSync(join(dir, 'guides', 'my-guide', 'chapter.md'), '# Chapter\n');
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/my-guide\/ has no SUMMARY.md/);
+  });
+
+  it('warns on unresolved wiki-links in notes', () => {
+    mkdirSync(join(dir, 'notes'), { recursive: true });
+    writeFileSync(join(dir, 'notes', 'a.md'), 'See [[nonexistent]] here.\n');
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/links to missing \[\[nonexistent\]\]/);
+  });
+});
+
+describe('teaman build', () => {
+  it('fails when vault path is not a directory', () => {
+    const fakePath = join(dir, 'not-a-dir');
+    writeFileSync(fakePath, 'not a directory');
+    const { code, stderr } = cli(['build', fakePath]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/not a directory/);
+  });
+
+  it('fails when vault path does not exist', () => {
+    const { code, stderr } = cli(['build', join(dir, 'nonexistent')]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/not a directory/);
+  });
 });
