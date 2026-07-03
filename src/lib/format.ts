@@ -74,6 +74,11 @@ function sundayOfLocal(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
 }
 
+/** UTC ISO date string (YYYY-MM-DD). Use for collection entries whose dates are UTC. */
+export function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 function toDate(input: Date | string): Date {
   if (input instanceof Date) return input;
   // Bare ISO dates ("YYYY-MM-DD") parse as UTC midnight, which can render as

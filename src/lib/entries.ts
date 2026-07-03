@@ -5,7 +5,7 @@ import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
 import { slidesRoot } from './content-paths';
 import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, type WeekdayShort } from './dailies';
-import { fmtLongDay } from './format';
+import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
 export type EntryType = 'note' | 'guide' | 'slides' | 'decision';
@@ -36,15 +36,17 @@ function slidesMeta(count: number): string {
 
 const base = import.meta.env.BASE_URL;
 
-export function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+export { isoDate } from './format';
 
 async function safeFileDates(path: string): Promise<{ updated: Date; created: Date }> {
   try {
     const fileStat = await stat(path);
     return { updated: fileStat.mtime, created: fileStat.birthtime };
-  } catch {
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      console.warn(`[teaman] could not stat ${path}: ${code ?? (err as Error).message}`);
+    }
     const now = new Date();
     return { updated: now, created: now };
   }

@@ -1,5 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 import { adrNum, type AdrStatus } from './adr-shared';
+import { isoDate } from './format';
 
 // Re-export the client-safe helpers so server modules can keep importing from
 // a single './adr' entry point; the React island imports from './adr-shared'.
@@ -20,10 +21,6 @@ export interface Adr {
   supersededBy?: string;
   /** The raw collection entry, kept so the page can `render()` the body. */
   entry: CollectionEntry<'decisions'>;
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 /** Loads the `decisions` collection as `Adr`s, sorted newest first. */
