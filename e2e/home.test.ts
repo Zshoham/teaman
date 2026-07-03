@@ -1,12 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { EntryType } from '../src/lib/entries';
 
-const TYPES = ['note', 'guide', 'slides'] as const satisfies readonly EntryType[];
+const TYPES = ['note', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
 
 const STAT_LABEL: Record<EntryType, string> = {
   note: 'notes',
   guide: 'guides',
   slides: 'slides',
+  decision: 'decisions',
 };
 
 async function entryCount(page: Page, type?: EntryType): Promise<number> {
