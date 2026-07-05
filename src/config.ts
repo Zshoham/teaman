@@ -2,14 +2,44 @@
 //
 // These are the bits a deployment is expected to customise — the rest of the
 // landing page is content-driven (notes/, slides/, guides/) and shouldn't need
-// edits. The hero `title` and `description` accept inline HTML; use `<em>` for
-// the muted-italic emphasis treatment and `<br>` for line breaks.
+// edits.
+//
+// The home page no longer renders a hero — the feed starts directly at the
+// filter bar, whose pills already carry per-type counts. The `hero` block
+// below is kept for backwards compatibility (and still validated by `doctor`)
+// but is unused; it is slated for removal in a future major. New vaults can
+// omit it.
 //
 // In production the `teaman` CLI loads the vault's `teaman.config.js`, merges it
 // over DEFAULT_CONFIG, and passes the result as JSON via `TEAMAN_CONFIG` (parsed
 // below). When that env var is absent — `npm run dev` against the bundled vault,
 // or the unit tests — DEFAULT_CONFIG is used directly. The config is pure data
 // (no functions) so it round-trips through JSON and stays easy to validate.
+
+/**
+ * One tile in the home-page quick-links bento grid.
+ *
+ * - `label` — the link text (required).
+ * - `url` — the destination (required). External (`https://…`) opens in a new
+ *   tab; relative paths render as same-tab in-site links.
+ * - `description` — optional one-line muted caption. A tile with a description
+ *   gets more grid space than one without (see `src/lib/bento.ts`).
+ * - `icon` — optional. A name from the engine's curated lucide-style set
+ *   (`github`, `book`, `globe`, `link`, `file`, `code`, `rocket`, `lightbulb`,
+ *   `rss`, `mail`, `coffee`, `arrow-up-right`) renders as a themed inline SVG.
+ *   Any other string renders verbatim, so an emoji or short glyph works too.
+ *   Defaults to `link`.
+ *
+ * Tile sizes are **not** configurable — the engine computes the bento layout
+ * from each tile's content and the total link count (`src/lib/bento.ts`), and
+ * the grid always fills exactly (no empty cells).
+ */
+export interface QuickLink {
+  label: string;
+  url: string;
+  description?: string;
+  icon?: string;
+}
 
 export interface SiteConfig {
   /** Short brand mark shown in the header (mono). Also used in the document title. */
@@ -23,6 +53,11 @@ export interface SiteConfig {
    * Set to `null` to fall back to the small accent square.
    */
   logo?: string | null;
+  /**
+   * @deprecated No longer rendered. The home page starts directly at the
+   * filterable feed. Kept for backwards compatibility and still validated by
+   * `doctor`; slated for removal in a future major. New vaults may omit it.
+   */
   hero: {
     eyebrow: string;
     /** HTML allowed. Wrap muted-italic phrases in `<em>`; line breaks via `<br>`. */
@@ -30,8 +65,21 @@ export interface SiteConfig {
     /** HTML allowed. */
     description: string;
   };
-  /** Optional right-aligned footer note. HTML allowed. */
+  /**
+   * @deprecated No longer rendered. The footer is now centered on the page
+   * stats alone. Kept for backwards compatibility and still validated by
+   * `doctor`; slated for removal in a future major. New vaults may omit it.
+   */
   footerNote?: string;
+  /**
+   * Quick-link tiles rendered as a bento grid above the home feed. Each entry
+   * is a card pointing at an external (or internal) URL the vault author wants
+   * to surface — a project repo, the tool the vault lives in, related reading,
+   * etc. Pure data (JSON-serializable); `doctor` validates the shape. Absent
+   * or empty → no grid is rendered (the default, so existing vaults are
+   * unaffected).
+   */
+  links?: QuickLink[];
   /**
    * Semver range of the `teaman` engine this vault targets (e.g. `"^1.4"`).
    * Read only by the CLI, which warns when the running engine falls outside it.
@@ -85,7 +133,54 @@ export const DEFAULT_CONFIG: SiteConfig = {
       "wrong on purpose. Edits are silent.",
   },
 
-  footerNote: 'made slowly',
+  links: [
+    {
+      label: 'Obsidian',
+      url: 'https://obsidian.md',
+      description:
+        'The local-first markdown app this vault lives in. Links are first-class, ' +
+        'everything is a plain text file, and the graph is yours to shape.',
+      icon: 'book',
+    },
+    {
+      label: '@zshoham/teaman',
+      url: 'https://www.npmjs.com/package/@zshoham/teaman',
+      description: 'The engine that builds this site.',
+      icon: 'rocket',
+    },
+    {
+      label: 'Astro',
+      url: 'https://astro.build',
+      description: 'The web framework underneath.',
+      icon: 'code',
+    },
+    {
+      label: 'lucide',
+      url: 'https://lucide.dev',
+      icon: 'lightbulb',
+    },
+    {
+      label: 'changelog',
+      url: 'https://github.com/obsidianmd/obsidian-release/releases',
+      icon: 'rss',
+    },
+    {
+      label: 'docs',
+      url: 'https://docs.obsidian.md',
+      description: 'API & plugin reference.',
+      icon: 'file',
+    },
+    {
+      label: 'forum',
+      url: 'https://forum.obsidian.md',
+      icon: 'globe',
+    },
+    {
+      label: 'made slowly',
+      url: 'https://slowdown.xyz',
+      icon: 'coffee',
+    },
+  ],
 };
 
 function loadConfig(): SiteConfig {

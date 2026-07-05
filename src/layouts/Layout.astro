@@ -74,9 +74,8 @@ const themeCss = SITE_CONFIG.theme
       <slot />
     </main>
 
-    <footer class="mt-16 flex flex-wrap items-baseline justify-between gap-4 border-t border-border px-0 pt-8 pb-12 font-mono text-meta text-faint">
+    <footer class="mt-16 flex flex-wrap items-baseline justify-center gap-4 border-t border-border px-0 pt-8 pb-12 text-center font-mono text-meta text-faint">
       <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
-      {SITE_CONFIG.footerNote && <span set:html={SITE_CONFIG.footerNote}></span>}
     </footer>
   </div>
 

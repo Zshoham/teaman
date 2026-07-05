@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { SITE_CONFIG } from '../config';
 import { loadAllEntries } from '../lib/entries';
 import { fmtDate } from '../lib/format';
-import { Hero } from '../components/home/Hero';
+import QuickLinks from '../components/home/QuickLinks.astro';
 import { FilterBar } from '../components/home/FilterBar';
 import { ActiveTagChip } from '../components/home/ActiveTagChip';
 import { EntryCard } from '../components/home/EntryCard';
@@ -32,27 +32,16 @@ const filterTabs = [
   { id: 'decision', label: 'decisions', count: counts.decision ?? 0 },
 ].filter(t => t.id === 'all' || t.count > 0);
 
-const statRows: Array<[string, number]> = [
-  ['notes', counts.note ?? 0],
-  ['guides', counts.guide ?? 0],
-  ['slides', counts.slides ?? 0],
-  ['decisions', counts.decision ?? 0],
-  ['tags', tagCounts.size],
-].filter(([, n]) => n > 0) as Array<[string, number]>;
-
 const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · last edit ${fmtDate(lastUpdated)}`;
 
 const hasSidebar = topics.length > 0;
+const quickLinks = SITE_CONFIG.links ?? [];
 ---
 
 <Layout footerLeft={footerLeft}>
-  <Hero
-    eyebrow={SITE_CONFIG.hero.eyebrow}
-    title={SITE_CONFIG.hero.title}
-    description={SITE_CONFIG.hero.description}
-    statRows={statRows}
-    lastUpdated={lastUpdated}
-  />
+  {quickLinks.length > 0 && (
+    <QuickLinks links={quickLinks} />
+  )}
 
   <div
     class:list={[

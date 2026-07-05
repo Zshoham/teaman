@@ -112,6 +112,34 @@ describe('teaman doctor', () => {
     expect(stderr).toMatch(/unknown slides key "accent"/);
   });
 
+  it('flags a link missing required fields', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ url: "https://a" }] };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/links\[0\] missing required "label"/);
+  });
+
+  it('warns on an unknown link key', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ label: "ok", url: "/x", color: "red" }] };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/unknown link key "color"/);
+  });
+
+  it('accepts a minimal link (label + url only)', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ label: "ok", url: "/x" }] };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).not.toMatch(/link/);
+  });
+
+  it('flags links that is not an array', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: "nope" };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/"links" must be an array/);
+  });
+
   it('flags a guide directory missing SUMMARY.md', () => {
     mkdirSync(join(dir, 'guides', 'my-guide'), { recursive: true });
     writeFileSync(join(dir, 'guides', 'my-guide', 'chapter.md'), '# Chapter\n');

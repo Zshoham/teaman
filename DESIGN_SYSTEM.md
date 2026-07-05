@@ -81,7 +81,7 @@ Three families, each with **one job**. Token aliases: `font-serif`, `font-sans`,
 
 | Family | Stack | Job |
 |---|---|---|
-| **Serif** — Source Serif 4 | `'Source Serif 4', Georgia, serif` | All *reading* and *titles*: hero, page titles, entry titles, prose body, prose headings. Max weight **600** — never heavier. |
+| **Serif** — Source Serif 4 | `'Source Serif 4', Georgia, serif` | All *reading* and *titles*: page titles, entry titles, prose body, prose headings. Max weight **600** — never heavier. |
 | **Sans** — Inter | `'Inter', system-ui, sans-serif` | UI & structure: buttons, badges, card titles, callout titles, nav, labels. |
 | **Mono** — JetBrains Mono | `'JetBrains Mono', ui-monospace, monospace` | Metadata only: eyebrows, breadcrumbs, timestamps, counts, tags, brand mark, kbd hints. Usually `UPPERCASE` + `tracking-label`. |
 
@@ -89,7 +89,7 @@ Three families, each with **one job**. Token aliases: `font-serif`, `font-sans`,
 
 | Token / class | Size | Use |
 |---|---|---|
-| `text-display-lg` | 3.5rem / 56px | home hero title (serif) |
+| `text-display-lg` | 3.5rem / 56px | reserved (currently unused; available for a future display title) |
 | `text-display` | 2.5rem / 40px | note / guide / daily page titles (serif) |
 | entry title | ~28px (`md:text-[28px]`) | list-card titles (serif) |
 | prose body | 1.125rem / 18px, line-height **1.7** | article reading column |
@@ -98,7 +98,7 @@ Three families, each with **one job**. Token aliases: `font-serif`, `font-sans`,
 | `tracking-label` | 0.1em | uppercase mono eyebrow/label tracking |
 
 **Title treatment:** serif, `font-normal` (400), `tracking-tight`, `leading-[1.05]`,
-`text-balance`. Inside hero/title HTML, `<em>` renders *muted-italic*
+`text-balance`. Inside title HTML, `<em>` renders *muted-italic*
 (`italic text-muted-foreground`) for soft emphasis.
 
 **Prose headings:** serif, weight 600, slight negative tracking (`-0.012em`),
@@ -127,9 +127,9 @@ Numerals in meta are always `tabular-nums`. Separators between meta items are a
 ## 4. Spacing, radius, borders, elevation
 
 - **Spacing base** `--spacing: 0.25rem` (Tailwind's 4px step). Sections breathe:
-  hero `py-9`, list entries `py-7`, article header `mb-8 pb-6`.
+  list entries `py-7`, article header `mb-8 pb-6`.
 - **Reading column** `--measure: 680px` — every article wrapper is
-  `mx-auto max-w-[var(--measure)]`. Hero/list content can run wider (descriptions
+  `mx-auto max-w-[var(--measure)]`. List content can run wider (descriptions
   cap ~620–700px).
 - **Radius** scales off `--radius: 0.75rem`: `radius-sm` ×0.6, `radius-md` ×0.8,
   `radius-lg` = base, up through `radius-4xl`. Cards use `rounded-xl`; pills/badges

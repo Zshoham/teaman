@@ -12,16 +12,41 @@ export default {
   tagline: 'a working garden',
   logo: 'teacup.svg', // resolved from this vault, then vault/public, then engine defaults
 
-  hero: {
-    eyebrow: 'an open notebook · est. 2026',
-    title: 'Notes, guides and slides<br/><em>pulled, in public,</em> from a working vault.',
-    description:
-      'This is a thin window onto an Obsidian vault — the bits worth showing. ' +
-      'Some entries are evergreen, some are still growing, and a few are deliberately ' +
-      'wrong on purpose. Edits are silent.',
-  },
-
-  footerNote: 'made slowly',
+  // Quick-link tiles rendered as a bento grid above the home feed. Each tile
+  // is pure data: label, url, optional description / icon. Tile sizes are not
+  // configurable — the engine sizes them from the content (description length,
+  // label length) and the total link count, and the grid always fills exactly
+  // (every row sums to the grid width, no empty cells). `icon` maps to a
+  // curated lucide-style set (github, book, globe, link, code, rss, mail,
+  // rocket, lightbulb, coffee, file, arrow-up-right); any other string renders
+  // verbatim (emoji ok). Absent/empty → no grid.
+  links: [
+    {
+      label: 'Obsidian',
+      url: 'https://obsidian.md',
+      description:
+        'The local-first markdown app this vault lives in. Links are first-class, ' +
+        'everything is a plain text file, and the graph is yours to shape.',
+      icon: 'book',
+    },
+    {
+      label: '@zshoham/teaman',
+      url: 'https://www.npmjs.com/package/@zshoham/teaman',
+      description: 'The engine that builds this site.',
+      icon: 'rocket',
+    },
+    {
+      label: 'Astro',
+      url: 'https://astro.build',
+      description: 'The web framework underneath.',
+      icon: 'code',
+    },
+    { label: 'lucide', url: 'https://lucide.dev', icon: 'lightbulb' },
+    { label: 'changelog', url: 'https://github.com/obsidianmd/obsidian-release/releases', icon: 'rss' },
+    { label: 'docs', url: 'https://docs.obsidian.md', description: 'API & plugin reference.', icon: 'file' },
+    { label: 'forum', url: 'https://forum.obsidian.md', icon: 'globe' },
+    { label: 'made slowly', url: 'https://slowdown.xyz', icon: 'coffee' },
+  ],
 
   // Per-vault theming is the entire customization surface — override CSS tokens
   // here rather than editing engine source, so upgrades never need a merge.

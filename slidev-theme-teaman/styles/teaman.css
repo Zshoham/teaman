@@ -40,7 +40,7 @@
 .slidev-layout h3 { font-size: 1.3em; }
 
 /* The opening slide leans bigger and pairs the title with a quiet lede + a
-   short primary rule, echoing the site hero. */
+   short primary rule, echoing the site's title treatment. */
 .slidev-layout.cover h1,
 .slidev-layout.intro h1 {
   font-size: 3.4em;

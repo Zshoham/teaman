@@ -24,13 +24,13 @@
     "tsconfig.json"
   ],
   "scripts": {
-    "dev": "astro dev",
+    "dev": "node bin/teaman.mjs dev ./example",
     "build": "npm run build:all",
     "build:astro": "astro build",
-    "preview": "astro preview",
+    "preview": "node bin/teaman.mjs preview ./example --out public",
     "build:slides": "node scripts/build-slides.mjs",
     "build:search": "node scripts/build-search.mjs",
-    "build:all": "npm run build:astro && npm run build:slides && npm run build:search",
+    "build:all": "node bin/teaman.mjs build ./example --out public",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

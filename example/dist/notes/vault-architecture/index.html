@@ -1,0 +1,137 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="generator" content="teaman 1.1.0"><title>Vault Static Site Architecture — vault.teaman</title><script>
+    // Runs before paint to avoid a flash of incorrect theme.
+    (() => {
+      try {
+        const stored = localStorage.getItem('vault-theme');
+        if (stored === 'dark' || stored === 'light') {
+          document.documentElement.dataset.theme = stored;
+        }
+      } catch {}
+    })();
+  </script><link rel="stylesheet" href="/pagefind/pagefind-component-ui.css"><script type="module" src="/pagefind/pagefind-component-ui.js"></script><link rel="stylesheet" href="/_astro/Layout.BVOt5bQ_.css"></head><body><div class="mx-auto max-w-[1180px] px-6 md:px-10"><header id="site-header" class="sticky top-0 z-30 grid grid-cols-[1fr_auto] gap-4 border-b border-border bg-background pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6"><a href="/" class="brand flex items-center gap-2.5 text-foreground no-underline"><span class="inline-block h-5 w-5 bg-current" style="--brand-logo: url('/teacup.svg'); -webkit-mask: var(--brand-logo) center / contain no-repeat; mask: var(--brand-logo) center / contain no-repeat;" aria-hidden="true"></span><span class="brand-name font-mono text-meta-lg font-medium tracking-wide">vault.teaman</span><span class="brand-tagline ml-1 font-mono text-meta text-faint">/ a working garden</span></a><nav class="col-start-2 row-start-1 flex items-center gap-4 justify-self-end md:col-start-2 md:row-start-1 md:justify-self-center" aria-label="Sections"><a href="/daily/2026-05-10/" class="border-b py-0.5 font-mono text-meta-lg no-underline transition-colors border-transparent text-muted-foreground hover:text-foreground">daily</a><a href="/decisions/" class="border-b py-0.5 font-mono text-meta-lg no-underline transition-colors border-transparent text-muted-foreground hover:text-foreground">decisions</a></nav><div class="col-span-2 flex w-full items-center justify-between gap-4 md:col-span-1 md:w-auto md:justify-self-end md:gap-5"><pagefind-modal-trigger class="w-full max-w-[320px] md:w-auto"><button type="button" class="flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent py-1.5 pr-2 pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-60" aria-label="Search the vault"><span class="font-mono text-meta-lg leading-none text-faint" aria-hidden="true">⌕</span><span class="flex-1 min-w-0 text-left text-meta-lg text-muted-foreground">search the vault</span><span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span></button></pagefind-modal-trigger><style>astro-island,astro-slot,astro-static-slot{display:contents}</style><script>(()=>{var e=async t=>{await(await t())()};(self.Astro||(self.Astro={})).load=e;window.dispatchEvent(new Event("astro:load"));})();</script><script>(()=>{var g=Object.defineProperty;var w=(c,s,d)=>s in c?g(c,s,{enumerable:!0,configurable:!0,writable:!0,value:d}):c[s]=d;var l=(c,s,d)=>w(c,typeof s!="symbol"?s+"":s,d);var E=new Set(["__proto__","constructor","prototype"]);{let c={0:t=>y(t),1:t=>d(t),2:t=>new RegExp(t),3:t=>new Date(t),4:t=>new Map(d(t)),5:t=>new Set(d(t)),6:t=>BigInt(t),7:t=>new URL(t),8:t=>new Uint8Array(t),9:t=>new Uint16Array(t),10:t=>new Uint32Array(t),11:t=>Number.POSITIVE_INFINITY*t},s=t=>{let[p,e]=t;return p in c?c[p](e):void 0},d=t=>t.map(s),y=t=>typeof t!="object"||t===null?t:Object.fromEntries(Object.entries(t).map(([p,e])=>[p,s(e)]));class f extends HTMLElement{constructor(){super(...arguments);l(this,"Component");l(this,"hydrator");l(this,"hydrate",async()=>{var b;if(!this.hydrator||!this.isConnected)return;let e=(b=this.parentElement)==null?void 0:b.closest("astro-island[ssr]");if(e){e.addEventListener("astro:hydrate",this.hydrate,{once:!0});return}let n=this.querySelectorAll("astro-slot"),r={},i=this.querySelectorAll("template[data-astro-template]");for(let o of i){let a=o.closest(this.tagName);a!=null&&a.isSameNode(this)&&(r[o.getAttribute("data-astro-template")||"default"]=o.innerHTML,o.remove())}for(let o of n){let a=o.closest(this.tagName);a!=null&&a.isSameNode(this)&&(r[o.getAttribute("name")||"default"]=o.innerHTML)}let u;try{u=this.hasAttribute("props")?y(JSON.parse(this.getAttribute("props"))):{}}catch(o){let a=this.getAttribute("component-url")||"<unknown>",v=this.getAttribute("component-export");throw v&&(a+=` (export ${v})`),console.error(`[hydrate] Error parsing props for component ${a}`,this.getAttribute("props"),o),o}let h;await this.hydrator(this)(this.Component,u,r,{client:this.getAttribute("client")}),this.removeAttribute("ssr"),this.dispatchEvent(new CustomEvent("astro:hydrate"))});l(this,"unmount",()=>{this.isConnected||this.dispatchEvent(new CustomEvent("astro:unmount"))})}disconnectedCallback(){document.removeEventListener("astro:after-swap",this.unmount),document.addEventListener("astro:after-swap",this.unmount,{once:!0})}connectedCallback(){if(!this.hasAttribute("await-children")||document.readyState==="interactive"||document.readyState==="complete")this.childrenConnectedCallback();else{let e=()=>{document.removeEventListener("DOMContentLoaded",e),n.disconnect(),this.childrenConnectedCallback()},n=new MutationObserver(()=>{var r;((r=this.lastChild)==null?void 0:r.nodeType)===Node.COMMENT_NODE&&this.lastChild.nodeValue==="astro:end"&&(this.lastChild.remove(),e())});n.observe(this,{childList:!0}),document.addEventListener("DOMContentLoaded",e)}}async childrenConnectedCallback(){let e=this.getAttribute("before-hydration-url");e&&await import(e),this.start()}getRetryImportUrl(e){let n=new URL(e,document.baseURI),r=`astro-retry=${Date.now()}`,i=n.hash.replace(/^#/,"");return n.hash=i?`${i}&${r}`:r,n.toString()}async importWithRetry(e){try{return await import(e)}catch(n){return await new Promise(r=>setTimeout(r,1e3)),import(this.getRetryImportUrl(e))}}handleHydrationError(e){let n=this.getAttribute("component-url"),r=new CustomEvent("astro:hydration-error",{cancelable:!0,bubbles:!0,composed:!0,detail:{error:e,componentUrl:n}});this.dispatchEvent(r)&&console.error(`[astro-island] Error hydrating ${n}`,e)}async start(){let e=JSON.parse(this.getAttribute("opts")),n=this.getAttribute("client");if(Astro[n]===void 0){window.addEventListener(`astro:${n}`,()=>this.start(),{once:!0});return}try{await Astro[n](async()=>{let r=this.getAttribute("renderer-url");try{let[i,{default:u}]=await Promise.all([this.importWithRetry(this.getAttribute("component-url")),r?this.importWithRetry(r):Promise.resolve({default:()=>()=>{}})]),h=this.getAttribute("component-export")||"default";if(h.includes(".")){this.Component=i;for(let m of h.split(".")){if(E.has(m)||!this.Component||typeof this.Component!="object"&&typeof this.Component!="function"||!Object.hasOwn(this.Component,m))throw new Error(`Invalid component export path: ${h}`);this.Component=this.Component[m]}}else{if(E.has(h))throw new Error(`Invalid component export path: ${h}`);this.Component=i[h]}return this.hydrator=u,this.hydrate}catch(i){return this.handleHydrationError(i),()=>{}}},e,this)}catch(r){this.handleHydrationError(r)}}attributeChangedCallback(){this.hydrate()}}l(f,"observedAttributes",["props"]),customElements.get("astro-island")||customElements.define("astro-island",f)}})();</script><astro-island uid="Z1p57Tk" prefix="r3" component-url="/_astro/ThemeToggle.BGlxl6Ij.js" component-export="ThemeToggle" renderer-url="/_astro/client.DHgXUEH_.js" props="{}" ssr client="load" opts="{&quot;name&quot;:&quot;ThemeToggle&quot;,&quot;value&quot;:true}" await-children><button type="button" tabindex="0" data-slot="button" aria-label="Toggle dark mode" title="Toggle dark mode" data-theme-toggle="true" class="group/button inline-flex shrink-0 items-center justify-center border bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&amp;_svg]:pointer-events-none [&amp;_svg]:shrink-0 [&amp;_svg:not([class*=&#x27;size-&#x27;])]:size-4 border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 size-8 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></button><!--astro:end--></astro-island></div></header><script type="module">var e=document.getElementById(`site-header`);if(e){let t=()=>document.documentElement.style.setProperty(`--header-h`,`${e.offsetHeight}px`);t(),new ResizeObserver(t).observe(e)}window.addEventListener(`keydown`,e=>{if(e.key!==`/`||e.metaKey||e.ctrlKey||e.altKey)return;let t=e.target;t instanceof HTMLElement&&(t.matches(`input, textarea, [contenteditable], [contenteditable=""]`)||t.isContentEditable)||(e.preventDefault(),document.querySelector(`pagefind-modal-trigger button`)?.click())});</script><pagefind-modal></pagefind-modal><main class="pt-4"><article class="mx-auto max-w-[var(--measure)] pt-6 pb-2"><nav aria-label="breadcrumb" data-slot="breadcrumb" class="crumbs mb-7 font-mono text-meta"><ol data-slot="breadcrumb-list" class="flex flex-wrap items-center gap-1.5 text-sm wrap-break-word text-muted-foreground"><li data-slot="breadcrumb-item" class="inline-flex items-center gap-1"><a data-slot="breadcrumb-link" class="transition-colors hover:text-foreground" href="/">index</a></li><li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" class="[&amp;&gt;svg]:size-3.5">/</li><li data-slot="breadcrumb-item" class="inline-flex items-center gap-1"><span data-slot="breadcrumb-page" role="link" aria-disabled="true" aria-current="page" class="font-normal text-foreground">vault-architecture</span></li></ol></nav><header class="mb-8 border-b border-border pb-6"><h1 class="note-title m-0 mb-4 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">Vault Static Site Architecture</h1><div class="note-meta flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint"><span>671 words</span><span class="opacity-50">·</span><span>4 min read</span><span class="opacity-50">·</span><time datetime="2026-05-09T00:00:00.000Z">09 may 2026</time><span class="opacity-50">·</span><span class="inline-flex flex-wrap gap-2"><span class="text-faint tracking-wide">#architecture</span><span class="text-faint tracking-wide">#infrastructure</span><span class="text-faint tracking-wide">#meta</span></span></div></header><div class="prose"><p>Design decisions for the Teaman vault’s static site pipeline.</p>
+<h2 id="repository-structure">Repository Structure<a class="heading-anchor" aria-label="Permalink to this heading" href="#repository-structure">#</a></h2>
+<p>Monorepo with clean separation between content and build tooling:</p>
+<pre class="astro-code astro-code-themes github-light github-dark" style="background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>/</span></span>
+<span class="line"><span>├── content/          # Obsidian vault root (future: git submodule)</span></span>
+<span class="line"><span>│   ├── notes/        # Standard Obsidian markdown</span></span>
+<span class="line"><span>│   ├── slides/       # Slidev decks (*.md); prefix _ to mark draft</span></span>
+<span class="line"><span>│   └── guides/       # Multi-chapter books (dirs containing SUMMARY.md)</span></span>
+<span class="line"><span>├── site/             # Astro project + single Slidev installation</span></span>
+<span class="line"><span>└── .gitlab-ci.yml</span></span></code></pre>
+<p>Content types are separated by <strong>folder</strong> — unambiguous for build pipelines and
+requires no frontmatter discipline. Frontmatter schemas differ per type and are
+intentionally not cross-compatible.</p>
+<h2 id="static-site-generator-astro">Static Site Generator: Astro<a class="heading-anchor" aria-label="Permalink to this heading" href="#static-site-generator-astro">#</a></h2>
+<p>Astro is the primary SSG wrapper. Each content type integrates differently.</p>
+<h3 id="notes">Notes<a class="heading-anchor" aria-label="Permalink to this heading" href="#notes">#</a></h3>
+<ul>
+<li>Astro content collections via the glob loader (<code>../content/notes/**/*.md</code>)</li>
+<li>Obsidian syntax handled by remark/rehype plugins:
+<ul>
+<li><code>remark-wiki-link</code> — <code>[[wikilinks]]</code> → HTML anchors</li>
+<li><code>rehype-callouts</code> — <code>> [!NOTE]</code> callout blocks</li>
+</ul>
+</li>
+<li><strong>Future upgrade path</strong>: Quartz preprocessor can be dropped in as a step
+before Astro’s content layer. Abstraction boundary is maintained so this is
+a one-step swap, not a rewrite.</li>
+</ul>
+<h3 id="slides">Slides<a class="heading-anchor" aria-label="Permalink to this heading" href="#slides">#</a></h3>
+<ul>
+<li>A single <code>@slidev/cli</code> installation lives in <code>site/</code>; all decks are <code>.md</code> files</li>
+<li><code>build-slides.mjs</code> globs <code>content/slides/*.md</code> (skipping <code>_</code>-prefixed drafts),
+builds each with <code>slidev build</code>, outputs to <code>public/slides/&#x3C;deck-name>/</code></li>
+<li>Astro owns a gallery/index page linking to the built SPAs</li>
+<li>Slidev theme uses the same CSS custom property names as the Astro theme
+(manually kept in sync — see Theming section)</li>
+</ul>
+<h3 id="guides">Guides<a class="heading-anchor" aria-label="Permalink to this heading" href="#guides">#</a></h3>
+<ul>
+<li>Each directory under <code>content/guides/</code> containing a <code>SUMMARY.md</code> is a guide</li>
+<li><code>SUMMARY.md</code> provides the guide title (<code># H1</code>) and chapter ordering
+(markdown bullet list of links to chapter files)</li>
+<li>Astro content collection (<code>guides</code>) loads chapter <code>.md</code> files; a single
+<code>pages/guides/[...slug].astro</code> route renders both the guide root (first
+chapter) and per-chapter pages with shared sidebar TOC + prev/next nav</li>
+<li>All chrome — typography, callouts, code blocks — comes from the same
+remark/rehype pipeline as notes, so theming stays consistent</li>
+</ul>
+<h2 id="ci-pipeline">CI Pipeline<a class="heading-anchor" aria-label="Permalink to this heading" href="#ci-pipeline">#</a></h2>
+<p>Two parallel build jobs merge their artifacts into a single Pagefind pass,
+then deploy:</p>
+<pre class="astro-code astro-code-themes github-light github-dark" style="background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>build:notes  ─┐</span></span>
+<span class="line"><span>build:slides ─┴─► build:search ─► pages (main branch only)</span></span></code></pre>
+<ul>
+<li><code>build:notes</code> → runs <code>astro build</code> (notes + guides), artifact: <code>public/</code></li>
+<li><code>build:slides</code> → runs <code>slidev build</code> per deck, artifact: <code>public/slides/</code></li>
+<li><code>build:search</code> → GitLab merges artifacts, runs Pagefind, artifact: full <code>public/</code></li>
+<li><code>pages</code> → GitLab Pages deploy (only on default branch)</li>
+</ul>
+<p>Drawn as a component graph, the data and artifacts flow like this:</p>
+<pre class="plantuml">@startuml
+left to right direction
+skinparam componentStyle rectangle
+
+component "build:notes" as notes
+component "build:slides" as slides
+component "build:search\n(Pagefind)" as search
+component "pages\n(GitLab Pages)" as pages
+
+artifact "public/" as pub
+artifact "public/slides/" as pubslides
+artifact "full public/" as pubfull
+
+notes --> pub
+slides --> pubslides
+pub --> search
+pubslides --> search
+search --> pubfull
+pubfull --> pages : main branch only
+@enduml</pre>
+<p><strong>Future</strong>: add <code>changes:</code> rules per job for incremental builds. A theme change
+should trigger both jobs.</p>
+<h2 id="search">Search<a class="heading-anchor" aria-label="Permalink to this heading" href="#search">#</a></h2>
+<p>Pagefind crawls the fully assembled <code>public/</code> as a post-build step, producing a
+unified search index across notes, slides, and guides. Slidev decks are added
+as custom records (their SPA bodies are empty pre-JS) — every other content
+type is crawled directly from its built HTML.</p>
+<h2 id="theming">Theming<a class="heading-anchor" aria-label="Permalink to this heading" href="#theming">#</a></h2>
+<p><code>site/src/styles/tokens.css</code> defines CSS custom properties (colors, typography,
+spacing). The Slidev theme references the same property names — kept in sync
+manually.</p>
+<p><strong>Future</strong>: extract tokens to a shared JSON/JS config and generate CSS variables
+via a build step.</p>
+<h2 id="url-configuration">URL Configuration<a class="heading-anchor" aria-label="Permalink to this heading" href="#url-configuration">#</a></h2>
+<p><code>SITE_BASE</code> env var (default: <code>/$CI_PROJECT_NAME/</code>) is set in one place (CI) and
+consumed by:</p>
+<ul>
+<li><code>astro.config.mjs</code> → <code>base</code> option (notes + guides)</li>
+<li><code>build-slides.mjs</code> → <code>--base</code> flag per deck</li>
+</ul>
+<h2 id="conventions">Conventions<a class="heading-anchor" aria-label="Permalink to this heading" href="#conventions">#</a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Convention</th><th>Meaning</th></tr></thead><tbody><tr><td><code>_*.md</code> in <code>slides/</code></td><td>Draft deck — excluded from build</td></tr><tr><td><code>SUMMARY.md</code> in a <code>guides/</code> subdir</td><td>Marks directory as a guide; defines title + chapter order</td></tr><tr><td><code>draft: true</code> in note frontmatter</td><td>Excludes note from published site</td></tr><tr><td><code>SITE_BASE</code> env var</td><td>Single config point for URL base path</td></tr></tbody></table></div></article></main><footer class="mt-16 flex flex-wrap items-baseline justify-between gap-4 border-t border-border px-0 pt-8 pb-12 font-mono text-meta text-faint"><span>vault.teaman</span><span>made slowly</span></footer></div><script type="module" src="/_astro/Layout.astro_astro_type_script_index_0_lang.Dr99h7dG.js"></script><script type="module" src="/_astro/Layout.astro_astro_type_script_index_1_lang.CpbRSBrs.js"></script></body></html>
