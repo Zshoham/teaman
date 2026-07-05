@@ -50,7 +50,9 @@ Options: `--out <dir>`, `--base <path>` (e.g. `/my-site/` for sub-path hosting),
 ## Config — `teaman.config.js`
 
 Pure data, default-exported (the CLI serializes it). All fields are optional
-except `brand` and `hero.title`; omitted fields fall back to engine defaults.
+except `brand`; omitted fields fall back to engine defaults. The `hero` block
+is no longer rendered (the home page starts directly at the feed) but is kept
+for backwards compatibility — new vaults can omit it.
 
 ```js
 export default {
@@ -64,6 +66,11 @@ export default {
     description: 'A thin public window onto an Obsidian vault.',
   },
   footerNote: 'made slowly',
+  links: [                       // quick-link tiles, bento grid above the home feed
+    { label: 'Obsidian', url: 'https://obsidian.md', description: 'The app this vault lives in.', icon: 'book' },
+    { label: 'repo', url: 'https://github.com/me/vault', icon: 'github' },
+  ],                             // `icon`: curated lucide set or any string (emoji ok).
+                                 // tile sizes are auto-computed from content + count.
   theme: {                      // CSS-var overrides (the entire styling surface)
     '--primary': 'oklch(0.67 0.14 48)',
     '--radius': '0.5rem',

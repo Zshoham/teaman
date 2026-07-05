@@ -95,7 +95,7 @@
    --text-meta: 0.6875rem;    /* 11px · mono meta strips, eyebrows, breadcrumbs, tags */
    --text-meta-lg: 0.8125rem; /* 13px · primary small-mono UI: brand, nav, search, stats, TOC, chips */
    --text-display: 2.5rem;    /* 40px · note / guide / daily page titles */
-   --text-display-lg: 3.5rem; /* 56px · home hero title */
+   --text-display-lg: 3.5rem; /* 56px · reserved (currently unused; was home hero title) */
    --tracking-label: 0.1em;   /* uppercase mono eyebrow / short label tracking */
    --tracking-label-sm: 0.06em; /* uppercase mono tracking for longer labels (statuses, relations) */
 

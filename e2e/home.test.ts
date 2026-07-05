@@ -3,21 +3,14 @@ import type { EntryType } from '../src/lib/entries';
 
 const TYPES = ['note', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
 
-const STAT_LABEL: Record<EntryType, string> = {
-  note: 'notes',
-  guide: 'guides',
-  slides: 'slides',
-  decision: 'decisions',
-};
-
 async function entryCount(page: Page, type?: EntryType): Promise<number> {
   const sel = type ? `[data-entry][data-type="${type}"]` : '[data-entry]';
   return page.locator(sel).count();
 }
 
-async function statCount(page: Page, label: string): Promise<number> {
-  const row = page.locator('.stat-row').filter({ hasText: label });
-  const text = (await row.textContent()) ?? '';
+async function statCount(page: Page, type: EntryType): Promise<number> {
+  const pill = page.locator(`[data-filter="${type}"]`);
+  const text = (await pill.textContent()) ?? '';
   const match = text.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;
 }
@@ -84,10 +77,10 @@ test.describe('home page', () => {
     expect(sum).toBe(total);
   });
 
-  test('hero stats match the rendered entry counts per type', async ({ page }) => {
+  test('filter pill counts match the rendered entry counts per type', async ({ page }) => {
     for (const t of TYPES) {
       const rendered = await entryCount(page, t);
-      const stat = await statCount(page, STAT_LABEL[t]);
+      const stat = await statCount(page, t);
       expect(stat).toBe(rendered);
     }
   });

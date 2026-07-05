@@ -207,12 +207,6 @@ export default {
   brand: 'my.vault',
   tagline: 'a working garden',
   logo: null, // e.g. 'assets/logo.svg' (relative to this vault)
-  hero: {
-    eyebrow: 'an open notebook',
-    title: 'Notes, guides and slides<br/><em>from a working vault.</em>',
-    description: 'A thin public window onto an Obsidian vault.',
-  },
-  footerNote: 'made slowly',
   // theme: { '--primary': 'oklch(0.67 0.14 250)', '--radius': '0.5rem' },
   // slides: { logo: 'logo.svg', primary: 'oklch(0.62 0.15 48)', secondary: 'oklch(0.58 0.05 196)', footer: true },
 };
@@ -237,9 +231,10 @@ function cmdInit(vaultArg) {
 }
 
 // ── doctor: validate config + lint content without a full build ──────────────
-const KNOWN_KEYS = new Set(['brand', 'tagline', 'logo', 'hero', 'footerNote', 'engine', 'theme', 'base', 'slides']);
+const KNOWN_KEYS = new Set(['brand', 'tagline', 'logo', 'hero', 'footerNote', 'engine', 'theme', 'base', 'slides', 'links']);
 const KNOWN_HERO_KEYS = new Set(['eyebrow', 'title', 'description']);
 const KNOWN_SLIDES_KEYS = new Set(['logo', 'primary', 'secondary', 'footer']);
+const KNOWN_LINK_KEYS = new Set(['label', 'url', 'description', 'icon']);
 
 function knownThemeTokens() {
   try {
@@ -281,6 +276,25 @@ async function cmdDoctor(vaultArg) {
     }
     for (const k of Object.keys(config.slides ?? {})) {
       if (!KNOWN_SLIDES_KEYS.has(k)) warnings.push(`config: unknown slides key "${k}"`);
+    }
+    if (config.links !== undefined) {
+      if (!Array.isArray(config.links)) {
+        problems.push('config: "links" must be an array');
+      } else {
+        config.links.forEach((l, i) => {
+          if (!l || typeof l !== 'object') {
+            problems.push(`config: links[${i}] must be an object`);
+            return;
+          }
+          if (!l.label) problems.push(`config: links[${i}] missing required "label"`);
+          if (!l.url) problems.push(`config: links[${i}] missing required "url"`);
+          else if (!/^(https?:\/\/|\/|#)/i.test(String(l.url)))
+            warnings.push(`config: links[${i}] url "${l.url}" doesn't look like a URL`);
+          for (const k of Object.keys(l)) {
+            if (!KNOWN_LINK_KEYS.has(k)) warnings.push(`config: unknown link key "${k}" (links[${i}])`);
+          }
+        });
+      }
     }
     const tokens = knownThemeTokens();
     if (tokens && config.theme) {
