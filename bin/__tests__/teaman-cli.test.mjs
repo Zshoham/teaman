@@ -159,6 +159,26 @@ describe('teaman doctor', () => {
   });
 });
 
+describe('teaman sync-confluence', () => {
+  it('forwards --help straight through to the sync script', () => {
+    const { code, stdout } = cli(['sync-confluence', '--help']);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Sync repository markdown content to Confluence/);
+  });
+
+  it('surfaces the script\'s own config error and exit code (no double-wrap)', () => {
+    const { code, stdout, stderr } = cli(['sync-confluence', '--content-dir', dir]);
+    expect(code).toBe(1);
+    expect(`${stdout}${stderr}`).toMatch(/Missing required configuration/);
+    // the delegated exit code is mirrored, not re-wrapped by the CLI runner
+    expect(stderr).not.toMatch(/exited with code/);
+  });
+
+  it('listed in the top-level help', () => {
+    expect(cli(['help']).stdout).toMatch(/sync-confluence/);
+  });
+});
+
 describe('teaman build', () => {
   it('fails when vault path is not a directory', () => {
     const fakePath = join(dir, 'not-a-dir');

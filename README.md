@@ -43,9 +43,15 @@ render as a filterable timeline at `/decisions/` and also appear in the home fee
 | `teaman preview [vault]` | Serve a previously built site. |
 | `teaman init [vault]` | Scaffold `teaman.config.js` + content dirs. |
 | `teaman doctor [vault]` | Validate config and lint content **without** building. Exits non-zero on problems — gate CI with it. |
+| `teaman sync-confluence` | Publish vault markdown to Confluence Server/Data Center. Dry-run by default; pass `--apply` to write. |
 
 Options: `--out <dir>`, `--base <path>` (e.g. `/my-site/` for sub-path hosting),
 `--port <n>` (dev). `[vault]` defaults to the current directory.
+
+`sync-confluence` takes its own flags (run `teaman sync-confluence --help`);
+the essentials are `--content-dir <vault>`, `--base-url`, credentials
+(`--user`/`--token` or `--pat`), and `--roots folder=pageId,…`. Each can also
+come from a `CONFLUENCE_*` env var.
 
 ## Config — `teaman.config.js`
 

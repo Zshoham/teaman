@@ -383,6 +383,7 @@ Commands:
   preview [vault]  Preview a previously built site
   init [vault]     Scaffold teaman.config.js + content dirs
   doctor [vault]   Validate config and lint content without building
+  sync-confluence  Sync vault markdown to Confluence (see --help for its flags)
 
 Options:
   --out <dir>      Output directory (build/preview)
@@ -396,6 +397,20 @@ Options:
 
 // ── dispatch ─────────────────────────────────────────────────────────────
 async function main(argv = process.argv.slice(2)) {
+  // sync-confluence delegates wholesale to scripts/sync-confluence.mjs — it has
+  // its own parser (util.parseArgs), CONFLUENCE_* env fallbacks, and --help. We
+  // intercept before parseArgs so every flag (including -h/--help and repeated
+  // --roots) passes through untouched; the script wants --content-dir <vault>.
+  if (argv[0] === 'sync-confluence') {
+    const script = join(engineDir, 'scripts', 'sync-confluence.mjs');
+    const child = spawn(node, [script, ...argv.slice(1)], { cwd: engineDir, env: process.env, stdio: 'inherit' });
+    // The script prints its own errors and sets an exit code; mirror it rather
+    // than re-wrapping (no redundant "node exited with code 1" on top).
+    child.on('error', error => fail(error.message));
+    child.on('exit', code => { process.exitCode = code ?? 1; });
+    return;
+  }
+
   const { command, vaultArg, opts = {} } = parseArgs(argv);
   try {
     switch (command) {
