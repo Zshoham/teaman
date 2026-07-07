@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
-import { basename, dirname, join, relative, sep } from 'path';
+import { basename, dirname, join, relative, resolve, sep } from 'path';
 import { parseArgs as parseCliArgs } from 'util';
 import { fileURLToPath } from 'url';
 
@@ -35,6 +35,11 @@ Options:
   --apply                 Write changes. Without this, prints a dry-run plan.
   --only FOLDERS          Comma-separated content folders to sync.
   --timeout-ms MS        Per-request timeout (default: 30000; CONFLUENCE_TIMEOUT_MS)
+  --mermaid-macro NAME   Confluence macro name for \`\`\`mermaid fences, e.g. "mermaid"
+                         (or CONFLUENCE_MERMAID_MACRO). Without it, diagrams sync as
+                         a labeled code block (source only, no rendered diagram).
+  --plantuml-macro NAME  Same as above for \`\`\`plantuml fences (or
+                         CONFLUENCE_PLANTUML_MACRO).
   --help                  Show this help.
 
 Examples:
@@ -43,6 +48,18 @@ Examples:
 
   CONFLUENCE_BASE_URL=https://wiki.local CONFLUENCE_PAT=secret \\
   CONFLUENCE_ROOTS='{"guides":"111"}' npm run sync:confluence -- --apply
+
+Markdown support:
+  Tables, strikethrough, headings, lists, links, images, and fenced code (with
+  a best-effort Confluence "language" parameter) all translate directly.
+  Obsidian wiki-links (\`[[note]]\`, \`[[note|alias]]\`, \`[[note#section]]\`)
+  resolve to Confluence page links by title when the target exists under the
+  "notes" folder in --content-dir, and degrade to a best-guess title link
+  otherwise. Obsidian callouts (\`> [!note] Title\`) become Confluence
+  info/tip/note/warning macros. GFM task lists (\`- [ ] / - [x]\`) become
+  Confluence task lists. Local images — markdown \`![alt](path)\` or Obsidian
+  embeds \`![[image.png]]\` — are uploaded as page attachments; images with a
+  URL scheme (http, https, data, ...) link out instead of uploading.
 `);
 }
 
@@ -61,6 +78,8 @@ function parseArgs(argv) {
       only: { type: 'string' },
       space: { type: 'string' },
       'timeout-ms': { type: 'string' },
+      'mermaid-macro': { type: 'string' },
+      'plantuml-macro': { type: 'string' },
     },
     allowPositionals: false,
   });
@@ -86,6 +105,8 @@ function parseArgs(argv) {
     only: values.only ? new Set(values.only.split(',').map(s => s.trim()).filter(Boolean)) : null,
     space: values.space ?? process.env.CONFLUENCE_SPACE,
     timeoutMs: parseTimeout(values['timeout-ms'] ?? process.env.CONFLUENCE_TIMEOUT_MS),
+    mermaidMacro: values['mermaid-macro'] ?? process.env.CONFLUENCE_MERMAID_MACRO ?? null,
+    plantumlMacro: values['plantuml-macro'] ?? process.env.CONFLUENCE_PLANTUML_MACRO ?? null,
   };
 
   args.baseUrl = args.baseUrl?.replace(/\/+$/, '');
@@ -165,18 +186,137 @@ function firstHeading(markdown) {
   return null;
 }
 
-function storageBody(markdown, title) {
-  const parsed = matter(markdown);
-  return markdownToStorage(stripMatchingLeadingH1(parsed.content, title));
+// Builds a slug -> page title map for every note under <contentDir>/notes, so
+// wiki-links can resolve to a real Confluence page title regardless of which
+// folder(s) are actually being synced this run. Mirrors the slug rule
+// astro.config.mjs's remark-wiki-link pageResolver uses (name.replace(' ',
+// '-').toLowerCase()) against note filenames, which is the same convention
+// the built site relies on for [[wiki-link]] hrefs to resolve correctly.
+function buildNotesMap(contentDir) {
+  const notesDir = join(contentDir, 'notes');
+  const map = new Map();
+  let stats;
+  try {
+    stats = statSync(notesDir);
+  } catch {
+    return map;
+  }
+  if (!stats.isDirectory()) return map;
+
+  for (const filePath of walkMarkdown(notesDir)) {
+    const markdown = readFileSync(filePath, 'utf8');
+    const slug = basename(filePath, '.md').replace(/ /g, '-').toLowerCase();
+    const title = pageTitle(markdown, filePath);
+    const existing = map.get(slug);
+    if (existing !== undefined && existing !== title) {
+      console.warn(`Warning: multiple notes share the wiki-link slug "${slug}"; [[${slug}]] links will resolve to "${title}".`);
+    }
+    map.set(slug, title);
+  }
+  return map;
 }
 
-function codeMacro(lines) {
-  return `<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[${escapeCdata(lines.join('\n'))}]]></ac:plain-text-body></ac:structured-macro>`;
+function storageBody(markdown, title, context = {}) {
+  const parsed = matter(markdown);
+  return markdownToStorage(stripMatchingLeadingH1(parsed.content, title), context);
+}
+
+function codeMacro(lines, { language, title } = {}) {
+  const params = [];
+  if (language) params.push(`<ac:parameter ac:name="language">${markdownRenderer.utils.escapeHtml(language)}</ac:parameter>`);
+  if (title) params.push(`<ac:parameter ac:name="title">${markdownRenderer.utils.escapeHtml(title)}</ac:parameter>`);
+  return `<ac:structured-macro ac:name="code">${params.join('')}<ac:plain-text-body><![CDATA[${escapeCdata(lines.join('\n'))}]]></ac:plain-text-body></ac:structured-macro>`;
+}
+
+function diagramMacro(macroName, source) {
+  return `<ac:structured-macro ac:name="${macroName}"><ac:plain-text-body><![CDATA[${escapeCdata(source)}]]></ac:plain-text-body></ac:structured-macro>`;
 }
 
 function escapeCdata(value) {
   return value.replaceAll(']]>', ']]]]><![CDATA[>');
 }
+
+// Best-effort alias table for Confluence's code macro `language` parameter.
+// Unlisted languages are passed through as-is (lowercased): recent Confluence
+// versions recognize far more languages than the classic fixed list, and an
+// unrecognized value just falls back to no highlighting rather than erroring.
+const LANGUAGE_ALIASES = {
+  js: 'javascript',
+  jsx: 'javascript',
+  mjs: 'javascript',
+  cjs: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  rb: 'ruby',
+  c: 'cpp',
+  'c++': 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  rs: 'rust',
+  golang: 'go',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  yml: 'yaml',
+  cs: 'c#',
+  csharp: 'c#',
+  md: 'none',
+  markdown: 'none',
+  text: 'none',
+  txt: 'none',
+  plaintext: 'none',
+  html: 'xml',
+  htm: 'xml',
+};
+
+function confluenceLanguage(lang) {
+  if (!lang) return 'none';
+  return LANGUAGE_ALIASES[lang] ?? lang;
+}
+
+// Obsidian ships far more callout types than Confluence has admonition
+// macros for (info/tip/note/warning). This maps every stock Obsidian type
+// onto its closest Confluence macro so a callout never falls back to a
+// plain, unstyled blockquote.
+const CALLOUT_MACROS = {
+  note: 'info',
+  info: 'info',
+  todo: 'info',
+  abstract: 'info',
+  summary: 'info',
+  tldr: 'info',
+  tip: 'tip',
+  hint: 'tip',
+  important: 'tip',
+  success: 'tip',
+  check: 'tip',
+  done: 'tip',
+  question: 'note',
+  help: 'note',
+  faq: 'note',
+  quote: 'note',
+  cite: 'note',
+  example: 'note',
+  warning: 'warning',
+  caution: 'warning',
+  attention: 'warning',
+  danger: 'warning',
+  error: 'warning',
+  bug: 'warning',
+  failure: 'warning',
+  fail: 'warning',
+  missing: 'warning',
+};
+
+function calloutMacroName(type) {
+  return CALLOUT_MACROS[type.toLowerCase()] ?? 'note';
+}
+
+// `> [!type] Title` / `> [!type]+ Title` / `> [!type]- Title`. The +/-
+// (expanded/collapsed) marker is accepted but not reproduced: Confluence's
+// admonition macros aren't collapsible, so every callout syncs expanded.
+const CALLOUT_MARKER_RE = /^\[!([a-zA-Z][\w-]*)\]([+-])?\s*(.*)$/;
 
 const markdownRenderer = new MarkdownIt({
   html: false,
@@ -191,12 +331,272 @@ markdownRenderer.renderer.rules.thead_close = () => '';
 markdownRenderer.renderer.rules.tbody_open = () => '';
 markdownRenderer.renderer.rules.tbody_close = () => '</tbody>\n';
 
-function renderCodeToken(tokens, idx) {
-  return `${codeMacro(tokens[idx].content.replace(/\n$/, '').split('\n'))}\n`;
+function renderCodeToken(tokens, idx, options, env) {
+  const token = tokens[idx];
+  const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
+  const source = token.content.replace(/\n$/, '');
+
+  if (lang === 'mermaid' && env.mermaidMacro) return diagramMacro(env.mermaidMacro, source);
+  if (lang === 'plantuml' && env.plantumlMacro) return diagramMacro(env.plantumlMacro, source);
+  if (lang === 'mermaid') return `${codeMacro(source.split('\n'), { language: 'none', title: 'Mermaid diagram (source)' })}\n`;
+  if (lang === 'plantuml') return `${codeMacro(source.split('\n'), { language: 'none', title: 'PlantUML diagram (source)' })}\n`;
+
+  return `${codeMacro(source.split('\n'), { language: confluenceLanguage(lang) })}\n`;
 }
 
-function markdownToStorage(markdown) {
-  return markdownRenderer.render(markdown).trimEnd();
+// Obsidian wiki-links: `[[target]]` / `[[target|alias]]`, and embeds
+// (`![[image.png]]`). Registered ahead of the standard `link` rule so `[[`
+// is never mistaken for the start of a normal markdown link; the embed form
+// must be matched here too, or the leading `!` falls through as literal text.
+function wikiLinkRule(state, silent) {
+  const start = state.pos;
+  let pos = start;
+  const embed = state.src.charCodeAt(pos) === 0x21; /* ! */
+  if (embed) pos += 1;
+  if (state.src.charCodeAt(pos) !== 0x5b || state.src.charCodeAt(pos + 1) !== 0x5b) return false;
+
+  const end = state.src.indexOf(']]', pos + 2);
+  if (end === -1) return false;
+
+  const inner = state.src.slice(pos + 2, end);
+  if (!inner || inner.includes('\n')) return false;
+
+  const pipeIdx = inner.indexOf('|');
+  const target = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
+  const alias = (pipeIdx === -1 ? inner : inner.slice(pipeIdx + 1)).trim();
+  if (!target) return false;
+
+  if (!silent) {
+    const token = state.push('wiki_link', '', 0);
+    token.meta = { target, alias: alias || target, embed };
+  }
+  state.pos = end + 2;
+  return true;
+}
+
+const WIKI_IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|bmp|avif)$/i;
+
+markdownRenderer.inline.ruler.before('link', 'wiki_link', wikiLinkRule);
+markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
+  const { target, alias, embed } = tokens[idx].meta;
+  if (embed && WIKI_IMAGE_RE.test(target)) {
+    return renderImageRef(target, markdownRenderer.utils.escapeHtml(alias), env);
+  }
+
+  // `#section` / `#^block` anchors have no stable Confluence equivalent:
+  // strip them for the page lookup (keeping them would miss the notes map
+  // and link to a nonexistent title). A bare `[[#heading]]` degrades to
+  // plain text; non-image embeds (note transclusion) degrade to page links.
+  const hashIdx = target.indexOf('#');
+  const page = (hashIdx === -1 ? target : target.slice(0, hashIdx)).trim();
+  if (!page) return markdownRenderer.utils.escapeHtml(alias);
+
+  const slug = page.replace(/ /g, '-').toLowerCase();
+  const title = env.notesMap?.get(slug) ?? segmentTitle(slug);
+  return `<ac:link><ri:page ri:content-title="${markdownRenderer.utils.escapeHtml(title)}" /><ac:plain-text-link-body><![CDATA[${escapeCdata(alias)}]]></ac:plain-text-link-body></ac:link>`;
+};
+
+// Local images upload as page attachments (collected into env.images,
+// uploaded by syncAttachments once the page id is known); anything with a
+// URL scheme (http, https, data, ...) or protocol-relative form links out
+// via Confluence's <ri:url> instead.
+markdownRenderer.renderer.rules.image = (tokens, idx, options, env) => {
+  const token = tokens[idx];
+  const src = token.attrGet('src') ?? '';
+  const alt = markdownRenderer.utils.escapeHtml(token.content || token.attrGet('alt') || '');
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//')) {
+    return `<ac:image ac:alt="${alt}"><ri:url ri:value="${markdownRenderer.utils.escapeHtml(src)}" /></ac:image>`;
+  }
+  return renderImageRef(decodePath(src), alt, env);
+};
+
+function decodePath(src) {
+  try {
+    return decodeURIComponent(src);
+  } catch {
+    return src;
+  }
+}
+
+function renderImageRef(path, alt, env) {
+  if (!env.filePath) {
+    return `<img src="${markdownRenderer.utils.escapeHtml(path)}" alt="${alt}" />`;
+  }
+  const absolutePath = resolve(dirname(env.filePath), path);
+  const filename = queueImage(absolutePath, env);
+  return `<ac:image ac:alt="${alt}"><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>`;
+}
+
+// Confluence attachment filenames are flat per page, so same-named images
+// from different directories must not share a filename or the second upload
+// overwrites the first. On collision, prefix with parent directory segments
+// (walking up the image's full path until unique) so the disambiguation is
+// derived from where the file lives, not from document order.
+function queueImage(absolutePath, env) {
+  const existing = env.images.find(image => image.absolutePath === absolutePath);
+  if (existing) return existing.filename;
+
+  const taken = name => env.images.some(image => image.filename === name);
+  const base = basename(absolutePath);
+  let filename = base;
+  const segments = dirname(absolutePath).split(sep).filter(Boolean);
+  for (let i = segments.length - 1; i >= 0 && taken(filename); i -= 1) {
+    filename = `${segments.slice(i).join('-')}-${base}`.replace(/\s+/g, '-');
+  }
+  for (let n = 2; taken(filename); n += 1) filename = `${n}-${base}`;
+
+  env.images.push({ absolutePath, filename });
+  return filename;
+}
+
+// Obsidian callouts (`> [!type] Title`) render as plain blockquotes by
+// default; rewrite them into Confluence info/tip/note/warning macros. Runs
+// after inline tokenization (core.ruler default order ends with 'inline') so
+// each blockquote's first paragraph already has its inline children built.
+markdownRenderer.core.ruler.push('obsidian_callouts', state => {
+  const tokens = state.tokens;
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type !== 'blockquote_open') continue;
+
+    const paraOpen = tokens[i + 1];
+    const inline = tokens[i + 2];
+    if (paraOpen?.type !== 'paragraph_open' || inline?.type !== 'inline') continue;
+
+    // Match against the raw first line: a title with inline markup tokenizes
+    // into several children, so the first text child alone would truncate it.
+    const newlineIdx = inline.content.indexOf('\n');
+    const firstLine = newlineIdx === -1 ? inline.content : inline.content.slice(0, newlineIdx);
+    const match = CALLOUT_MARKER_RE.exec(firstLine);
+    if (!match) continue;
+
+    const level = tokens[i].level;
+    let closeIdx = -1;
+    for (let j = i + 1; j < tokens.length; j++) {
+      if (tokens[j].type === 'blockquote_close' && tokens[j].level === level) {
+        closeIdx = j;
+        break;
+      }
+    }
+    if (closeIdx === -1) continue;
+
+    const macro = calloutMacroName(match[1]);
+    const rawTitle = match[3].trim();
+    const title = rawTitle
+      ? inlineText(rawTitle, state.env)
+      : markdownRenderer.utils.escapeHtml(segmentTitle(match[1].toLowerCase()));
+
+    inline.content = newlineIdx === -1 ? '' : inline.content.slice(newlineIdx + 1);
+    inline.children = [];
+    if (inline.content) state.md.inline.parse(inline.content, state.md, state.env, inline.children);
+
+    tokens[i].meta = { macro, title };
+    tokens[closeIdx].meta = { macro, title };
+  }
+});
+
+// Renders inline markdown down to what Confluence macro parameters accept:
+// plain text, HTML-escaped (tags stripped, CDATA wrappers unwrapped).
+function inlineText(markdown, env) {
+  return markdownRenderer.renderInline(markdown, env ?? {})
+    .replaceAll('<![CDATA[', '')
+    .replaceAll(']]>', '')
+    .replace(/<[^>]*>/g, '');
+}
+
+markdownRenderer.renderer.rules.blockquote_open = (tokens, idx, options, env, self) => {
+  const meta = tokens[idx].meta;
+  if (!meta) return self.renderToken(tokens, idx, options);
+  return `<ac:structured-macro ac:name="${meta.macro}"><ac:parameter ac:name="title">${meta.title}</ac:parameter><ac:rich-text-body>\n`;
+};
+markdownRenderer.renderer.rules.blockquote_close = (tokens, idx, options, env, self) => {
+  const meta = tokens[idx].meta;
+  if (!meta) return self.renderToken(tokens, idx, options);
+  return '</ac:rich-text-body></ac:structured-macro>\n';
+};
+
+// GFM task lists (`- [ ] foo` / `- [x] foo`): a bullet list where every item
+// starts with a checkbox marker becomes a Confluence <ac:task-list>. Mixed
+// lists (some items are tasks, some aren't) are left as plain lists.
+const TASK_ITEM_RE = /^\[([ xX])\](?:\s+(.*))?$/;
+
+function findItemInline(tokens, itemOpenIdx) {
+  const paraOpen = tokens[itemOpenIdx + 1];
+  const inline = tokens[itemOpenIdx + 2];
+  if (paraOpen?.type !== 'paragraph_open' || inline?.type !== 'inline' || !inline.children?.length) return null;
+  const first = inline.children[0];
+  if (first.type !== 'text') return null;
+  const match = TASK_ITEM_RE.exec(first.content);
+  if (!match) return null;
+  return { inline, first, status: /[xX]/.test(match[1]) ? 'complete' : 'incomplete', text: match[2] ?? '' };
+}
+
+markdownRenderer.core.ruler.push('task_lists', state => {
+  const tokens = state.tokens;
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].type !== 'bullet_list_open') continue;
+
+    const level = tokens[i].level;
+    const itemLevel = level + 1;
+    const itemIndexes = [];
+    let closeIdx = -1;
+    for (let j = i + 1; j < tokens.length; j++) {
+      if (tokens[j].type === 'bullet_list_close' && tokens[j].level === level) {
+        closeIdx = j;
+        break;
+      }
+      if (tokens[j].type === 'list_item_open' && tokens[j].level === itemLevel) itemIndexes.push(j);
+    }
+    if (closeIdx === -1 || itemIndexes.length === 0) continue;
+
+    const items = itemIndexes.map(itemIdx => ({ itemIdx, task: findItemInline(tokens, itemIdx) }));
+    if (items.some(item => !item.task)) continue;
+
+    tokens[i].type = 'task_list_open';
+    tokens[closeIdx].type = 'task_list_close';
+
+    for (const { itemIdx, task } of items) {
+      let itemCloseIdx = -1;
+      for (let j = itemIdx + 1; j < tokens.length; j++) {
+        if (tokens[j].type === 'list_item_close' && tokens[j].level === itemLevel) {
+          itemCloseIdx = j;
+          break;
+        }
+      }
+      if (itemCloseIdx === -1) continue;
+
+      tokens[itemIdx].type = 'task_item_open';
+      tokens[itemIdx].taskStatus = task.status;
+      tokens[itemCloseIdx].type = 'task_item_close';
+      task.first.content = task.text;
+    }
+  }
+});
+
+markdownRenderer.renderer.rules.task_list_open = () => '<ac:task-list>\n';
+markdownRenderer.renderer.rules.task_list_close = () => '</ac:task-list>\n';
+markdownRenderer.renderer.rules.task_item_open = (tokens, idx, options, env) => {
+  env.taskId = (env.taskId ?? 0) + 1;
+  return `<ac:task><ac:task-id>${env.taskId}</ac:task-id><ac:task-status>${tokens[idx].taskStatus}</ac:task-status><ac:task-body>`;
+};
+markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:task>\n';
+
+// context: { filePath, notesMap, mermaidMacro, plantumlMacro }, threaded
+// through markdown-it's per-render `env` so every custom rule sees it.
+// filePath/notesMap are needed to resolve wiki-links and local image paths;
+// omit them (as the unit tests do) to render markdown in isolation, with
+// wiki-links falling back to a guessed title and images falling back to
+// plain <img> tags.
+function markdownToStorage(markdown, context = {}) {
+  const env = {
+    filePath: context.filePath ?? null,
+    notesMap: context.notesMap ?? new Map(),
+    mermaidMacro: context.mermaidMacro ?? null,
+    plantumlMacro: context.plantumlMacro ?? null,
+    images: [],
+    taskId: 0,
+  };
+  return { html: markdownRenderer.render(markdown, env).trimEnd(), images: env.images };
 }
 
 function stripMatchingLeadingH1(markdown, title) {
@@ -265,6 +665,48 @@ class ConfluenceClient {
     return data;
   }
 
+  // Separate from request(): Confluence's attachment endpoints take
+  // multipart/form-data, not JSON, and require the X-Atlassian-Token header
+  // to bypass XSRF protection on non-JSON writes.
+  async requestForm(path, { method = 'POST', formData }) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response;
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        body: formData,
+        signal: controller.signal,
+        headers: {
+          Authorization: this.auth,
+          Accept: 'application/json',
+          'X-Atlassian-Token': 'no-check',
+        },
+      });
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error(`${method} ${path} timed out after ${this.timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        if (response.ok) throw new Error(`${method} ${path} returned invalid JSON`);
+      }
+    }
+    if (!response.ok) {
+      const message = data?.message ?? data?.statusMessage ?? text;
+      throw new Error(`${method} ${path} failed: ${response.status} ${message}`);
+    }
+    return data;
+  }
+
   getPage(id) {
     return this.request(`/rest/api/content/${encodeURIComponent(id)}?expand=version,space`);
   }
@@ -280,6 +722,24 @@ class ConfluenceClient {
       if (data.results.length < limit) return null;
       start += data.results.length;
     }
+  }
+
+  async findAttachment(pageId, filename) {
+    const data = await this.request(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment?filename=${encodeURIComponent(filename)}`);
+    return data.results[0] ?? null;
+  }
+
+  async createAttachment(pageId, buffer, filename) {
+    const form = new FormData();
+    form.append('file', new Blob([buffer]), filename);
+    const data = await this.requestForm(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment`, { formData: form });
+    return data.results[0];
+  }
+
+  updateAttachmentData(pageId, attachmentId, buffer, filename) {
+    const form = new FormData();
+    form.append('file', new Blob([buffer]), filename);
+    return this.requestForm(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment/${encodeURIComponent(attachmentId)}/data`, { formData: form });
   }
 
   createPage({ parentId, spaceKey, title, body }) {
@@ -324,25 +784,79 @@ async function ensureFolderPage({ client, parent, title, args }) {
   return client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body: '<p></p>' });
 }
 
-async function syncFile({ client, parent, filePath, title, body, args }) {
+function resolveImageFiles(images, args) {
+  const files = [];
+  for (const image of images) {
+    let stat;
+    try {
+      stat = statSync(image.absolutePath);
+    } catch {
+      console.warn(`Warning: image not found, skipping: ${relative(args.contentDir, image.absolutePath)}`);
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    files.push(image);
+  }
+  return files;
+}
+
+async function syncAttachments({ client, page, images, args }) {
+  for (const image of resolveImageFiles(images, args)) {
+    const relPath = relative(args.contentDir, image.absolutePath);
+    if (!args.apply) {
+      console.log(`[dry-run] upload attachment "${image.filename}" (${relPath}) to ${page.id}`);
+      continue;
+    }
+
+    const buffer = readFileSync(image.absolutePath);
+    const existing = await client.findAttachment(page.id, image.filename);
+    if (existing) {
+      console.log(`Updating attachment "${image.filename}" on "${page.title}" (${page.id})`);
+      await client.updateAttachmentData(page.id, existing.id, buffer, image.filename);
+    } else {
+      console.log(`Creating attachment "${image.filename}" on "${page.title}" (${page.id})`);
+      await client.createAttachment(page.id, buffer, image.filename);
+    }
+  }
+}
+
+async function syncFile({ client, parent, filePath, title, rendered, args }) {
+  const { html: body, images } = rendered;
   const existing = isDryPage(parent) ? null : await client.findChild(parent.id, title);
   const relPath = relative(args.contentDir, filePath);
+
+  let page;
   if (!existing) {
     if (!args.apply) {
       console.log(`[dry-run] create page "${title}" under ${parent.id} from ${relPath}`);
+      for (const image of resolveImageFiles(images, args)) {
+        console.log(`[dry-run] upload attachment "${image.filename}" (${relative(args.contentDir, image.absolutePath)})`);
+      }
       return;
     }
     console.log(`Creating page "${title}" from ${relPath}`);
-    await client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body });
-    return;
+    // Some deployments answer content writes with an empty body, which
+    // request() surfaces as null; recover the page id rather than crashing
+    // after the write already succeeded.
+    page = await client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body })
+      ?? await client.findChild(parent.id, title);
+  } else {
+    if (!args.apply) {
+      console.log(`[dry-run] update page "${title}" (${existing.id}) from ${relPath}`);
+      for (const image of resolveImageFiles(images, args)) {
+        console.log(`[dry-run] upload attachment "${image.filename}" (${relative(args.contentDir, image.absolutePath)})`);
+      }
+      return;
+    }
+    console.log(`Updating page "${title}" (${existing.id}) from ${relPath}`);
+    page = (await client.updatePage({ page: existing, title, body })) ?? existing;
   }
 
-  if (!args.apply) {
-    console.log(`[dry-run] update page "${title}" (${existing.id}) from ${relPath}`);
+  if (!page) {
+    if (images.length > 0) console.warn(`Warning: could not determine the page id for "${title}"; skipping ${images.length} attachment(s).`);
     return;
   }
-  console.log(`Updating page "${title}" (${existing.id}) from ${relPath}`);
-  await client.updatePage({ page: existing, title, body });
+  await syncAttachments({ client, page, images, args });
 }
 
 async function syncFolder({ client, folder, rootId, args }) {
@@ -364,7 +878,13 @@ async function syncFolder({ client, folder, rootId, args }) {
     }
 
     const title = pageTitle(markdown, filePath);
-    await syncFile({ client, parent, filePath, title, body: storageBody(markdown, title), args });
+    const rendered = storageBody(markdown, title, {
+      filePath,
+      notesMap: args.notesMap,
+      mermaidMacro: args.mermaidMacro,
+      plantumlMacro: args.plantumlMacro,
+    });
+    await syncFile({ client, parent, filePath, title, rendered, args });
   }
 }
 
@@ -384,6 +904,8 @@ async function main() {
     if (unknown.length > 0) throw new Error(`No root page configured for: ${unknown.join(', ')}`);
   }
 
+  args.notesMap = buildNotesMap(args.contentDir);
+
   console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
   const client = new ConfluenceClient(args);
   for (const folder of folders) {
@@ -398,4 +920,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
+export { buildNotesMap, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
