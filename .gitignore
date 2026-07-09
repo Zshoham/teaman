@@ -16,6 +16,9 @@ node_modules/
 # teaman static-asset staging dir (logo + vault/public)
 .teaman-public/
 
+# cached tikz/typst fence renders (remark-fence-svg — disposable)
+.diagram-cache/
+
 # OS
 .DS_Store
 Thumbs.db

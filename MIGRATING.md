@@ -23,6 +23,16 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **TikZ + Typst fences render to SVG at build time** (minor, additive).
+  ` ```tikz ` and ` ```typst ` code fences now compile to inline, theme-aware
+  SVG during the build (WASM TeX via `node-tikzjax`, native Typst via
+  `typst.ts` — no system LaTeX/Typst needed). Black ink is rewritten to
+  `currentColor` so diagrams follow the light/dark toggle; renders are cached
+  by content hash in the engine's `.diagram-cache/`. A fence that fails to
+  compile renders a visible notice, not a build failure. Existing vaults are
+  unaffected unless they already had fences with these languages (previously
+  rendered as plain highlighted code).
+
 - **Local SVG images are inlined and theme-aware** (minor). A markdown image
   whose URL is a local `.svg` is now inlined into the page at build time
   instead of rendering as `<img>`, so `currentColor` and `var(--…)` theme

@@ -3,6 +3,12 @@
 @import "shadcn/tailwind.css";
 @plugin '@tailwindcss/typography';
 
+/* Computer Modern @font-face set for build-time-compiled TikZ diagrams
+   (remark-fence-svg): their <text> keeps TeX family names (cmr10, cmmi10, …).
+   Vite bundles the ttf files as hashed assets; browsers only download the
+   families a page actually renders, so vaults without TikZ pay ~nothing. */
+@import "node-tikzjax/css/fonts.css";
+
 /* Self-hosted fonts (bundled, never fetched from a CDN at runtime) so a built
    site renders fully offline. Vite copies the woff2 files into the output and
    rewrites these URLs to local hashed assets. The trio mirrors the editorial
@@ -363,6 +369,10 @@ body {
    --tw-prose-captions, we just center the pair and drop the doubled margin. */
 .prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
 .prose figure.content-figure > svg.content-svg { margin: 0 auto; }
+/* TikZ text nodes come out of dvi2svg with no fill attribute, which SVG
+   defaults to black — invisible on the dark theme. Give unfilled text the
+   page ink; text an author explicitly colored keeps its fill. */
+.prose svg.tikz-svg text:not([fill]) { fill: currentColor; }
 
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
    diagrams both render client-side into these blocks, so they share the same
@@ -394,7 +404,8 @@ body {
 /* Fallback when a diagram fails to parse — a quiet, visible notice rather than
    raw diagram source or a silently blank block. */
 .prose pre.mermaid.mermaid-error,
-.prose pre.plantuml.plantuml-error {
+.prose pre.plantuml.plantuml-error,
+.prose pre.diagram-error {
   visibility: visible;
   font-family: var(--font-mono);
   font-size: 0.85rem;

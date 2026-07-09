@@ -18,7 +18,7 @@ The vault never contains engine source, only:
 ```
 my-vault/
   teaman.config.js     # site identity + theme (see below)
-  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml)
+  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml, tikz, typst)
   guides/   <slug>/SUMMARY.md + chapters
   slides/   *.md        # Slidev decks
   dailies/  YYYY-MM-DD.md
@@ -44,6 +44,18 @@ the note's directory first, then the vault root, then `public/`. Remote URLs
 and other image formats stay plain `<img>` (put those in `public/`). The alt
 text renders as a visible caption under a standalone image (and as the hover
 tooltip + accessible name); an empty alt marks the graphic decorative.
+
+**TikZ and Typst compile to SVG at build time.** A ` ```tikz ` fence runs
+through a WASM TeX engine (the same one the Obsidian TikZJax plugin uses — no
+local LaTeX install needed; write what goes between the `document` tags,
+usually just the `tikzpicture` environment) and a ` ```typst ` fence through
+the native Typst compiler (the page auto-sizes to the content unless you `#set
+page(...)` yourself). Both render as inline SVG with black ink rewritten to
+`currentColor`, so they follow the light/dark toggle like mermaid and plantuml
+do. Renders are cached by content hash (`.diagram-cache/` in the engine —
+disposable), so only new or edited diagrams pay the compiler; a fence that
+fails to compile shows a quiet error notice in place and warns during the
+build instead of failing it.
 
 ## Commands
 

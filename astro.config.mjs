@@ -12,6 +12,7 @@ import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
 import { remarkMermaid } from './src/lib/remark-mermaid.mjs';
 import { remarkPlantuml } from './src/lib/remark-plantuml.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
+import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
 import { normalizeBase } from './src/lib/site-base.mjs';
 
 import react from '@astrojs/react';
@@ -60,6 +61,10 @@ export default defineConfig({
         remarkMermaid,
         remarkPlantuml,
         [remarkInlineSvg, { roots: svgRoots }],
+        // tikz/typst fences compile to svg at build time; renders are cached
+        // in the engine dir (like .slides-build/.teaman-public — gitignored,
+        // disposable) so unchanged diagrams never pay the compiler again.
+        [remarkFenceSvg, { cacheDir: fileURLToPath(new URL('./.diagram-cache', import.meta.url)) }],
         [remarkWikiLink, {
           pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
           hrefTemplate: (permalink) => `${base}notes/${permalink}/`,

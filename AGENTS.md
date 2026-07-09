@@ -115,6 +115,13 @@ render the title themselves), `remarkMermaid` / `remarkPlantuml` (rewrite
 `<pre class="plantuml">` so Shiki skips them and `src/scripts/mermaid.ts` /
 `src/scripts/plantuml.ts` render them client-side, theme-reactive — PlantUML via
 the lazily-imported `@plantuml/core` engine + its `viz-global.js` Graphviz layout),
+`remarkInlineSvg` (inlines local `.svg` markdown images — resolved note-relative,
+then vault root, then public roots — as theme-reactive inline svg; standalone
+images become a `<figure>` with the alt as caption), `remarkFenceSvg` (compiles
+` ```tikz `/` ```typst ` fences to inline svg at **build** time via `node-tikzjax`
+WASM TeX / native `typst.ts`, black ink → `currentColor`, renders cached by
+content hash in the gitignored `.diagram-cache/`; TikZ text needs the
+Computer Modern `@font-face` set that `global.css` imports from node-tikzjax),
 `rehype-callouts` (Obsidian callouts), and slug +
 autolinked headings. Note `astro build` is run from the engine dir with `.astro/`
 cache dropped each build, because the content-layer store is keyed by collection
