@@ -1,0 +1,18 @@
+<!-- Theme-aware mark: strokes ride currentColor, the tea is var(--primary).
+     Inlined into the page by the engine, so it follows the light/dark toggle. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 104" width="96" height="83"
+     fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- steam -->
+  <g stroke="var(--muted-foreground, #64748b)" stroke-width="3" opacity="0.85">
+    <path d="M44 12c-4 7 4 11 0 19"/>
+    <path d="M64 8c-4 7 4 11 0 19"/>
+  </g>
+  <!-- tea surface -->
+  <ellipse cx="54" cy="47" rx="32" ry="5" fill="var(--primary, #a4551c)"/>
+  <!-- cup, handle, saucer -->
+  <g stroke="currentColor" stroke-width="4">
+    <path d="M22 47v6c0 17 14 29 32 29s32-12 32-29v-6"/>
+    <path d="M87 53c9-3 16 2 15 10-1 9-10 13-19 11"/>
+    <path d="M32 92h44"/>
+  </g>
+</svg>

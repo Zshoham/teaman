@@ -8,6 +8,8 @@ date: 2026-05-09
 
 Design decisions for the Teaman vault's static site pipeline.
 
+![Content flows from the vault through the engine into the published site](attachments/env-seam.svg)
+
 ## Repository Structure
 
 Monorepo with clean separation between content and build tooling:

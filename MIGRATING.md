@@ -23,6 +23,18 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Local SVG images are inlined and theme-aware** (minor). A markdown image
+  whose URL is a local `.svg` is now inlined into the page at build time
+  instead of rendering as `<img>`, so `currentColor` and `var(--…)` theme
+  tokens inside the file follow the site's light/dark toggle. A standalone
+  image renders as a figure with the alt text as a visible caption (and hover
+  tooltip). Files resolve
+  from the note's directory, the vault root, or `public/`; remote URLs and
+  other formats are untouched. No migration needed — existing svg references
+  keep rendering, just theme-reactive; if an svg must stay an `<img>` (e.g. it
+  relies on its own internal styling being isolated), embed it with an HTML
+  `<img>` tag instead of markdown image syntax.
+
 - **Quick-links bento grid** (minor, additive). A new optional `links` config
   array renders a bento grid of quick-link tiles above the home feed — each
   tile is `{ label, url, description?, icon? }`. `icon` maps to a curated

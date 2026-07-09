@@ -71,3 +71,5 @@ A note that stuck is one I can summarise in a single sentence a week later. The
 rest was entertainment, which is fine, as long as I stop pretending otherwise.
 The discipline here rhymes with a [[shipping-cadence]]: a steady, unromantic
 loop beats a brilliant burst.
+
+![A cup of tea](assets/teacup.svg)

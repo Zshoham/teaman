@@ -34,6 +34,17 @@ carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), opti
 of a related ADR); the body holds the prose (Context / Decision / Consequences). They
 render as a filterable timeline at `/decisions/` and also appear in the home feed.
 
+**SVG images are inlined and theme-aware.** A markdown image pointing at a local
+`.svg` (`![alt](attachments/diagram.svg)`) is inlined into the page at build
+time, so `currentColor` and theme tokens like `var(--primary)` resolve against
+the site theme and the graphic follows the light/dark toggle. Give tokens
+fallbacks (`fill="var(--primary, #a4551c)"`) so the file still renders on its
+own. The file can live anywhere in the vault: relative paths resolve against
+the note's directory first, then the vault root, then `public/`. Remote URLs
+and other image formats stay plain `<img>` (put those in `public/`). The alt
+text renders as a visible caption under a standalone image (and as the hover
+tooltip + accessible name); an empty alt marks the graphic decorative.
+
 ## Commands
 
 | Command | What it does |

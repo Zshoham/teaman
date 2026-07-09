@@ -349,6 +349,21 @@ body {
 .prose pre::-webkit-scrollbar { height: 6px; }
 .prose pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+/* SVG images inlined at build time (src/lib/remark-inline-svg.mjs). Inlined —
+   rather than <img>-referenced — they inherit `color` and see the :root theme
+   tokens, so currentColor / var(--…) fills follow the light/dark toggle. Cap
+   at the prose column, keep the aspect ratio, and center like the diagrams. */
+.prose svg.content-svg {
+  max-width: 100%;
+  height: auto;
+  margin: 1.5rem auto;
+}
+/* A standalone svg image renders as a figure with the alt text as a visible
+   caption; the typography plugin already colors/sizes figcaption via
+   --tw-prose-captions, we just center the pair and drop the doubled margin. */
+.prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
+.prose figure.content-figure > svg.content-svg { margin: 0 auto; }
+
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
    diagrams both render client-side into these blocks, so they share the same
    chrome: drop the code-block styling and center the SVG; hide the raw
