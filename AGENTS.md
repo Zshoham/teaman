@@ -145,12 +145,12 @@ Three sequential stages, all reading the env seam:
    sub-path base on in-app nav (→ `/slides/x/slides/x/2` 404), and a static host
    has no SPA fallback — relative base + hash routing makes decks path-agnostic
    and deep-link/refresh safe. The site links to a deck by its root URL (slide 1).
-   The relative base's one catch: Slidev's `getSlidePath` bakes `BASE_URL` into
-   the path it passes to `router.push`, so from a deeper route (presenter mode,
-   the overview) that relative path resolves against the current depth and 404s.
-   So build-slides also stages a `.slides-build/vite.config.ts` (`renderViteConfig`)
-   whose Vite plugin patches `getSlidePath` to return an absolute, base-less router
-   path; it fails the build loud if the upstream source no longer matches.
+   Navigation from deeper routes (presenter mode, the overview) needs absolute,
+   base-less router paths; Slidev ≥ 52.17 ships that (`getSlideRoutePath`), which
+   is why `@slidev/cli` has a `^52.17.0` floor — a unit test reads the installed
+   client source to catch an upstream regression. build-slides also stages a
+   `.slides-build/vite.config.ts` (`renderViteConfig`) that mutes Rolldown's
+   harmless INVALID_ANNOTATION noise.
 3. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck via
    `parse-deck.mjs`.

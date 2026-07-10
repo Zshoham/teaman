@@ -35,9 +35,8 @@ if (decks.length === 0) {
 rmSync(slidesTmpDir, { recursive: true, force: true });
 cpSync(slidesSrcDir, slidesTmpDir, { recursive: true });
 
-// Slidev merges a vite.config found in the deck's directory; we use it to patch
-// getSlidePath so presenter/overview navigation works under the relative base
-// (see renderViteConfig + the routing note below).
+// Slidev merges a vite.config found in the deck's directory; we use it to mute
+// Rolldown's harmless INVALID_ANNOTATION noise (see renderViteConfig).
 writeFileSync(join(slidesTmpDir, 'vite.config.ts'), renderViteConfig());
 
 // Stage the engine's Slidev theme next to the decks and personalise the staged
@@ -86,11 +85,9 @@ try {
     // Decks link in from the site by their root URL, which loads slide 1.
     // (Flags live in slidevBuildArgs, guarded by a unit test.)
     //
-    // The relative base has one sharp edge: getSlidePath bakes BASE_URL into the
-    // path it hands router.push, so from a deeper route (presenter /presenter/1,
-    // or the overview) that relative path resolves against the current depth and
-    // 404s. The staged vite.config.ts (renderViteConfig) patches getSlidePath to
-    // return an absolute, base-less router path — see scripts/slides-theme.mjs.
+    // Slide navigation from deeper routes (presenter mode, the overview) needs
+    // router paths that are absolute and base-less; Slidev ≥ 52.17 ships that
+    // (getSlideRoutePath) — see the routing note in scripts/slides-theme.mjs.
     execFileSync('npx', slidevBuildArgs(tmpDeck, { out: outDir, theme: themeDir }), {
       cwd: engineDir,
       stdio: 'inherit',

@@ -49,9 +49,9 @@ test.describe('slides', () => {
   });
 
   test('presenter mode advances without a depth-relative 404', async ({ page }) => {
-    // getSlidePath would otherwise hand router.push a relative `./presenter/N`,
-    // which resolves against `/presenter/1` → `/presenter/presenter/N` (404).
-    // The build-time patch makes it an absolute `/presenter/N` instead.
+    // Slidev < 52.17 handed router.push a relative `./presenter/N`, which
+    // resolves against `/presenter/1` → `/presenter/presenter/N` (404).
+    // Since 52.17, getSlideRoutePath returns an absolute `/presenter/N`.
     await page.goto(`${DECK}#/presenter/1`);
     await expect(page).toHaveURL(/\/slides\/intro\/#\/presenter\/1$/);
     await page.keyboard.press('ArrowRight');
@@ -62,7 +62,7 @@ test.describe('slides', () => {
   test('picking a slide from the presenter overview navigates (the reported 404)', async ({ page }) => {
     // The exact flow the user hit: enter presenter mode, open the overview (`o`),
     // click a slide card. QuickOverview calls nav.go(no) → router.push with the
-    // presenter path; pre-patch that 404'd, now it lands on /presenter/<no>.
+    // presenter path; on Slidev < 52.17 that 404'd, now it lands on /presenter/<no>.
     await page.goto(`${DECK}#/presenter/1`);
     // Wait for the presenter view to mount before the `o` keypress registers.
     await expect(page.locator('.slidev-slide-container').first()).toBeVisible();

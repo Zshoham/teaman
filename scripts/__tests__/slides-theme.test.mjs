@@ -9,8 +9,6 @@ import {
   resolveLogoSource,
   slidevBuildArgs,
   renderViteConfig,
-  GETSLIDEPATH_MARKER,
-  GETSLIDEPATH_REPLACEMENT,
   DEFAULT_SLIDE_PRIMARY,
   DEFAULT_SLIDE_SECONDARY,
 } from '../slides-theme.mjs';
@@ -81,33 +79,29 @@ describe('slidevBuildArgs', () => {
   });
 });
 
-describe('getSlidePath patch', () => {
-  // A faithful copy of the upstream @slidev/client/logic/slides.ts return line.
-  // If a Slidev upgrade changes this, the build's fail-loud transform fires and
-  // this test is the place to re-derive the patch.
-  const upstream =
-    'const path = exporting ? `export/${no}` : presenter ? `presenter/${no}` : `${no}`\n' +
-    '  return `${import.meta.env.BASE_URL}${path}`';
-
-  it('the marker matches the upstream source', () => {
-    expect(upstream).toContain(GETSLIDEPATH_MARKER);
+describe('slidev router paths', () => {
+  // Slidev < 52.17 baked BASE_URL into router paths, which broke presenter /
+  // overview navigation under the relative `--base ./`; teaman patched it via a
+  // staged Vite plugin until 52.17 shipped the fix (getSlideRoutePath returning
+  // absolute, base-less paths). This reads the installed client source so a
+  // Slidev upgrade that re-introduces BASE_URL into router paths fails here,
+  // not as silently broken slide navigation on a deployed site.
+  it('upstream getSlideRoutePath returns absolute, base-less paths', () => {
+    const src = readFileSync(
+      fileURLToPath(new URL('../../node_modules/@slidev/client/logic/slidePath.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(src).not.toContain('import.meta.env.BASE_URL');
+    expect(src).toContain('`/${no}`');
+    expect(src).toContain('`/presenter/${no}`');
   });
 
-  it('rewrites the return to an absolute, base-less router path', () => {
-    const patched = upstream.replace(GETSLIDEPATH_MARKER, GETSLIDEPATH_REPLACEMENT);
-    expect(patched).toContain('return `/${path}`');
-    expect(patched).not.toContain('import.meta.env.BASE_URL');
-  });
-
-  it('renderViteConfig embeds the marker, replacement and a fail-loud guard', () => {
+  it('renderViteConfig only carries the Rolldown checks knob', () => {
     const cfg = renderViteConfig();
-    expect(cfg).toContain(JSON.stringify(GETSLIDEPATH_MARKER));
-    expect(cfg).toContain(JSON.stringify(GETSLIDEPATH_REPLACEMENT));
-    expect(cfg).toContain('@slidev/client/logic/slides.');
-    expect(cfg).toMatch(/throw new Error/);
     expect(cfg).toContain('export default');
     // Mutes @vueuse/core's INVALID_ANNOTATION noise via the Rolldown checks knob.
     expect(cfg).toContain('invalidAnnotation: false');
+    expect(cfg).not.toContain('getSlidePath');
   });
 });
 
