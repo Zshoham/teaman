@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { SITE_CONFIG } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
+import { Whiteboard } from '../components/Whiteboard';
 import { version as pkgVersion } from '../../package.json';
 
 // Engine version, stamped into <meta name="generator"> so a built site records
@@ -78,6 +79,12 @@ const themeCss = SITE_CONFIG.theme
       <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
     </footer>
   </div>
+
+  <Whiteboard
+    assetPath={`${base}excalidraw-assets/`}
+    siteBase={base}
+    client:only="react"
+  />
 
   <script>
     // Renders any ```mermaid blocks on the page; no-ops (and skips loading

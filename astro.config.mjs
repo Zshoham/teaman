@@ -13,6 +13,7 @@ import { remarkMermaid } from './src/lib/remark-mermaid.mjs';
 import { remarkPlantuml } from './src/lib/remark-plantuml.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
 import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
+import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { normalizeBase } from './src/lib/site-base.mjs';
 
 import react from '@astrojs/react';
@@ -42,7 +43,7 @@ export default defineConfig({
   base,
   outDir: process.env.TEAMAN_OUT ?? './public',
   publicDir: process.env.TEAMAN_PUBLIC ?? './resources',
-  integrations: [mdx(), react()],
+  integrations: [mdx(), react(), excalidrawAssets({ base })],
   vite: {
     plugins: [tailwindcss()],
     server: {
