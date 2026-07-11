@@ -38,7 +38,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
     "inline-flex h-auto min-w-[38px] items-center justify-center rounded-md border border-border bg-transparent px-3 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted md:px-3.5";
 
   return (
-    <div className="sticky top-[var(--header-h)] z-[8] border-b border-border bg-background py-3" data-week-strip>
+    <nav className="sticky top-[var(--header-h)] z-[8] border-b border-border bg-background py-3" aria-label="Week navigation" data-week-strip>
       <div className="flex items-stretch gap-2.5">
         {prev ? (
           <a
@@ -58,7 +58,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
         <div
           ref={stripRef}
           data-strip-chips
-          className="flex min-w-0 flex-1 items-stretch gap-2 overflow-hidden scroll-smooth [-webkit-mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)] [mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]"
+          className="week-strip-chips flex min-w-0 flex-1 snap-x items-stretch gap-2 overflow-x-auto scroll-smooth"
         >
           {chipWeeks.map((w) => {
             const active = w.id === currentId;
@@ -68,7 +68,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
                 key={w.id}
                 ref={active ? activeRef : undefined}
                 className={cn(
-                  "flex shrink-0 items-baseline gap-2 rounded-md border bg-transparent px-3.5 py-2 whitespace-nowrap text-foreground no-underline transition-colors",
+                  "flex shrink-0 snap-center items-baseline gap-2 rounded-md border bg-transparent px-3.5 py-2 whitespace-nowrap text-foreground no-underline transition-colors",
                   active ? "border-primary" : "border-border hover:border-foreground hover:bg-muted",
                 )}
                 href={weekHref(w)}
@@ -100,6 +100,6 @@ export function WeekStrip({ weeks, currentId }: Props) {
 
         <DatePicker weeks={weeks} currentId={currentId} triggerClassName={navCls} />
       </div>
-    </div>
+    </nav>
   );
 }

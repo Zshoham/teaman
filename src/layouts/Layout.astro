@@ -52,9 +52,8 @@ const themeCss = SITE_CONFIG.theme
     (() => {
       try {
         const stored = localStorage.getItem('vault-theme');
-        if (stored === 'dark' || stored === 'light') {
-          document.documentElement.dataset.theme = stored;
-        }
+        const preferred = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = stored === 'dark' || stored === 'light' ? stored : preferred;
       } catch {}
     })();
   </script>
@@ -66,12 +65,13 @@ const themeCss = SITE_CONFIG.theme
   <script type="module" is:inline src={`${base}pagefind/pagefind-component-ui.js`}></script>
 </head>
 <body>
-  <div class="mx-auto max-w-[1180px] px-6 md:px-10">
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div class="mx-auto max-w-[1180px] px-[var(--content-gutter)]">
     <SiteHeader />
 
     <pagefind-modal></pagefind-modal>
 
-    <main class="pt-4">
+    <main id="main-content" class="pt-4" tabindex="-1">
       <slot />
     </main>
 

@@ -97,8 +97,8 @@
    tracking-label, tracking-label-sm. --measure is consumed directly via
    max-w-[var(--measure)]. */
    --measure: 680px;          /* reading-column width, shared by every article page */
-   --text-meta-sm: 0.625rem;  /* 10px · secondary counts / quiet labels */
-   --text-meta: 0.6875rem;    /* 11px · mono meta strips, eyebrows, breadcrumbs, tags */
+   --text-meta-sm: 0.6875rem; /* 11px · secondary counts / quiet labels */
+   --text-meta: 0.75rem;      /* 12px · mono meta strips, eyebrows, breadcrumbs, tags */
    --text-meta-lg: 0.8125rem; /* 13px · primary small-mono UI: brand, nav, search, stats, TOC, chips */
    --text-display: 2.5rem;    /* 40px · note / guide / daily page titles */
    --text-display-lg: 3.5rem; /* 56px · reserved (currently unused; was home hero title) */
@@ -109,6 +109,11 @@
      The fallback approximates the single-row desktop header so in-page
      sticky offsets are roughly right before that script runs. */
   --header-h: 76px;
+  --content-gutter: clamp(1rem, 4vw, 2.5rem);
+  --tap-target: 2.75rem;
+  --floating-safe-bottom: calc(1rem + env(safe-area-inset-bottom));
+  --motion-fast: 120ms;
+  --motion-normal: 200ms;
 
   --shadow-color: #000000;
   --shadow-opacity: 0.05;
@@ -260,6 +265,7 @@
 }
 
 html, body { margin: 0; padding: 0; }
+html { overflow-x: clip; }
 body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -267,6 +273,20 @@ body {
   text-rendering: optimizeLegibility;
 }
 ::selection { background: color-mix(in oklab, var(--primary) 22%, var(--background)); }
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: var(--radius-md);
+  background: var(--foreground);
+  color: var(--background);
+  padding: 0.65rem 0.9rem;
+  font-weight: 600;
+}
+.skip-link:focus { transform: translateY(0); }
 
 @layer base {
   * {
@@ -338,6 +358,39 @@ body {
   border: 0.5px solid var(--border);
   border-radius: 4px;
   font-weight: 400;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.prose :where(table) { display: block; max-width: 100%; overflow-x: auto; }
+.prose :where(img, video, iframe) { max-width: 100%; }
+
+.week-strip-chips { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 479px) {
+  .brand-tagline { display: none; }
+  .section-nav { justify-content: flex-start; overflow-x: auto; }
+  .whiteboard-launcher {
+    right: 1rem;
+    bottom: var(--floating-safe-bottom);
+    width: var(--tap-target);
+    height: var(--tap-target);
+    padding: 0;
+  }
+  .whiteboard-launcher-label { display: none; }
+  body { padding-bottom: calc(var(--tap-target) + var(--floating-safe-bottom)); }
+  [data-quick-links] .quick-link:nth-child(n + 5) { display: none; }
+  [data-week-strip] .week-strip-chips a:not([data-current='true']) { display: none; }
+  [data-week-strip] .week-strip-chips { overflow: visible; mask-image: none; }
 }
 /* In dark, nudge inline code toward the Shiki block tone so an inline
    `snippet` and a fenced block read as the same material rather than the

@@ -34,6 +34,7 @@ const footerLeft = `${adrs.length} ${adrs.length === 1 ? 'decision' : 'decisions
 ---
 
 <Layout title="Decisions" footerLeft={footerLeft}>
+  <h1 class="sr-only">Architecture decisions</h1>
   <AdrTimeline adrs={views} client:load />
 </Layout>
 

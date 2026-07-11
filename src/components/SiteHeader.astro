@@ -20,7 +20,7 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
 
 <header
   id="site-header"
-  class="sticky top-0 z-30 grid grid-cols-[1fr_auto] gap-4 border-b border-border bg-background pt-7 pb-5 md:grid-cols-[1fr_auto_1fr] md:gap-6"
+  class="sticky top-0 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-border bg-background pt-5 pb-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6 md:pt-7 md:pb-5"
 >
   <a href={base} class="brand flex items-center gap-2.5 text-foreground no-underline">
     {logoUrl
@@ -32,11 +32,11 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
       : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
     <span class="brand-name font-mono text-meta-lg font-medium tracking-wide">{SITE_CONFIG.brand}</span>
-    <span class="brand-tagline ml-1 font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
+    <span class="brand-tagline ml-1 min-w-0 truncate font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
   </a>
 
   <nav
-    class="col-start-2 row-start-1 flex items-center gap-4 justify-self-end md:col-start-2 md:row-start-1 md:justify-self-center"
+    class="section-nav col-span-2 row-start-2 flex min-w-0 items-center justify-center gap-4 md:col-span-1 md:col-start-2 md:row-start-1"
     aria-label="Sections"
   >
     <a
@@ -61,7 +61,7 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
     >decisions</a>
   </nav>
 
-  <div class="col-span-2 flex w-full items-center justify-between gap-4 md:col-span-1 md:w-auto md:justify-self-end md:gap-5">
+  <div class="col-span-2 row-start-3 flex min-w-0 w-full items-center justify-between gap-3 md:col-span-1 md:col-start-3 md:row-start-1 md:w-auto md:justify-self-end md:gap-5">
     <pagefind-modal-trigger class="w-full max-w-[320px] md:w-auto">
       <button
         type="button"

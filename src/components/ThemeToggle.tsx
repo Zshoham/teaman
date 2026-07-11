@@ -28,14 +28,16 @@ export function ThemeToggle() {
     setTheme(next);
   };
 
+  const nextLabel = theme === "dark" ? "light" : "dark";
+
   return (
     <Button
       type="button"
       variant="outline"
       size="icon"
       onClick={toggle}
-      aria-label="Toggle dark mode"
-      title="Toggle dark mode"
+      aria-label={`Use ${nextLabel} theme`}
+      title={`Switch to ${nextLabel} theme`}
       className="rounded-full"
       data-theme-toggle
     >

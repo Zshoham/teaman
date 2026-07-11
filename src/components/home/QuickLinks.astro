@@ -66,7 +66,7 @@ function isExternal(url: string): boolean {
       <a
         href={l.url}
         class:list={[
-          'group flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30 hover:bg-muted focus-visible:border-foreground/30 focus-visible:bg-muted focus-visible:outline-none',
+          'quick-link group flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-foreground/30 hover:bg-muted focus-visible:border-foreground/30 focus-visible:bg-muted focus-visible:outline-none',
           SPAN_CLASSES[cell.cols - 1],
         ]}
         {...ext ? { target: '_blank', rel: 'noopener noreferrer' } : {}}
@@ -120,4 +120,14 @@ function isExternal(url: string): boolean {
       </a>
     );
   })}
+  {links.length > 4 && (
+    <details class="quick-links-more col-span-1 rounded-xl border border-border bg-card p-4 sm:hidden">
+      <summary class="cursor-pointer font-mono text-meta-lg text-foreground">More resources</summary>
+      <ul class="mt-3 flex list-none flex-col gap-1 border-t border-border pt-2">
+        {links.slice(4).map(l => (
+          <li><a href={l.url} class="block py-2 font-serif text-sm text-muted-foreground no-underline hover:text-primary">{l.label}</a></li>
+        ))}
+      </ul>
+    </details>
+  )}
 </section>

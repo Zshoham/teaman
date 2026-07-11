@@ -244,7 +244,7 @@ export function Whiteboard({ assetPath, siteBase }: WhiteboardProps) {
             variant="outline"
             size="xl"
             onClick={prepareAssets}
-            className="fixed right-6 bottom-6 z-40 rounded-xl shadow-xl"
+            className="whiteboard-launcher fixed right-6 bottom-6 z-40 rounded-xl shadow-xl"
             aria-label="Open whiteboard"
             aria-keyshortcuts="Shift+W"
             title="Open whiteboard (Shift+W)"
@@ -252,7 +252,7 @@ export function Whiteboard({ assetPath, siteBase }: WhiteboardProps) {
         }
       >
         <PenLineIcon data-icon="inline-start" className="text-primary" />
-        Whiteboard
+        <span className="whiteboard-launcher-label">Whiteboard</span>
       </DialogTrigger>
 
       <DialogContent

@@ -21,11 +21,11 @@ export function EntryCard({ entry: e }: Props) {
         <span className="text-primary">{TYPE_LABEL[e.type]}</span>
         <span className="ml-auto tabular-nums whitespace-nowrap text-faint">{e.meta}</span>
       </div>
-      <h3 className="entry-title m-0 font-serif text-2xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[28px]">
+      <h2 className="entry-title m-0 font-serif text-2xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[28px]">
         <a href={e.href} className="text-inherit no-underline hover:text-primary">
           {e.title}
         </a>
-      </h3>
+      </h2>
       {e.excerpt && (
         <p className="mt-3 max-w-[700px] font-serif text-[15px] leading-relaxed text-muted-foreground text-pretty md:text-base">
           {e.excerpt}

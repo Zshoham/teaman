@@ -11,6 +11,21 @@ export function GuideTOC({ guide, currentSlug }: Props) {
 
   return (
     <aside className="guide-toc self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)] md:pr-2">
+      <details className="rounded-lg border border-border bg-card md:hidden">
+        <summary className="cursor-pointer px-4 py-3 font-mono text-meta-lg text-foreground">
+          Chapter {currentIdx + 1} of {guide.chapters.length} · {guide.chapters[currentIdx]?.title}
+        </summary>
+        <ol className="m-0 flex list-none flex-col gap-0.5 border-t border-border px-4 py-2">
+          {guide.chapters.map((ch, i) => (
+            <li key={ch.slug}>
+              <a href={chapterHref(guide, ch.slug)} aria-current={i === currentIdx ? "page" : undefined} className={cn("flex gap-2.5 py-2 font-serif text-sm no-underline", i === currentIdx ? "text-primary" : "text-muted-foreground")}>
+                <span className="font-mono text-meta-sm">{String(i + 1).padStart(2, "0")}</span>{ch.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </details>
+      <div className="hidden md:block">
       <h2 className="m-0 mb-4 border-b border-border pb-2.5 font-mono text-meta-sm font-normal uppercase tracking-label text-faint">
         {guide.title}
       </h2>
@@ -40,6 +55,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
           );
         })}
       </ol>
+      </div>
     </aside>
   );
 }

@@ -53,7 +53,7 @@ function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
 }
 
 const cellL =
-  "grid grid-cols-[124px_44px_1fr] max-[760px]:grid-cols-[64px_36px_1fr]";
+  "grid grid-cols-[124px_44px_1fr] max-[760px]:grid-cols-[16px_minmax(0,1fr)]";
 
 export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   const [statuses, setStatuses] = useState<Set<string>>(
@@ -124,8 +124,8 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   return (
     <section className="adr-timeline">
       {/* Toolbar */}
-      <div className="sticky top-[var(--header-h)] z-20 flex flex-wrap items-center gap-3.5 border-b border-border bg-background py-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="sticky top-[var(--header-h)] z-20 flex flex-wrap items-center gap-3.5 border-b border-border bg-background py-3 max-[760px]:static max-[760px]:flex-nowrap max-[760px]:overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-1.5 max-[760px]:flex-nowrap">
           {STATUS_ORDER.map((s) => (
             <FilterPill
               key={s}
@@ -192,18 +192,18 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
               const line = primaryAdrRelation(a, lookup);
               return (
                 <div key={a.num} className={cn(cellL, "items-start")}>
-                  <div className="pt-1 pr-1 pb-10 text-right">
+                  <div className="pt-1 pr-1 pb-10 text-right max-[760px]:hidden">
                     <div className="font-mono text-[0.9rem] tabular-nums text-foreground max-[760px]:text-meta">
                       {a.dateLabel}
                     </div>
                   </div>
-                  <div className="relative flex justify-center pb-10">
+                  <div className="relative flex justify-center pb-10 max-[760px]:col-start-1">
                     <span
                       className="relative z-10 mt-[5px] size-3 rounded-full shadow-[0_0_0_4px_var(--background)]"
                       style={{ background: statusColor(a.status) }}
                     />
                   </div>
-                  <div className="pb-10 pl-2">
+                  <div className="pb-10 pl-2 max-[760px]:col-start-2 max-[760px]:row-start-1">
                     <button
                       type="button"
                       onClick={() => setOpenNum(a.num)}
@@ -218,11 +218,12 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                         </span>
                         <StatusBadge status={a.status} className="ml-auto" />
                       </div>
-                      <h3 className="m-0 font-serif text-[1.32rem] font-medium leading-[1.18] tracking-[-0.008em]">
+                      <div className="mb-2 hidden font-mono text-meta tabular-nums text-faint max-[760px]:block">{a.dateLabel}</div>
+                      <h2 className="m-0 font-serif text-[1.32rem] font-medium leading-[1.18] tracking-[-0.008em]">
                         {a.title}
-                      </h3>
+                      </h2>
                       {a.summary && (
-                        <p className="mt-2 font-serif text-[15px] leading-relaxed text-muted-foreground text-pretty">
+                        <p className="mt-2 font-serif text-[15px] leading-relaxed text-muted-foreground text-pretty max-[760px]:line-clamp-3">
                           {a.summary}
                         </p>
                       )}
@@ -248,20 +249,20 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
             grouped.map((group) => (
               <div key={group.year}>
                 <div className={cn(cellL, "my-1.5 items-center")}>
-                  <div className="pr-1 text-right font-serif text-[1.7rem] font-medium tabular-nums text-foreground max-[760px]:text-[1.3rem]">
+                  <div className="pr-1 text-right font-serif text-[1.7rem] font-medium tabular-nums text-foreground max-[760px]:col-span-2 max-[760px]:text-left max-[760px]:text-[1.3rem]">
                     {group.year}
                   </div>
-                  <div className="relative flex justify-center py-3.5">
+                  <div className="relative flex justify-center py-3.5 max-[760px]:hidden">
                     <span className="relative z-10 size-[9px] rounded-full bg-muted-foreground" />
                   </div>
-                  <div className="font-mono text-meta uppercase tracking-label-sm text-faint">
+                  <div className="font-mono text-meta uppercase tracking-label-sm text-faint max-[760px]:col-span-2">
                     {group.items.length} decision
                     {group.items.length > 1 ? "s" : ""}
                   </div>
                 </div>
                 {group.items.map((a) => (
                   <div key={a.num} className={cn(cellL, "items-center")}>
-                    <div className="pr-1 text-right">
+                    <div className="pr-1 text-right max-[760px]:hidden">
                       <div className="font-mono text-meta tabular-nums text-faint">
                         {a.dateLabel}
                       </div>
@@ -272,7 +273,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                         style={{ background: statusColor(a.status) }}
                       />
                     </div>
-                    <div className="py-1.5 pl-2">
+                    <div className="py-1.5 pl-2 max-[760px]:col-start-2 max-[760px]:row-start-1">
                       <button
                         type="button"
                         onClick={() => setOpenNum(a.num)}
@@ -282,9 +283,9 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                           <span className="font-mono text-meta tabular-nums text-primary">
                             ADR-{a.num}
                           </span>
-                          <h3 className="min-w-0 flex-1 truncate font-serif text-[1.06rem] font-medium leading-tight tracking-tight">
+                          <h2 className="min-w-0 flex-1 truncate font-serif text-[1.06rem] font-medium leading-tight tracking-tight">
                             {a.title}
-                          </h3>
+                          </h2>
                           <StatusBadge status={a.status} />
                         </div>
                       </button>
