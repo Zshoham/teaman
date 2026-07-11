@@ -180,6 +180,33 @@ describe('teaman sync-confluence', () => {
 });
 
 describe('teaman build', () => {
+  it('refuses to use the vault root as output without deleting it', () => {
+    writeFileSync(join(dir, 'keep.txt'), 'safe');
+    const { code, stderr } = cli(['build', dir, '--out', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/refusing unsafe output path/);
+    expect(readFileSync(join(dir, 'keep.txt'), 'utf8')).toBe('safe');
+  });
+
+  it('refuses to use vault/public as output without deleting its assets', () => {
+    mkdirSync(join(dir, 'public'), { recursive: true });
+    writeFileSync(join(dir, 'public', 'keep.txt'), 'safe');
+    const { code, stderr } = cli(['build', dir, '--out', join(dir, 'public')]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/refusing unsafe output path/);
+    expect(readFileSync(join(dir, 'public', 'keep.txt'), 'utf8')).toBe('safe');
+  });
+
+  it('refuses to overwrite an existing non-empty dir that is not a previous build', () => {
+    const outDir = join(dir, 'existing-data');
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'note.md'), 'keep me');
+    const { code, stderr } = cli(['build', dir, '--out', outDir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/refusing/);
+    expect(readFileSync(join(outDir, 'note.md'), 'utf8')).toBe('keep me');
+  });
+
   it('fails when vault path is not a directory', () => {
     const fakePath = join(dir, 'not-a-dir');
     writeFileSync(fakePath, 'not a directory');

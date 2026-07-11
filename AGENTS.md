@@ -71,6 +71,7 @@ exactly why the plain `npm` scripts and the test suite work in place:
 | `TEAMAN_BASE` | base URL path | `astro.config.mjs`, `scripts/*.mjs` (also legacy `SITE_BASE`) |
 | `TEAMAN_CONFIG` | the vault config, serialized to JSON | `src/config.ts` |
 | `TEAMAN_PUBLIC` | staged static dir | `astro.config.mjs` (`publicDir`) |
+| `TEAMAN_SLIDES_WORK` | Slidev work dir | `scripts/build-slides.mjs` (falls back to `<engine>/.slides-build/` when unset) |
 
 Consequences when changing things:
 - Anything that needs the vault root or output dir must read these env vars with the
@@ -131,14 +132,21 @@ name not vault — otherwise a second vault reuses the first vault's cached entr
 
 Three sequential stages, all reading the env seam:
 1. `astro build` → HTML into `outDir`.
-2. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`
-   (skipping `_`-prefixed files). Decks are copied into `.slides-build/` first
-   because Slidev resolves themes relative to the deck file and needs to walk up to
-   the engine's `node_modules`. Every deck is built with `--theme` pointing at a staged
-   copy of the engine theme `slidev-theme-teaman/` (in `.slides-build/theme/`); the
-   build personalizes that copy from the vault's `config.slides` knobs via
-   `scripts/slides-theme.mjs` (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource`
-   + `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed
+2. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`.
+   Decks are discovered recursively by the shared `src/lib/discover-decks.mjs`
+   (also used by `build-search.mjs`, so the built decks and the search index
+   always agree): it walks subdirectories, skips any path with a segment
+   starting with `_`, and skips decks with `draft: true` frontmatter; nested
+   decks (e.g. `nested/deck`) build to `<out>/slides/nested/deck/`. Decks are
+   copied into the work dir first — the CLI-provided `TEAMAN_SLIDES_WORK` temp
+   dir, falling back to `<engine>/.slides-build/` only when that env var is
+   unset (plain `npm run build`) — because Slidev resolves themes relative to
+   the deck file and needs to walk up to the engine's `node_modules`. Every
+   deck is built with `--theme` pointing at a staged copy of the engine theme
+   `slidev-theme-teaman/` (in `<work dir>/theme/`); the build personalizes that
+   copy from the vault's `config.slides` knobs via `scripts/slides-theme.mjs`
+   (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource` +
+   `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed
    theme keeps sane defaults; no deck frontmatter is ever rewritten. The theme is
    shipped in the npm package (`files` in `package.json`). Decks build with
    `--base ./ --router-mode hash` (not the site base): Slidev double-applies a
@@ -149,7 +157,7 @@ Three sequential stages, all reading the env seam:
    base-less router paths; Slidev ≥ 52.17 ships that (`getSlideRoutePath`), which
    is why `@slidev/cli` has a `^52.17.0` floor — a unit test reads the installed
    client source to catch an upstream regression. build-slides also stages a
-   `.slides-build/vite.config.ts` (`renderViteConfig`) that mutes Rolldown's
+   `<work dir>/vite.config.ts` (`renderViteConfig`) that mutes Rolldown's
    harmless INVALID_ANNOTATION noise.
 3. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck via

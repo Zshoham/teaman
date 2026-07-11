@@ -13,9 +13,6 @@ node_modules/
 # Slidev workaround dir (see slidevjs/slidev#1975)
 .slides-build/
 
-# teaman static-asset staging dir (logo + vault/public)
-.teaman-public/
-
 # cached tikz/typst fence renders (remark-fence-svg — disposable)
 .diagram-cache/
 

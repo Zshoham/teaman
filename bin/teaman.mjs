@@ -9,10 +9,12 @@ import { spawn } from 'child_process';
 import {
   existsSync, mkdirSync, rmSync, cpSync, copyFileSync,
   readFileSync, writeFileSync, readdirSync, statSync, realpathSync,
+  mkdtempSync, renameSync, symlinkSync,
 } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { resolve, join, dirname, basename, isAbsolute } from 'path';
+import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'path';
 import { createRequire } from 'module';
+import { tmpdir } from 'os';
 import semver from 'semver';
 
 const require = createRequire(import.meta.url);
@@ -100,9 +102,7 @@ function checkEngine(config) {
 // Stage static assets into a dir handed to Astro as publicDir: engine defaults
 // (teacup fallback) + optional vault/public + the configured logo (rewritten to
 // a bare filename so the site references it by name under `base`).
-function stageStatic(vault, config) {
-  const stageDir = join(engineDir, '.teaman-public');
-  rmSync(stageDir, { recursive: true, force: true });
+function stageStatic(vault, config, stageDir) {
   mkdirSync(stageDir, { recursive: true });
   cpSync(join(engineDir, 'resources'), stageDir, { recursive: true });
 
@@ -119,6 +119,65 @@ function stageStatic(vault, config) {
     // else: assume it already lives in resources/ or vault/public — leave as-is.
   }
   return stageDir;
+}
+
+function containsPath(parent, child) {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+export function validateOutPath(outArg, { vault, engine = engineDir, cwd = process.cwd() }) {
+  const out = resolve(outArg);
+  const forbiddenExact = [parse(out).root, vault, engine, cwd, join(vault, 'public')]
+    .map(path => resolve(path));
+  if (forbiddenExact.includes(out)) {
+    throw new Error(`refusing unsafe output path: ${out}`);
+  }
+  if (containsPath(out, vault) || containsPath(out, engine)) {
+    throw new Error(`refusing output path that contains the vault or engine: ${out}`);
+  }
+  return out;
+}
+
+// A validated `out` can still be a directory of live user data (e.g.
+// `--out <vault>/notes`): commitBuild renames it away and deletes it after a
+// successful build. Only overwrite a path that's empty, absent, or looks like a
+// previous static build (an `index.html` at its root).
+export function assertOverwritableOut(out) {
+  if (!existsSync(out) || !statSync(out).isDirectory()) return;
+  const entries = readdirSync(out);
+  if (entries.length === 0 || entries.includes('index.html')) return;
+  throw new Error(
+    `refusing to overwrite non-empty directory that is not a previous build: ${out} (remove it or choose another --out)`,
+  );
+}
+
+// SIGKILL / Ctrl-C mid-build leaks a hidden staged sibling next to `out` (often
+// inside the user's vault); dying between commitBuild's renames leaks a backup
+// sibling. Clear any leftovers of either before starting a fresh build.
+export function sweepStagedDirs(out) {
+  const parent = dirname(out);
+  if (!existsSync(parent)) return;
+  const prefixes = [`.${basename(out)}.teaman-`, `${basename(out)}.teaman-backup-`];
+  for (const name of readdirSync(parent)) {
+    if (prefixes.some(p => name.startsWith(p))) rmSync(join(parent, name), { recursive: true, force: true });
+  }
+}
+
+export function commitBuild(stagedOut, out) {
+  const backup = `${out}.teaman-backup-${process.pid}-${Date.now()}`;
+  let movedExisting = false;
+  try {
+    if (existsSync(out)) {
+      renameSync(out, backup);
+      movedExisting = true;
+    }
+    renameSync(stagedOut, out);
+    if (movedExisting) rmSync(backup, { recursive: true, force: true });
+  } catch (error) {
+    if (movedExisting && !existsSync(out) && existsSync(backup)) renameSync(backup, out);
+    throw error;
+  }
 }
 
 function envFor(vault, config, { out, base, publicDir } = {}) {
@@ -163,33 +222,64 @@ async function cmdBuild(vaultArg, opts) {
   const present = CONTENT_DIRS.filter(d => existsSync(join(vault, d)));
   if (present.length === 0) warn(`no content dirs (${CONTENT_DIRS.join('/')}) found under ${vault}`);
 
-  const out = resolve(opts.out ?? join(vault, 'dist'));
+  let out;
+  try {
+    out = validateOutPath(opts.out ?? join(vault, 'dist'), { vault });
+    assertOverwritableOut(out);
+  } catch (error) {
+    fail(error.message);
+  }
+  sweepStagedDirs(out);
   const base = opts.base ?? config.base ?? '/';
-  const publicDir = stageStatic(vault, config);
-  const env = envFor(vault, config, { out, base, publicDir });
+  mkdirSync(dirname(out), { recursive: true });
+  const workDir = mkdtempSync(join(tmpdir(), 'teaman-build-'));
+  // Slidev, run from the temp work dir, walks up to find its deps, so the work
+  // dir needs a node_modules. `join(engineDir, 'node_modules')` isn't enough:
+  // when the engine is installed as a dependency its deps may be hoisted above
+  // engineDir, so resolve through an actual dependency to reach the real root.
+  // 'junction' works unprivileged on Windows; on POSIX Node treats an absolute
+  // junction target as a normal dir symlink.
+  const dependencyRoot = dirname(dirname(dirname(require.resolve('@slidev/cli/package.json'))));
+  symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
+  const stagedOut = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
+  const publicDir = stageStatic(vault, config, join(workDir, 'public'));
+  const env = {
+    ...envFor(vault, config, { out: stagedOut, base, publicDir }),
+    TEAMAN_SLIDES_WORK: join(workDir, 'slides'),
+  };
 
   info(`building ${c.bold(vault)} → ${c.bold(out)} ${c.dim(`(engine ${VERSION})`)}`);
-  rmSync(out, { recursive: true, force: true });
   // The content collections resolve their roots from TEAMAN_VAULT at build
   // time, but Astro's content-layer store under `.astro/` is keyed by
   // collection name, not vault. Building a different vault from the same engine
   // checkout would otherwise reuse the previous vault's cached notes/guides, so
   // drop the cache to isolate each build.
-  rmSync(join(engineDir, '.astro'), { recursive: true, force: true });
-  await run(node, [astroBin, 'build'], env);
-  await run(node, [join(engineDir, 'scripts', 'build-slides.mjs')], env);
-  await run(node, [join(engineDir, 'scripts', 'build-search.mjs')], env);
-  info(c.green('done.'));
+  try {
+    rmSync(join(engineDir, '.astro'), { recursive: true, force: true });
+    await run(node, [astroBin, 'build'], env);
+    await run(node, [join(engineDir, 'scripts', 'build-slides.mjs')], env);
+    await run(node, [join(engineDir, 'scripts', 'build-search.mjs')], env);
+    commitBuild(stagedOut, out);
+    info(c.green('done.'));
+  } finally {
+    rmSync(stagedOut, { recursive: true, force: true });
+    rmSync(workDir, { recursive: true, force: true });
+  }
 }
 
 async function cmdDev(vaultArg, opts) {
   const vault = resolveVault(vaultArg);
   const { config } = await loadVaultConfig(vault);
   checkEngine(config);
-  const publicDir = stageStatic(vault, config);
+  const workDir = mkdtempSync(join(tmpdir(), 'teaman-dev-'));
+  const publicDir = stageStatic(vault, config, join(workDir, 'public'));
   const env = envFor(vault, config, { base: opts.base ?? config.base ?? '/', publicDir });
   info(`dev server for ${c.bold(vault)} ${c.dim(`(engine ${VERSION})`)}`);
-  await run(node, [astroBin, 'dev', ...(opts.port ? ['--port', String(opts.port)] : [])], env);
+  try {
+    await run(node, [astroBin, 'dev', ...(opts.port ? ['--port', String(opts.port)] : [])], env);
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
+  }
 }
 
 async function cmdPreview(vaultArg, opts) {
