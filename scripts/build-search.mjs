@@ -5,6 +5,7 @@ import matter from 'gray-matter';
 import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { normalizeBase } from '../src/lib/site-base.mjs';
+import { discoverDecks } from '../src/lib/discover-decks.mjs';
 
 const publicDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
 const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
@@ -34,13 +35,10 @@ console.log(`Indexed ${page_count} HTML pages.`);
 
 // Feed slidev decks in as custom records pointing at the deck URL.
 if (existsSync(slidesSrcDir)) {
-  const decks = readdirSync(slidesSrcDir).filter(
-    f => f.endsWith('.md') && !f.startsWith('_'),
-  );
+  const decks = discoverDecks(slidesSrcDir);
   for (const deck of decks) {
-    const name = basename(deck, '.md');
-    const markdown = readFileSync(join(slidesSrcDir, deck), 'utf8');
-    const { title, content } = parseDeck(markdown);
+    const name = deck.id;
+    const { title, content } = parseDeck(deck.markdown);
     const { errors: recordErrors } = await index.addCustomRecord({
       url: `${siteBase}slides/${name}/`,
       content,

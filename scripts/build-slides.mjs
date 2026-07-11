@@ -1,14 +1,15 @@
-import { readdirSync, mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
+import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { join, basename, extname } from 'path';
+import { join, extname } from 'path';
 import { renderVarsCss, renderLogoConfig, resolveLogoSource, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
+import { discoverDecks } from '../src/lib/discover-decks.mjs';
 
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
 const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
 const slidesSrcDir = join(vaultDir, 'slides');
-const slidesTmpDir = join(engineDir, '.slides-build');
+const slidesTmpDir = process.env.TEAMAN_SLIDES_WORK ?? join(engineDir, '.slides-build');
 const publicDir = join(outDir, 'slides');
 
 // `slides` knobs from teaman.config.js (serialized via TEAMAN_CONFIG by the CLI).
@@ -22,7 +23,7 @@ if (!existsSync(slidesSrcDir)) {
   process.exit(0);
 }
 
-const decks = readdirSync(slidesSrcDir).filter(f => f.endsWith('.md') && !f.startsWith('_'));
+const decks = discoverDecks(slidesSrcDir);
 
 if (decks.length === 0) {
   console.log('No slide decks found.');
@@ -68,9 +69,9 @@ writeFileSync(
 
 try {
   for (const deck of decks) {
-    const name = basename(deck, '.md');
-    const tmpDeck = join(slidesTmpDir, deck);
-    const outDir = join(publicDir, name);
+    const name = deck.id;
+    const tmpDeck = join(slidesTmpDir, deck.relativePath);
+    const outDir = join(publicDir, ...name.split('/'));
 
     mkdirSync(outDir, { recursive: true });
     console.log(`Building deck: ${name}`);

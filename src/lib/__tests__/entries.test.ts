@@ -246,6 +246,19 @@ describe('loadSlideEntries', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0].id).toBe('slides-public');
   });
+
+  it('excludes nested decks whose path has an underscore-prefixed segment', async () => {
+    vi.mocked(stat).mockResolvedValue({ mtime: new Date(), birthtime: new Date() } as any);
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: 'foo/_wip', data: { title: 'Nested WIP' }, body: 'x' },
+      { id: '_foo/bar', data: { title: 'Hidden dir' }, body: 'x' },
+      { id: 'foo/live', data: { draft: false, title: 'Nested Live' }, body: 'x' },
+    ] as any);
+
+    const entries = await loadSlideEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].id).toBe('slides-foo/live');
+  });
 });
 
 describe('loadDailyNoteEntries', () => {

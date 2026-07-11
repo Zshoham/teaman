@@ -4,6 +4,7 @@ import { join } from 'path';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
 import { slidesRoot } from './content-paths';
+import { isPublishableDeckId } from './discover-decks.mjs';
 import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, type WeekdayShort } from './dailies';
 import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
@@ -76,7 +77,7 @@ export async function loadNoteEntries(): Promise<Entry[]> {
 export async function loadSlideEntries(): Promise<Entry[]> {
   const slides = await getCollection('slides');
   const entries = slides
-    .filter(s => !s.data.draft && !s.id.startsWith('_'))
+    .filter(s => !s.data.draft && isPublishableDeckId(s.id))
     .map(async s => {
       const body = (s.body ?? '') as string;
       const slideCount = body.split(/^---\s*$/m).filter(part => part.trim()).length || 1;
