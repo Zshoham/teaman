@@ -31,6 +31,7 @@
     "build:slides": "node scripts/build-slides.mjs",
     "build:search": "node scripts/build-search.mjs",
     "build:all": "node bin/teaman.mjs build ./example --out public",
+    "typecheck": "astro sync && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -81,6 +82,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "happy-dom": "^20.9.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   }
 }

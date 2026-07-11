@@ -30,6 +30,7 @@ npm run dev            # Astro dev server on the bundled example/ vault (fastest
 npm run build          # full prod build: astro → slides → search  (build:all)
 npm run preview        # preview the production build
 npm test               # vitest unit suite (node env)
+npm run typecheck      # astro sync + tsc --noEmit (repo is typecheck-clean; CI enforces it)
 npm run test:watch     # vitest watch
 npm run test:e2e       # Playwright e2e (auto-starts the dev server)
 npm run test:e2e:ui    # Playwright interactive UI
@@ -205,7 +206,7 @@ prefer extending those helpers over duplicating logic in pages.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
 - CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with four jobs.
-  The `test` job runs `npm test` + `npm run build:all`, the `integration` job
+  The `test` job runs `npm run typecheck` + `npm test` + `npm run build:all`, the `integration` job
   runs `npm run test:integration` (the packaged consumer path), and the `e2e`
   job installs the Playwright browser and runs `npm run test:e2e` (the
   `playwright.config.ts` webServer builds the production site and serves it via

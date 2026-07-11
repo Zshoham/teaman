@@ -1,6 +1,6 @@
 name: CI
 
-# `test` runs the unit suite + a full prod build on every push/PR.
+# `test` runs the typecheck + unit suite + a full prod build on every push/PR.
 # `integration` packs the engine as a real tarball and builds the example vault
 #   through the installed CLI — the consumer path the in-repo build can't see.
 # `e2e` builds the production site and runs the Playwright suite against it.
@@ -36,6 +36,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      # astro sync generates .astro/types.d.ts (astro:content module types),
+      # which tsconfig includes — a fresh checkout has none until then.
+      - run: npm run typecheck
       - run: npm run build:all
       - run: npm test
 
