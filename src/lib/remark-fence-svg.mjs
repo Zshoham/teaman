@@ -85,17 +85,38 @@ async function compileTypst(source) {
 
 const DEFAULT_COMPILERS = { tikz: compileTikz, typst: compileTypst };
 
+// Fence languages the default compilers cover — what callers without custom
+// `compilers` (the Confluence sync) can hand to renderFenceSvg.
+export const fenceLanguages = Object.keys(DEFAULT_COMPILERS);
+
+function cachePath(cacheDir, lang, source) {
+  const hash = createHash('sha256')
+    .update(`${FORMAT_VERSION}\0${lang}\0${source}`)
+    .digest('hex')
+    .slice(0, 16);
+  return join(cacheDir, `${lang}-${hash}.svg`);
+}
+
+// Compile one fence to svg through the content-hash cache: theme-adapted,
+// classified, persisted to `cacheDir` — so the site build and the Confluence
+// sync share renders. Returns `{ svg, path }` (`path` is the cached file, for
+// callers that need the render as a file, e.g. an attachment upload); throws
+// when the compiler fails or produces no <svg> root.
+export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {}) {
+  const compile = { ...DEFAULT_COMPILERS, ...compilers };
+  const path = cachePath(cacheDir, lang, source);
+  if (existsSync(path)) return { svg: readFileSync(path, 'utf8'), path };
+
+  const svg = classifySvg(themeAdaptSvg(await compile[lang](source)), `${lang}-svg`);
+  if (svg === null) throw new Error('compiler produced no <svg> root');
+  mkdirSync(cacheDir, { recursive: true });
+  writeFileSync(path, svg);
+  return { svg, path };
+}
+
 // ── the plugin ───────────────────────────────────────────────────────────────
 export function remarkFenceSvg({ cacheDir, compilers } = {}) {
   const compile = { ...DEFAULT_COMPILERS, ...compilers };
-
-  const cachePath = (lang, source) => {
-    const hash = createHash('sha256')
-      .update(`${FORMAT_VERSION}\0${lang}\0${source}`)
-      .digest('hex')
-      .slice(0, 16);
-    return join(cacheDir, `${lang}-${hash}.svg`);
-  };
 
   return async (tree) => {
     // Collect first, then compile: the transformer must be async and mdast
@@ -109,31 +130,20 @@ export function remarkFenceSvg({ cacheDir, compilers } = {}) {
       });
     };
     walk(tree);
-    if (fences.length === 0) return;
 
-    mkdirSync(cacheDir, { recursive: true });
     for (const { parent, index, node } of fences) {
       const { lang, value: source } = node;
-      const cached = cachePath(lang, source);
-      let svg;
-      if (existsSync(cached)) {
-        svg = readFileSync(cached, 'utf8');
-      } else {
-        try {
-          svg = classifySvg(themeAdaptSvg(await compile[lang](source)), `${lang}-svg`);
-          if (svg === null) throw new Error('compiler produced no <svg> root');
-          writeFileSync(cached, svg);
-        } catch (error) {
-          const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
-          console.warn(`[teaman] ${lang} fence failed to compile: ${reason}`);
-          parent.children[index] = {
-            type: 'html',
-            value: `<pre class="diagram-error">${lang} diagram could not be rendered.\n${escapeHtml(reason)}</pre>`,
-          };
-          continue;
-        }
+      try {
+        const { svg } = await renderFenceSvg(lang, source, { cacheDir, compilers });
+        parent.children[index] = { type: 'html', value: svg };
+      } catch (error) {
+        const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
+        console.warn(`[teaman] ${lang} fence failed to compile: ${reason}`);
+        parent.children[index] = {
+          type: 'html',
+          value: `<pre class="diagram-error">${lang} diagram could not be rendered.\n${escapeHtml(reason)}</pre>`,
+        };
       }
-      parent.children[index] = { type: 'html', value: svg };
     }
   };
 }

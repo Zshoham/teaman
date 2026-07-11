@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve, sep } from 'path';
 import { parseArgs as parseCliArgs } from 'util';
 import { fileURLToPath } from 'url';
@@ -6,8 +6,14 @@ import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
+import { fenceLanguages, renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
+
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const defaultContentDir = join(engineDir, 'example');
+
+// Same cache the site build uses (astro.config.mjs), so a vault that has been
+// built locally never recompiles a diagram just to sync it.
+const diagramCacheDir = join(engineDir, '.diagram-cache');
 
 // Optional static defaults. Prefer passing --roots or CONFLUENCE_ROOTS so this
 // repository does not have to carry deployment-specific page ids.
@@ -40,6 +46,12 @@ Options:
                          a labeled code block (source only, no rendered diagram).
   --plantuml-macro NAME  Same as above for \`\`\`plantuml fences (or
                          CONFLUENCE_PLANTUML_MACRO).
+  --svg-macro NAME       Confluence macro that renders raw markup, e.g. "html",
+                         for local .svg images and compiled tikz/typst diagrams
+                         (or CONFLUENCE_SVG_MACRO). The svg source is inlined
+                         into the macro body instead of uploading a file, so it
+                         renders on instances that can't preview svg
+                         attachments.
   --help                  Show this help.
 
 Examples:
@@ -59,7 +71,13 @@ Markdown support:
   info/tip/note/warning macros. GFM task lists (\`- [ ] / - [x]\`) become
   Confluence task lists. Local images — markdown \`![alt](path)\` or Obsidian
   embeds \`![[image.png]]\` — are uploaded as page attachments; images with a
-  URL scheme (http, https, data, ...) link out instead of uploading.
+  URL scheme (http, https, data, ...) link out instead of uploading. Local
+  \`.svg\` images resolve the way the site build does — against the note's own
+  directory, then the vault root, then \`<vault>/public\` — and upload as
+  attachments by default; pass --svg-macro to inline their markup instead.
+  \`\`\`tikz and \`\`\`typst fences compile to svg during the sync (sharing the
+  site build's diagram cache) and then sync like local .svg images; a fence
+  that fails to compile syncs as a labeled source block.
 `);
 }
 
@@ -80,6 +98,7 @@ function parseArgs(argv) {
       'timeout-ms': { type: 'string' },
       'mermaid-macro': { type: 'string' },
       'plantuml-macro': { type: 'string' },
+      'svg-macro': { type: 'string' },
     },
     allowPositionals: false,
   });
@@ -107,6 +126,7 @@ function parseArgs(argv) {
     timeoutMs: parseTimeout(values['timeout-ms'] ?? process.env.CONFLUENCE_TIMEOUT_MS),
     mermaidMacro: values['mermaid-macro'] ?? process.env.CONFLUENCE_MERMAID_MACRO ?? null,
     plantumlMacro: values['plantuml-macro'] ?? process.env.CONFLUENCE_PLANTUML_MACRO ?? null,
+    svgMacro: values['svg-macro'] ?? process.env.CONFLUENCE_SVG_MACRO ?? null,
   };
 
   args.baseUrl = args.baseUrl?.replace(/\/+$/, '');
@@ -331,6 +351,12 @@ markdownRenderer.renderer.rules.thead_close = () => '';
 markdownRenderer.renderer.rules.tbody_open = () => '';
 markdownRenderer.renderer.rules.tbody_close = () => '</tbody>\n';
 
+// Display names for the compiled-diagram fences' source-block fallback,
+// matching the 'Mermaid diagram (source)' style.
+const FENCE_LABELS = { tikz: 'TikZ', typst: 'Typst' };
+
+const fenceKey = (lang, source) => `${lang}\0${source}`;
+
 function renderCodeToken(tokens, idx, options, env) {
   const token = tokens[idx];
   const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
@@ -340,6 +366,20 @@ function renderCodeToken(tokens, idx, options, env) {
   if (lang === 'plantuml' && env.plantumlMacro) return diagramMacro(env.plantumlMacro, source);
   if (lang === 'mermaid') return `${codeMacro(source.split('\n'), { language: 'none', title: 'Mermaid diagram (source)' })}\n`;
   if (lang === 'plantuml') return `${codeMacro(source.split('\n'), { language: 'none', title: 'PlantUML diagram (source)' })}\n`;
+
+  // tikz/typst fences were compiled to svg by compileFenceSvgs before this
+  // (synchronous) render; the results ride in env and sync exactly like local
+  // .svg images. No compiled entry (compile failed, or the caller skipped the
+  // pre-pass, as unit tests do) syncs the source, labeled like mermaid above.
+  if (fenceLanguages.includes(lang)) {
+    const compiled = env.fenceSvgs?.get(fenceKey(lang, source));
+    if (compiled && env.svgMacro) return `${diagramMacro(env.svgMacro, compiled.svg)}\n`;
+    if (compiled) {
+      const filename = queueImage(compiled.path, env);
+      return `<ac:image ac:alt="${lang} diagram"><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>\n`;
+    }
+    return `${codeMacro(source.split('\n'), { language: 'none', title: `${FENCE_LABELS[lang] ?? segmentTitle(lang)} diagram (source)` })}\n`;
+  }
 
   return `${codeMacro(source.split('\n'), { language: confluenceLanguage(lang) })}\n`;
 }
@@ -419,11 +459,51 @@ function decodePath(src) {
   }
 }
 
+// Local `.svg` images resolve the way the site build does (remark-inline-svg):
+// against the note's own directory first, then the vault root, then
+// `<vault>/public` — in an Obsidian vault attachments live anywhere, and the
+// site also accepts site-root-style `/images/x.svg` references. Other images
+// keep the plain note-relative rule. When no candidate exists, the
+// note-relative guess is returned so the upload step warns with a sensible
+// path instead of failing silently here.
+function resolveImagePath(path, env) {
+  const noteDir = dirname(env.filePath);
+  const clean = path.split(/[?#]/)[0];
+  if (!clean.toLowerCase().endsWith('.svg')) return resolve(noteDir, path);
+
+  const rel = clean.replace(/^\/+/, '');
+  const candidates = [
+    ...(clean.startsWith('/') ? [] : [resolve(noteDir, clean)]),
+    ...(env.contentDir ? [join(env.contentDir, rel), join(env.contentDir, 'public', rel)] : []),
+  ];
+  return candidates.find(existsSync) ?? candidates[0] ?? resolve(noteDir, clean);
+}
+
+// The svg file's markup, trimmed to the root <svg> tag (dropping BOM/XML
+// prolog/doctype — Confluence's html macro wants an element, not a document);
+// null when the file is unreadable or has no <svg> root.
+function svgSource(absolutePath) {
+  let source;
+  try {
+    source = readFileSync(absolutePath, 'utf8');
+  } catch {
+    return null;
+  }
+  const start = source.search(/<svg[\s>]/i);
+  return start === -1 ? null : source.slice(start).trim();
+}
+
 function renderImageRef(path, alt, env) {
   if (!env.filePath) {
     return `<img src="${markdownRenderer.utils.escapeHtml(path)}" alt="${alt}" />`;
   }
-  const absolutePath = resolve(dirname(env.filePath), path);
+  const absolutePath = resolveImagePath(path, env);
+  if (env.svgMacro && absolutePath.toLowerCase().endsWith('.svg')) {
+    const svg = svgSource(absolutePath);
+    if (svg !== null) return diagramMacro(env.svgMacro, svg);
+    // Missing file or no <svg> root: fall through to the attachment path so
+    // the upload step surfaces the standard "image not found" warning.
+  }
   const filename = queueImage(absolutePath, env);
   return `<ac:image ac:alt="${alt}"><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>`;
 }
@@ -581,18 +661,48 @@ markdownRenderer.renderer.rules.task_item_open = (tokens, idx, options, env) => 
 };
 markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:task>\n';
 
-// context: { filePath, notesMap, mermaidMacro, plantumlMacro }, threaded
-// through markdown-it's per-render `env` so every custom rule sees it.
-// filePath/notesMap are needed to resolve wiki-links and local image paths;
-// omit them (as the unit tests do) to render markdown in isolation, with
-// wiki-links falling back to a guessed title and images falling back to
-// plain <img> tags.
+// markdown-it rendering is synchronous but the tikz/typst compilers are not,
+// so fences compile in this pre-pass and renderCodeToken looks the results up
+// by (lang, source). Renders come from the site build's content-hash cache
+// when available; a fence that fails to compile maps to null (renderCodeToken
+// then falls back to the labeled source block) with a console warning, like
+// the site build's visible notice.
+async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compilers } = {}) {
+  const fenceSvgs = new Map();
+  for (const token of markdownRenderer.parse(matter(markdown).content, {})) {
+    if (token.type !== 'fence') continue;
+    const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
+    if (!fenceLanguages.includes(lang)) continue;
+    const source = token.content.replace(/\n$/, '');
+    const key = fenceKey(lang, source);
+    if (fenceSvgs.has(key)) continue;
+    try {
+      fenceSvgs.set(key, await renderFenceSvg(lang, source, { cacheDir, compilers }));
+    } catch (error) {
+      const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
+      console.warn(`Warning: ${lang} fence failed to compile, syncing its source instead: ${reason}`);
+      fenceSvgs.set(key, null);
+    }
+  }
+  return fenceSvgs;
+}
+
+// context: { filePath, contentDir, notesMap, mermaidMacro, plantumlMacro,
+// svgMacro, fenceSvgs }, threaded through markdown-it's per-render `env` so
+// every custom rule sees it. filePath/contentDir/notesMap are needed to
+// resolve wiki-links and local image paths, fenceSvgs (from compileFenceSvgs)
+// to render tikz/typst fences; omit them (as the unit tests do) to render
+// markdown in isolation, with wiki-links falling back to a guessed title,
+// images to plain <img> tags, and diagram fences to source blocks.
 function markdownToStorage(markdown, context = {}) {
   const env = {
     filePath: context.filePath ?? null,
+    contentDir: context.contentDir ?? null,
     notesMap: context.notesMap ?? new Map(),
     mermaidMacro: context.mermaidMacro ?? null,
     plantumlMacro: context.plantumlMacro ?? null,
+    svgMacro: context.svgMacro ?? null,
+    fenceSvgs: context.fenceSvgs ?? null,
     images: [],
     taskId: 0,
   };
@@ -880,9 +990,12 @@ async function syncFolder({ client, folder, rootId, args }) {
     const title = pageTitle(markdown, filePath);
     const rendered = storageBody(markdown, title, {
       filePath,
+      contentDir: args.contentDir,
       notesMap: args.notesMap,
       mermaidMacro: args.mermaidMacro,
       plantumlMacro: args.plantumlMacro,
+      svgMacro: args.svgMacro,
+      fenceSvgs: await compileFenceSvgs(markdown),
     });
     await syncFile({ client, parent, filePath, title, rendered, args });
   }
@@ -920,4 +1033,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { buildNotesMap, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
+export { buildNotesMap, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };

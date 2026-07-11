@@ -74,7 +74,13 @@ Options: `--out <dir>`, `--base <path>` (e.g. `/my-site/` for sub-path hosting),
 `sync-confluence` takes its own flags (run `teaman sync-confluence --help`);
 the essentials are `--content-dir <vault>`, `--base-url`, credentials
 (`--user`/`--token` or `--pat`), and `--roots folder=pageId,…`. Each can also
-come from a `CONFLUENCE_*` env var.
+come from a `CONFLUENCE_*` env var. Local `.svg` images resolve the same way
+the site build does (note's directory, then the vault root, then `public/`)
+and upload as attachments; since Confluence Server/DC won't preview those
+inline, `--svg-macro <name>` (e.g. the stock `html` macro) inlines the svg
+markup into that macro instead. ` ```tikz `/` ```typst ` fences compile to
+svg during the sync (sharing the site build's diagram cache) and then sync
+the same way; a fence that fails to compile syncs as a labeled source block.
 
 ## Config — `teaman.config.js`
 
