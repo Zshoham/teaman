@@ -85,7 +85,8 @@ describe('byNum', () => {
 });
 
 describe('adrRelations', () => {
-  const index = byNum([
+  type TestAdr = { num: string; title?: string; supersedes?: string; supersededBy?: string };
+  const index = byNum<TestAdr>([
     { num: '0001', title: 'Old' },
     { num: '0002', title: 'Current', supersedes: '0001', supersededBy: '0003' },
     { num: '0003', title: 'New' },
@@ -99,7 +100,7 @@ describe('adrRelations', () => {
   });
 
   it('ignores missing lineage targets', () => {
-    const adr = { num: '0004', supersedes: '4040' };
+    const adr: TestAdr = { num: '0004', supersedes: '4040' };
     expect(adrRelations(adr, index)).toEqual([]);
   });
 });

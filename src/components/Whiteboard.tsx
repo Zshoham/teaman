@@ -22,6 +22,13 @@ import {
   writeStoredScene,
 } from '@/lib/whiteboard-storage';
 
+declare global {
+  interface Window {
+    // Excalidraw's documented hook for self-hosted fonts/assets.
+    EXCALIDRAW_ASSET_PATH?: string;
+  }
+}
+
 const SAVE_DELAY = 500;
 
 type SceneSnapshot = Parameters<NonNullable<ExcalidrawProps['onChange']>>;
@@ -90,7 +97,7 @@ interface WhiteboardProps {
 }
 
 export function Whiteboard({ assetPath, siteBase }: WhiteboardProps) {
-  const triggerRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

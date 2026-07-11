@@ -77,6 +77,7 @@ function renderBlock(svg, alt) {
   return `<figure class="content-figure">${svg}<figcaption>${escapeAttr(alt)}</figcaption></figure>`;
 }
 
+/** @param {{ roots?: string[] }} [options] */
 export function remarkInlineSvg({ roots = [] } = {}) {
   return (tree, file) => {
     const notePath = file?.path ?? file?.history?.[0];
