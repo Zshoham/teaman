@@ -94,6 +94,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
       ? (el.getAttribute(cfg.tag.attr) ?? '').split(' ').filter(Boolean)
       : [],
   }));
+  let orderedItems = items;
 
   const filterDefault = cfg.filter?.defaultValue ?? 'all';
   let filterValue = filterDefault;
@@ -121,13 +122,13 @@ export function createListController(cfg: ListControllerConfig): ListController 
 
   const applySort = () => {
     if (!cfg.sort) return;
-    const ordered = items.slice().sort((a, b) => {
+    orderedItems = items.slice().sort((a, b) => {
       const cmp = a.sortValue.localeCompare(b.sortValue);
       return sortDir === 'asc' ? cmp : -cmp;
     });
     // Single fragment append batches the DOM moves into one operation.
     const frag = document.createDocumentFragment();
-    for (const it of ordered) frag.appendChild(it.el);
+    for (const it of orderedItems) frag.appendChild(it.el);
     cfg.container.appendChild(frag);
   };
 
@@ -136,7 +137,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
     const limit = pageSize ? pageSize * page : Infinity;
     let matched = 0;
     let shown = 0;
-    for (const it of items) {
+    for (const it of orderedItems) {
       const matchFilter = filterValue === filterDefault || it.filterValue === filterValue;
       const matchTag = !activeTag || it.tags.includes(activeTag);
       const eligible = matchFilter && matchTag;

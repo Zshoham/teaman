@@ -600,7 +600,9 @@ describe('loadMore', () => {
     sortToggle.click();
     flushRAF();
     // Same window size, different members.
-    expect(items.filter(i => !i.hidden)).toHaveLength(20);
+    const visible = items.filter(i => !i.hidden);
+    expect(visible).toHaveLength(20);
+    expect(visible).toEqual(items.slice(5));
   });
 });
 
