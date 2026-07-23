@@ -37,16 +37,3 @@ const footerLeft = `${adrs.length} ${adrs.length === 1 ? 'decision' : 'decisions
   <h1 class="sr-only">Architecture decisions</h1>
   <AdrTimeline adrs={views} client:load />
 </Layout>
-
-<style is:global>
-  /* Horizontal offset of the timeline spine: gutter + half the node column.
-     (The status colours live in global.css as shared --st-* tokens.) */
-  .adr-timeline {
-    --spine-x: 146px;
-  }
-  @media (max-width: 760px) {
-    .adr-timeline {
-      --spine-x: 82px;
-    }
-  }
-</style>

@@ -450,6 +450,25 @@ describe('refresh', () => {
     // Controller re-applies the filter state — items[1] (guide) hidden again.
     expect(items[1].hidden).toBe(true);
   });
+
+  it('applies and clears an externally computed set of matched ids', () => {
+    const { container, items } = buildRig();
+    items.forEach((item, index) => {
+      item.dataset.entryId = `entry-${index}`;
+    });
+    const ctrl = createListController({
+      container,
+      itemSelector: '[data-entry]',
+    });
+
+    ctrl.setMatchedIds(['entry-0', 'entry-2']);
+    flushRAF();
+    expect(items.map((item) => item.hidden)).toEqual([false, true, false]);
+
+    ctrl.setMatchedIds(null);
+    flushRAF();
+    expect(items.map((item) => item.hidden)).toEqual([false, false, false]);
+  });
 });
 
 // ── load more ─────────────────────────────────────────────────────────────────

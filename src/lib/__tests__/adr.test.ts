@@ -9,6 +9,7 @@ import {
   adrRelations,
   adrNum,
   adrMatches,
+  adrMatchesRules,
   byNum,
   groupByYear,
   primaryAdrRelation,
@@ -46,6 +47,41 @@ describe('adrMatches', () => {
   });
 });
 
+describe('adrMatchesRules', () => {
+  const card = { status: 'accepted', tags: ['api', 'data'] };
+
+  it('matches when no ReUI filters are active', () => {
+    expect(adrMatchesRules(card, [])).toBe(true);
+  });
+
+  it('supports inclusive and exclusive status filters', () => {
+    expect(adrMatchesRules(card, [
+      { field: 'status', operator: 'is_any_of', values: ['accepted'] },
+    ])).toBe(true);
+    expect(adrMatchesRules(card, [
+      { field: 'status', operator: 'is_not_any_of', values: ['accepted'] },
+    ])).toBe(false);
+  });
+
+  it('supports any, all, and excluded tag filters', () => {
+    expect(adrMatchesRules(card, [
+      { field: 'tag', operator: 'is_any_of', values: ['auth', 'data'] },
+    ])).toBe(true);
+    expect(adrMatchesRules(card, [
+      { field: 'tag', operator: 'includes_all', values: ['api', 'data'] },
+    ])).toBe(true);
+    expect(adrMatchesRules(card, [
+      { field: 'tag', operator: 'excludes_all', values: ['api'] },
+    ])).toBe(false);
+  });
+
+  it('treats an empty value selection as inactive', () => {
+    expect(adrMatchesRules(card, [
+      { field: 'tag', operator: 'is_any_of', values: [] },
+    ])).toBe(true);
+  });
+});
+
 describe('groupByYear', () => {
   it('groups by year, newest first, preserving item order', () => {
     const list = [
@@ -74,6 +110,10 @@ describe('tagCounts', () => {
       { tag: 'api', count: 2 },
       { tag: 'data', count: 2 },
     ]);
+  });
+
+  it('returns no filter options when ADRs have no tags', () => {
+    expect(tagCounts([{ tags: [] }, { tags: [] }])).toEqual([]);
   });
 });
 

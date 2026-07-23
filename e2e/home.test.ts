@@ -8,11 +8,27 @@ async function entryCount(page: Page, type?: EntryType): Promise<number> {
   return page.locator(sel).count();
 }
 
-async function statCount(page: Page, type: EntryType): Promise<number> {
-  const pill = page.locator(`[data-filter="${type}"]`);
-  const text = (await pill.textContent()) ?? '';
-  const match = text.match(/\d+/);
-  return match ? parseInt(match[0], 10) : 0;
+const TYPE_OPTION: Record<EntryType, RegExp> = {
+  note: /^Notes \(/,
+  guide: /^Guides \(/,
+  slides: /^Slides \(/,
+  decision: /^Decisions \(/,
+};
+
+async function openFilterField(page: Page, field: 'Type' | 'Tag') {
+  await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  await page.getByRole('option', { name: field, exact: true }).hover();
+}
+
+async function selectFilterTerm(
+  page: Page,
+  field: 'Type' | 'Tag',
+  option: string | RegExp,
+) {
+  await openFilterField(page, field);
+  await page.getByRole('option', { name: option }).click();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
 }
 
 async function pickType(page: Page): Promise<EntryType | null> {
@@ -77,59 +93,68 @@ test.describe('home page', () => {
     expect(sum).toBe(total);
   });
 
-  test('filter pill counts match the rendered entry counts per type', async ({ page }) => {
+  test('type filter counts match the rendered entry counts', async ({ page }) => {
+    await openFilterField(page, 'Type');
     for (const t of TYPES) {
       const rendered = await entryCount(page, t);
-      const stat = await statCount(page, t);
+      if (rendered === 0) continue;
+      const text = (await page.getByRole('option', { name: TYPE_OPTION[t] }).textContent()) ?? '';
+      const match = text.match(/\((\d+)\)$/);
+      const stat = match ? parseInt(match[1], 10) : 0;
       expect(stat).toBe(rendered);
     }
   });
 
   // ── Filter ────────────────────────────────────────────────────────────────
 
-  test('filter: notes pill shows only note entries', async ({ page }) => {
+  test('filter: notes term shows only note entries', async ({ page }) => {
     test.skip((await entryCount(page, 'note')) === 0, 'no notes present');
-    await page.click('[data-filter="note"]');
+    await selectFilterTerm(page, 'Type', TYPE_OPTION.note);
     await expectFilterVisibility(page, 'note');
   });
 
-  test('filter: guides pill shows only guide entries', async ({ page }) => {
+  test('filter: guides term shows only guide entries', async ({ page }) => {
     test.skip((await entryCount(page, 'guide')) === 0, 'no guides present');
-    await page.click('[data-filter="guide"]');
+    await selectFilterTerm(page, 'Type', TYPE_OPTION.guide);
     await expectFilterVisibility(page, 'guide');
   });
 
-  test('filter: slides pill shows only slides entries', async ({ page }) => {
+  test('filter: slides term shows only slides entries', async ({ page }) => {
     test.skip((await entryCount(page, 'slides')) === 0, 'no slides present');
-    await page.click('[data-filter="slides"]');
+    await selectFilterTerm(page, 'Type', TYPE_OPTION.slides);
     await expectFilterVisibility(page, 'slides');
   });
 
-  test('filter: all pill restores all entries after a type filter', async ({ page }) => {
+  test('filter: removing a filter restores all entries', async ({ page }) => {
     const picked = await pickType(page);
     test.skip(picked === null, 'no entries present');
 
-    await page.click(`[data-filter="${picked}"]`);
-    await page.click('[data-filter="all"]');
+    await selectFilterTerm(page, 'Type', TYPE_OPTION[picked!]);
+    await page.getByRole('button', { name: 'Remove Type filter' }).click();
 
     await expectUnfilteredVisible(page);
   });
 
-  test('filter: active pill has aria-pressed="true"', async ({ page }) => {
-    const picked = await pickType(page);
-    test.skip(picked === null, 'no entries present');
-
-    await page.click(`[data-filter="${picked}"]`);
-
-    await expect(page.locator(`[data-filter="${picked}"]`)).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await expect(page.locator('[data-filter="all"]')).toHaveAttribute('aria-pressed', 'false');
-    for (const t of TYPES) {
-      if (t === picked) continue;
-      await expect(page.locator(`[data-filter="${t}"]`)).toHaveAttribute('aria-pressed', 'false');
+  test('filter: searches and selects multiple type terms', async ({ page }) => {
+    const available: EntryType[] = [];
+    for (const type of TYPES) {
+      if ((await entryCount(page, type)) > 0) available.push(type);
     }
+    test.skip(available.length < 2, 'fewer than two entry types present');
+
+    await openFilterField(page, 'Type');
+    const termSearch = page.getByPlaceholder('Search type...');
+    await expect(termSearch).toBeVisible();
+    await termSearch.fill(available[0]);
+    await page.getByRole('option', { name: TYPE_OPTION[available[0]] }).click();
+    await termSearch.fill(available[1]);
+    await page.getByRole('option', { name: TYPE_OPTION[available[1]] }).click();
+
+    const expected = await entryCount(page, available[0]) + await entryCount(page, available[1]);
+    await expect(page.locator('[data-entry]:not([hidden])')).toHaveCount(
+      Math.min(expected, HOME_PAGE_SIZE),
+    );
+    await expect(page.getByRole('button', { name: 'Filter', exact: true })).toBeVisible();
   });
 
   // ── Sort ──────────────────────────────────────────────────────────────────
@@ -173,24 +198,24 @@ test.describe('home page', () => {
     }
   });
 
-  test('tag: active-tag chip appears with the selected tag name', async ({ page }) => {
+  test('tag: selecting an entry tag creates the shared Tag filter', async ({ page }) => {
     const tag = await pickTag(page);
     test.skip(tag === null, 'no tags present');
 
     await page.click(`[data-tag="${tag}"]`);
 
-    await expect(page.locator('[data-active-tag]')).toBeVisible();
-    await expect(page.locator('[data-active-tag-name]')).toHaveText(`#${tag}`);
+    await expect(page.getByRole('button', { name: 'Remove Tag filter' })).toBeVisible();
+    await expect(page.locator('[data-filter-toolbar]')).toContainText(`#${tag}`);
   });
 
-  test('tag: clear button dismisses the filter and hides the chip', async ({ page }) => {
+  test('tag: remove button clears the filter', async ({ page }) => {
     const tag = await pickTag(page);
     test.skip(tag === null, 'no tags present');
 
     await page.click(`[data-tag="${tag}"]`);
-    await page.click('[data-tag-clear]');
+    await page.getByRole('button', { name: 'Remove Tag filter' }).click();
 
-    await expect(page.locator('[data-active-tag]')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove Tag filter' })).toHaveCount(0);
     await expectUnfilteredVisible(page);
   });
 
@@ -201,16 +226,22 @@ test.describe('home page', () => {
     await page.click(`[data-tag="${tag}"]`);
     await page.click(`[data-tag="${tag}"]`);
 
-    await expect(page.locator('[data-active-tag]')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Remove Tag filter' })).toHaveCount(0);
     await expectUnfilteredVisible(page);
   });
 
-  test('tag: topic button gains is-active class when selected', async ({ page }) => {
+  test('filter trigger remains after both Type and Tag are selected', async ({ page }) => {
     const tag = await pickTag(page);
     test.skip(tag === null, 'no tags present');
+    const entry = page.locator(`[data-entry][data-tags~="${tag}"]`).first();
+    const type = await entry.getAttribute('data-type') as EntryType | null;
+    test.skip(type === null, 'tagged entry has no type');
 
+    await selectFilterTerm(page, 'Type', TYPE_OPTION[type!]);
     await page.click(`[data-tag="${tag}"]`);
-    await expect(page.locator(`[data-tag="${tag}"]`).first()).toHaveClass(/is-active/);
+    await expect(page.getByRole('button', { name: 'Remove Type filter' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Tag filter' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filter', exact: true })).toBeVisible();
   });
 
   // ── Filter + tag combination ──────────────────────────────────────────────
@@ -232,7 +263,7 @@ test.describe('home page', () => {
     }
     test.skip(pickedType === null || pickedTag === null, 'no entry with a tag');
 
-    await page.click(`[data-filter="${pickedType}"]`);
+    await selectFilterTerm(page, 'Type', TYPE_OPTION[pickedType as EntryType]);
     await page.click(`[data-tag="${pickedTag}"]`);
 
     // Paging caps how many matches show at once, but: no off-criteria entry
@@ -280,16 +311,19 @@ test.describe('home page', () => {
     await expect(button).toBeHidden();
   });
 
-  test('load more: filter pill resets paging back to the first page', async ({ page }) => {
+  test('load more: removing filters resets paging back to the first page', async ({ page }) => {
     const total = await page.locator('[data-entry]').count();
     test.skip(total <= HOME_PAGE_SIZE, 'not enough entries to paginate');
+    const picked = await pickType(page);
+    test.skip(picked === null, 'no entries present');
 
     await page.locator('[data-load-more]').click();
     await expect
       .poll(() => page.locator('[data-entry]:not([hidden])').count())
       .toBeGreaterThan(HOME_PAGE_SIZE);
 
-    await page.click('[data-filter="all"]');
+    await selectFilterTerm(page, 'Type', TYPE_OPTION[picked!]);
+    await page.getByRole('button', { name: 'Remove Type filter' }).click();
     await expectUnfilteredVisible(page);
   });
 

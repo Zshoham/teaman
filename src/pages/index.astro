@@ -4,10 +4,8 @@ import { SITE_CONFIG } from '../config';
 import { loadAllEntries } from '../lib/entries';
 import { fmtDate } from '../lib/format';
 import QuickLinks from '../components/home/QuickLinks.astro';
-import { FilterBar } from '../components/home/FilterBar';
-import { ActiveTagChip } from '../components/home/ActiveTagChip';
 import { EntryCard } from '../components/home/EntryCard';
-import { TopicsSidebar } from '../components/home/TopicsSidebar';
+import { HomeFilterBar } from '../components/home/HomeFilterBar';
 
 const entries = await loadAllEntries();
 
@@ -34,7 +32,6 @@ const filterTabs = [
 
 const footerLeft = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · last edit ${fmtDate(lastUpdated)}`;
 
-const hasSidebar = topics.length > 0;
 const quickLinks = SITE_CONFIG.links ?? [];
 ---
 
@@ -45,16 +42,16 @@ const quickLinks = SITE_CONFIG.links ?? [];
   )}
 
   <div
-    class:list={[
-      'grid gap-10 pt-4',
-      hasSidebar ? 'md:grid-cols-[minmax(0,1fr)_240px] md:gap-16' : 'md:grid-cols-1',
-    ]}
+    class="grid gap-10 pt-4 md:grid-cols-1"
     data-list-layout
-    data-has-sidebar={hasSidebar ? 'true' : 'false'}
   >
     <div>
-      <FilterBar filterTabs={filterTabs} />
-      <ActiveTagChip />
+      <HomeFilterBar
+        filterTabs={filterTabs}
+        topics={topics}
+        entries={entries.map(({ id, type, tags }) => ({ id, type, tags }))}
+        client:load
+      />
 
       <div id="entries" class="flex flex-col scroll-mt-[calc(var(--header-h)_+_4rem)]" data-entries>
         {entries.map(e => <EntryCard entry={e} />)}
@@ -69,32 +66,28 @@ const quickLinks = SITE_CONFIG.links ?? [];
         hidden
       >load more</button>
     </div>
-
-    {hasSidebar && <TopicsSidebar topics={topics} client:load />}
   </div>
 </Layout>
 
 <script>
   import { createListController } from '../scripts/list-controller';
+  import {
+    HOME_FILTER_CHANGE_EVENT,
+    HOME_FILTER_TERM_EVENT,
+    type HomeFilterChangeDetail,
+    type HomeFilterTermDetail,
+  } from '../lib/home-filter-events';
 
   const entriesList = document.querySelector<HTMLElement>('[data-entries]');
   const layout = document.querySelector<HTMLElement>('[data-list-layout]');
   if (entriesList) {
-    const filterPills = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('[data-filter-pills] [data-filter]')
-    );
     const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
-
     const loadMoreBtn = document.querySelector<HTMLButtonElement>('[data-load-more]');
 
-    createListController({
+    const controller = createListController({
       container: entriesList,
       itemSelector: '[data-entry]',
       emptyState: document.querySelector<HTMLElement>('[data-empty]'),
-      filter: {
-        pills: filterPills,
-        attr: 'data-type',
-      },
       sort: sortToggle
         ? {
             toggle: sortToggle,
@@ -103,14 +96,6 @@ const quickLinks = SITE_CONFIG.links ?? [];
             ariaLabelFor: dir => `Sort: ${dir === 'asc' ? 'oldest first' : 'newest first'}`,
           }
         : undefined,
-      tag: {
-        attr: 'data-tags',
-        activeWrap: document.querySelector<HTMLElement>('[data-active-tag]'),
-        activeName: document.querySelector<HTMLElement>('[data-active-tag-name]'),
-        clearButton: document.querySelector<HTMLButtonElement>('[data-tag-clear]'),
-        clickRoot: layout ?? document,
-        tagRoot: layout ?? entriesList,
-      },
       loadMore: loadMoreBtn
         ? {
             button: loadMoreBtn,
@@ -118,6 +103,22 @@ const quickLinks = SITE_CONFIG.links ?? [];
             label: remaining => `load more · ${remaining}`,
           }
         : undefined,
+    });
+
+    const filterRoot = document.querySelector<HTMLElement>('[data-home-filter-bar]');
+    filterRoot?.addEventListener(HOME_FILTER_CHANGE_EVENT, (event) => {
+      const detail = (event as CustomEvent<HomeFilterChangeDetail>).detail;
+      controller.setMatchedIds(detail.matchedIds);
+    });
+
+    layout?.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      const tagButton = target?.closest<HTMLElement>('[data-tag]');
+      const value = tagButton?.dataset.tag;
+      if (!filterRoot || !value) return;
+      event.preventDefault();
+      const detail: HomeFilterTermDetail = { field: 'tag', value };
+      filterRoot.dispatchEvent(new CustomEvent(HOME_FILTER_TERM_EVENT, { detail }));
     });
   }
 </script>

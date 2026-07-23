@@ -1,12 +1,18 @@
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { STATUS_LABEL, statusColor, type AdrStatus } from "@/lib/adr-shared";
+import { Badge, type BadgeProps } from '@/components/reui/badge';
+import { cn } from '@/lib/utils';
+import { STATUS_LABEL, type AdrStatus } from '@/lib/adr-shared';
+
+const STATUS_VARIANT: Record<AdrStatus, BadgeProps['variant']> = {
+  accepted: 'success-light',
+  proposed: 'warning-light',
+  superseded: 'info-light',
+};
 
 /**
  * The single status pill used wherever a decision's status is shown — the
  * decisions timeline (cards + modal) and the home feed — so they always match.
- * Built on the shared `Badge` primitive; the status hue rides in as a tinted
- * fill + border via the global `--st-*` tokens.
+ * Built on ReUI's shared `Badge` primitive. Its semantic variants are mapped
+ * back to the vault's theme-reactive `--st-*` tokens in global.css.
  */
 export function StatusBadge({
   status,
@@ -15,18 +21,14 @@ export function StatusBadge({
   status: AdrStatus;
   className?: string;
 }) {
-  const color = statusColor(status);
   return (
     <Badge
-      variant="outline"
-      className={cn("gap-1.5 font-mono text-meta uppercase tracking-label-sm", className)}
-      style={{
-        color,
-        borderColor: `color-mix(in oklab, ${color} 30%, var(--border))`,
-        background: `color-mix(in oklab, ${color} 10%, transparent)`,
-      }}
+      variant={STATUS_VARIANT[status]}
+      radius="full"
+      className={cn('font-mono uppercase tracking-label-sm', className)}
+      data-adr-status={status}
     >
-      <span className="size-[6px] rounded-full bg-current" />
+      <span className="ms-0.25 size-1.25 rounded-full! bg-[currentColor]" />
       {STATUS_LABEL[status]}
     </Badge>
   );

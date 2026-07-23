@@ -6,6 +6,8 @@
  * door in `adr.ts`.
  */
 
+import { matchesFilterRules, type FilterRule } from './filter-rules';
+
 export type AdrStatus = 'accepted' | 'proposed' | 'superseded';
 
 /** Display labels for each status, in canonical render order. */
@@ -129,6 +131,9 @@ export interface AdrFilter {
   tags: Set<string>;
 }
 
+/** UI-neutral shape shared with ReUI's controlled `Filter` records. */
+export type AdrFilterRule = FilterRule;
+
 /**
  * A record shows when its status is selected AND, if any tags are selected, it
  * carries at least one of them. Pure — shared by the component and its tests.
@@ -137,4 +142,15 @@ export function adrMatches(card: { status: string; tags: string[] }, active: Adr
   if (!active.statuses.has(card.status)) return false;
   if (active.tags.size > 0 && !card.tags.some((t) => active.tags.has(t))) return false;
   return true;
+}
+
+/** Applies ReUI filter rules to one ADR without coupling this domain helper to React. */
+export function adrMatchesRules(
+  card: { status: string; tags: string[] },
+  rules: AdrFilterRule[],
+): boolean {
+  return matchesFilterRules(
+    { status: [card.status], tag: card.tags },
+    rules,
+  );
 }

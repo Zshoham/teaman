@@ -2,6 +2,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   adrRelationLabel,
   statusColor,
@@ -26,10 +27,10 @@ export function AdrDetailDialog({
 }: AdrDetailDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="h-[min(90vh,760px)]">
         {shown && (
-          <>
-            <div className="relative border-b border-border px-9 pt-[30px] pb-[22px] max-[760px]:px-[22px]">
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="relative shrink-0 border-b border-border px-9 pt-[30px] pb-[22px] max-[760px]:px-[22px]">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-mono text-meta tabular-nums text-primary">
                   ADR-{shown.num}
@@ -100,7 +101,7 @@ export function AdrDetailDialog({
                 </div>
               )}
             </div>
-          </>
+          </ScrollArea>
         )}
       </DialogContent>
     </Dialog>

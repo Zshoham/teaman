@@ -10,6 +10,7 @@ export function EntryCard({ entry: e }: Props) {
     <article
       className="entry py-7 [&:not([hidden])~&:not([hidden])]:border-t [&:not([hidden])~&:not([hidden])]:border-border"
       data-entry
+      data-entry-id={e.id}
       data-type={e.type}
       data-tags={e.tags.join(" ")}
       data-updated={e.updated}

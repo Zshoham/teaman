@@ -71,6 +71,7 @@ export type SortDir = 'asc' | 'desc';
 
 interface Item {
   el: HTMLElement;
+  id: string;
   filterValue: string;
   sortValue: string;
   tags: string[];
@@ -79,6 +80,8 @@ interface Item {
 export interface ListController {
   /** Force a re-application of the current state. */
   refresh: () => void;
+  /** Restrict visibility to externally matched item ids; null clears it. */
+  setMatchedIds: (ids: string[] | null) => void;
   /** Tear down event listeners. */
   destroy: () => void;
 }
@@ -88,6 +91,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
     cfg.container.querySelectorAll<HTMLElement>(cfg.itemSelector)
   ).map(el => ({
     el,
+    id: el.getAttribute('data-entry-id') ?? '',
     filterValue: cfg.filter ? el.getAttribute(cfg.filter.attr) ?? '' : '',
     sortValue: cfg.sort ? el.getAttribute(cfg.sort.attr) ?? '' : '',
     tags: cfg.tag
@@ -100,6 +104,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
   let filterValue = filterDefault;
   let sortDir: SortDir = cfg.sort?.initial ?? 'desc';
   let activeTag: string | null = null;
+  let matchedIds: Set<string> | null = null;
   let page = 1;
 
   // Changing the filter or active tag should drop the page count — otherwise
@@ -140,7 +145,8 @@ export function createListController(cfg: ListControllerConfig): ListController 
     for (const it of orderedItems) {
       const matchFilter = filterValue === filterDefault || it.filterValue === filterValue;
       const matchTag = !activeTag || it.tags.includes(activeTag);
-      const eligible = matchFilter && matchTag;
+      const matchExternal = matchedIds === null || matchedIds.has(it.id);
+      const eligible = matchFilter && matchTag && matchExternal;
       let show = false;
       if (eligible) {
         matched++;
@@ -264,6 +270,11 @@ export function createListController(cfg: ListControllerConfig): ListController 
 
   return {
     refresh: () => schedule(false),
+    setMatchedIds: (ids) => {
+      matchedIds = ids === null ? null : new Set(ids);
+      resetPage();
+      schedule(false);
+    },
     destroy: () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       cleanups.forEach(fn => fn());
