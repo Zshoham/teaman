@@ -9,22 +9,12 @@ import {
 } from '@/components/reui/filters';
 import { coalesceFilterRules, matchesFilterRules } from '@/lib/filter-rules';
 import {
-  HOME_FILTER_CHANGE_EVENT,
-  HOME_FILTER_TERM_EVENT,
-  type HomeFilterChangeDetail,
-  type HomeFilterTermDetail,
-} from '@/lib/home-filter-events';
-
-interface FilterTab {
-  id: string;
-  label: string;
-  count: number;
-}
-
-interface Topic {
-  tag: string;
-  count: number;
-}
+  ENTRY_FILTER_CHANGE_EVENT,
+  ENTRY_FILTER_TERM_EVENT,
+  type EntryFilterChangeDetail,
+  type EntryFilterTermDetail,
+} from '@/lib/entry-filter-events';
+import type { FilterTab, Topic } from '@/lib/collection-index';
 
 interface FilterableEntry {
   id: string;
@@ -36,6 +26,14 @@ interface Props {
   filterTabs: FilterTab[];
   topics: Topic[];
   entries: FilterableEntry[];
+  /** Unit named in the "N of M" readout — "notes" on a per-collection index. */
+  resultLabel?: string;
+  /**
+   * Field to open as a chip on load. A per-collection index has only the Tag
+   * field left, so hiding it behind an "add filter" menu of one entry is pure
+   * friction — the chip is shown ready to pick from instead.
+   */
+  preselectField?: string;
 }
 
 function titleCase(value: string): string {
@@ -66,13 +64,31 @@ function toggleTerm(
   ));
 }
 
-/** Home-specific state adapter around the shared collection filter surface. */
-export function HomeFilterBar({ filterTabs, topics, entries }: Props) {
-  const [filters, setFilters] = useState<Filter<string>[]>([]);
+/** Entry-list state adapter around the shared collection filter surface. */
+export function EntryFilterBar({
+  filterTabs,
+  topics,
+  entries,
+  resultLabel = 'entries',
+  preselectField,
+}: Props) {
+  // An empty rule matches everything (see `matchesFilterRules`), so the chip
+  // starts as a value picker rather than a filter. Fixed id: `createFilter`
+  // randomises one, which would differ between SSR and hydration.
+  const [filters, setFilters] = useState<Filter<string>[]>(() =>
+    preselectField
+      ? [{ id: `preselect-${preselectField}`, field: preselectField, operator: 'is_any_of', values: [] }]
+      : [],
+  );
   const rootRef = useRef<HTMLDivElement>(null);
   const fields = useMemo<FilterFieldConfig<string>[]>(() => {
-    const next: FilterFieldConfig<string>[] = [
-      {
+    const next: FilterFieldConfig<string>[] = [];
+
+    // A per-collection index is already scoped to one type, so `buildFilterTabs`
+    // hands back only the `all` tab there and the Type field is dropped.
+    const typeTabs = filterTabs.filter((tab) => tab.id !== 'all');
+    if (typeTabs.length > 0) {
+      next.push({
         key: 'type',
         label: 'Type',
         icon: <FilesIcon className="size-3.5" aria-hidden="true" />,
@@ -83,14 +99,12 @@ export function HomeFilterBar({ filterTabs, topics, entries }: Props) {
           { value: 'is_any_of', label: 'is any of' },
           { value: 'is_not_any_of', label: 'is not any of' },
         ],
-        options: filterTabs
-          .filter((tab) => tab.id !== 'all')
-          .map((tab) => ({
-            value: tab.id,
-            label: `${titleCase(tab.label)} (${tab.count})`,
-          })),
-      },
-    ];
+        options: typeTabs.map((tab) => ({
+          value: tab.id,
+          label: `${titleCase(tab.label)} (${tab.count})`,
+        })),
+      });
+    }
 
     if (topics.length > 0) {
       next.push({
@@ -127,41 +141,45 @@ export function HomeFilterBar({ filterTabs, topics, entries }: Props) {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const detail: HomeFilterChangeDetail = {
+    const detail: EntryFilterChangeDetail = {
       matchedIds: filters.length > 0 ? filteredEntries.map((entry) => entry.id) : null,
     };
-    root.dispatchEvent(new CustomEvent(HOME_FILTER_CHANGE_EVENT, { detail }));
+    root.dispatchEvent(new CustomEvent(ENTRY_FILTER_CHANGE_EVENT, { detail }));
   }, [filteredEntries, filters.length]);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     const handleTerm = (event: Event) => {
-      const { field, value } = (event as CustomEvent<HomeFilterTermDetail>).detail;
+      const { field, value } = (event as CustomEvent<EntryFilterTermDetail>).detail;
       setFilters((current) => toggleTerm(current, field, value));
     };
-    root.addEventListener(HOME_FILTER_TERM_EVENT, handleTerm);
-    return () => root.removeEventListener(HOME_FILTER_TERM_EVENT, handleTerm);
+    root.addEventListener(ENTRY_FILTER_TERM_EVENT, handleTerm);
+    return () => root.removeEventListener(ENTRY_FILTER_TERM_EVENT, handleTerm);
   }, []);
 
   const handleChange = (next: Filter<string>[]) => {
     setFilters(next.filter(
       (filter) => filter.values.length > 0 ||
         filter.operator === 'empty' ||
-        filter.operator === 'not_empty',
+        filter.operator === 'not_empty' ||
+        // Clearing the preselected chip's values leaves the picker in place;
+        // removing the chip outright still removes it.
+        filter.field === preselectField,
     ));
   };
 
   return (
-    <div ref={rootRef} data-home-filter-bar>
+    <div ref={rootRef} data-entry-filter-bar>
       <CollectionFilterBar
         className="-mx-px mb-1"
         filters={filters}
         fields={fields}
         onChange={handleChange}
+        allowMultiple={!preselectField}
         resultCount={filteredEntries.length}
         totalCount={entries.length}
-        resultLabel="entries"
+        resultLabel={resultLabel}
         actions={
           <button
             type="button"

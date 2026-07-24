@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { EntryType } from '../src/lib/entries';
 
-const TYPES = ['note', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
+const TYPES = ['note', 'daily', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
 
 async function entryCount(page: Page, type?: EntryType): Promise<number> {
   const sel = type ? `[data-entry][data-type="${type}"]` : '[data-entry]';
@@ -10,10 +10,19 @@ async function entryCount(page: Page, type?: EntryType): Promise<number> {
 
 const TYPE_OPTION: Record<EntryType, RegExp> = {
   note: /^Notes \(/,
+  daily: /^Dailies \(/,
   guide: /^Guides \(/,
   slides: /^Slides \(/,
   decision: /^Decisions \(/,
 };
+
+/**
+ * The option search matches on the *label*, not the type id — typing "daily"
+ * never finds "Dailies (32)". Derive the term from the label pattern instead.
+ */
+function typeSearchTerm(type: EntryType): string {
+  return TYPE_OPTION[type].source.replace(/^\^/, '').replace(/ \\\($/, '');
+}
 
 async function openFilterField(page: Page, field: 'Type' | 'Tag') {
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
@@ -145,9 +154,9 @@ test.describe('home page', () => {
     await openFilterField(page, 'Type');
     const termSearch = page.getByPlaceholder('Search type...');
     await expect(termSearch).toBeVisible();
-    await termSearch.fill(available[0]);
+    await termSearch.fill(typeSearchTerm(available[0]));
     await page.getByRole('option', { name: TYPE_OPTION[available[0]] }).click();
-    await termSearch.fill(available[1]);
+    await termSearch.fill(typeSearchTerm(available[1]));
     await page.getByRole('option', { name: TYPE_OPTION[available[1]] }).click();
 
     const expected = await entryCount(page, available[0]) + await entryCount(page, available[1]);

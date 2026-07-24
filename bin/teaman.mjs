@@ -321,10 +321,11 @@ function cmdInit(vaultArg) {
 }
 
 // ── doctor: validate config + lint content without a full build ──────────────
-const KNOWN_KEYS = new Set(['brand', 'tagline', 'logo', 'hero', 'footerNote', 'engine', 'theme', 'base', 'slides', 'links']);
+const KNOWN_KEYS = new Set(['brand', 'tagline', 'logo', 'hero', 'footerNote', 'engine', 'theme', 'base', 'slides', 'links', 'smartLinks']);
 const KNOWN_HERO_KEYS = new Set(['eyebrow', 'title', 'description']);
 const KNOWN_SLIDES_KEYS = new Set(['logo', 'primary', 'secondary', 'footer']);
 const KNOWN_LINK_KEYS = new Set(['label', 'url', 'description', 'icon']);
+const KNOWN_SMART_LINK_KEYS = new Set(['jira', 'confluence', 'gitlab']);
 
 function knownThemeTokens() {
   try {
@@ -384,6 +385,29 @@ async function cmdDoctor(vaultArg) {
             if (!KNOWN_LINK_KEYS.has(k)) warnings.push(`config: unknown link key "${k}" (links[${i}])`);
           }
         });
+      }
+    }
+    if (config.smartLinks !== undefined) {
+      if (typeof config.smartLinks !== 'object' || Array.isArray(config.smartLinks) || !config.smartLinks) {
+        problems.push('config: "smartLinks" must be an object keyed by service');
+      } else {
+        for (const [service, hosts] of Object.entries(config.smartLinks)) {
+          if (!KNOWN_SMART_LINK_KEYS.has(service)) {
+            warnings.push(`config: unknown smartLinks service "${service}"`);
+            continue;
+          }
+          if (!Array.isArray(hosts)) {
+            problems.push(`config: smartLinks.${service} must be an array of hostnames`);
+            continue;
+          }
+          hosts.forEach((h, i) => {
+            if (typeof h !== 'string' || !h.trim()) {
+              problems.push(`config: smartLinks.${service}[${i}] must be a non-empty hostname`);
+            } else if (!/^(\*\.)?[a-z0-9.-]+$/i.test(h.trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, ''))) {
+              warnings.push(`config: smartLinks.${service}[${i}] "${h}" doesn't look like a hostname`);
+            }
+          });
+        }
       }
     }
     const tokens = knownThemeTokens();

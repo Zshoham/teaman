@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CollectionIndex from '../../components/collection/CollectionIndex.astro';
+import { loadGuideEntries } from '../../lib/entries';
+import { footerSummary } from '../../lib/collection-index';
+
+const entries = (await loadGuideEntries()).sort((a, b) => b.updated.localeCompare(a.updated));
+const footerLeft = footerSummary(entries, 'guide', 'guides');
+---
+
+<Layout title="Guides" footerLeft={footerLeft}>
+  <h1 class="sr-only">Guides</h1>
+  <CollectionIndex
+    entries={entries}
+    resultLabel="guides"
+    emptyMessage="no guides yet."
+  />
+</Layout>

@@ -21,6 +21,12 @@ interface Props<T extends string> {
   resultLabel: string;
   actions?: ReactNode;
   className?: string;
+  /**
+   * Whether a field can be added more than once. `false` also drops fields that
+   * already have a chip from the add menu, which hides the trigger entirely
+   * once every field is in use.
+   */
+  allowMultiple?: boolean;
 }
 
 /** Shared ReUI filtering surface for collection pages such as Home and ADRs. */
@@ -33,6 +39,7 @@ export function CollectionFilterBar<T extends string>({
   resultLabel,
   actions,
   className,
+  allowMultiple = true,
 }: Props<T>) {
   const handleChange = (next: Filter<T>[]) => {
     onChange(coalesceFilterRules(next));
@@ -47,6 +54,10 @@ export function CollectionFilterBar<T extends string>({
         )}
         data-filter-toolbar
       >
+        {/* A collection with nothing to filter on (a guides-only list, which
+            carries no tags) keeps the count + sort row and drops the trigger
+            rather than opening an empty menu. */}
+        {fields.length > 0 && (
         <ScrollArea
           className="min-w-0 max-w-full max-[760px]:w-full"
           data-filter-scroll
@@ -57,7 +68,7 @@ export function CollectionFilterBar<T extends string>({
             filters={filters}
             fields={fields}
             onChange={handleChange}
-            allowMultiple
+            allowMultiple={allowMultiple}
             showSearchInput
             trigger={
               <Button
@@ -73,6 +84,7 @@ export function CollectionFilterBar<T extends string>({
           />
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+        )}
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           <div

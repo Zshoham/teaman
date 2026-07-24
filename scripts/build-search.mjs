@@ -22,10 +22,11 @@ if (createErrors.length) {
 }
 
 // Index every built HTML page except the slidev SPAs (their bodies are empty
-// until JS runs, so pagefind would only see a stub title).
+// until JS runs, so pagefind would only see a stub title). `slides/index.html`
+// is the Astro-rendered deck index, not a deck, so it is listed explicitly.
 const { errors: dirErrors, page_count } = await index.addDirectory({
   path: publicDir,
-  glob: '{index.html,{collections,daily,guides,notes}/**/*.html}',
+  glob: '{index.html,slides/index.html,{collections,daily,guides,notes}/**/*.html}',
 });
 if (dirErrors.length) {
   console.error('pagefind.addDirectory errors:', dirErrors);

@@ -1,6 +1,7 @@
 ---
 title: Teaman — Knowledge as a Website
 theme: default
+tags: [teaman, overview]
 ---
 
 # Teaman

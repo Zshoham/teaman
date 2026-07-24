@@ -19,7 +19,7 @@ The vault never contains engine source, only:
 my-vault/
   teaman.config.js     # site identity + theme (see below)
   notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml, tikz, typst)
-  guides/   <slug>/SUMMARY.md + chapters
+  guides/   <slug>/SUMMARY.md + chapters   # tag the guide in SUMMARY.md frontmatter
   slides/   *.md        # Slidev decks
   dailies/  YYYY-MM-DD.md
   decisions/ adr-NNNN.md # architecture decision records (timeline at /decisions/)
@@ -27,6 +27,11 @@ my-vault/
 ```
 
 Run `npx @zshoham/teaman init my-vault` to scaffold the config and content dirs.
+
+Every content kind gets its own index — `/notes/`, `/guides/`, `/slides/`,
+`/daily/`, `/decisions/` — and the header links the ones your vault actually
+has, so a vault with no decks never shows a `slides` link. `/` stays the
+combined feed across all of them.
 
 Each `decisions/adr-NNNN.md` is one Architecture Decision Record: frontmatter
 carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), optional
@@ -106,6 +111,10 @@ export default {
     { label: 'repo', url: 'https://github.com/me/vault', icon: 'github' },
   ],                             // `icon`: curated lucide set or any string (emoji ok).
                                  // tile sizes are auto-computed from content + count.
+  smartLinks: {                 // extra hosts rendered as service chips in prose
+    gitlab: ['gitlab.acme.io'], // (*.atlassian.net + gitlab.com work out of the box)
+    jira: ['jira.acme.io'],
+  },
   theme: {                      // CSS-var overrides (the entire styling surface)
     '--primary': 'oklch(0.67 0.14 48)',
     '--radius': '0.5rem',
@@ -118,6 +127,33 @@ export default {
   },
 };
 ```
+
+### Smart links
+
+Links to Jira, Confluence and GitLab in note prose render as a chip instead of a
+plain underline: a tinted stub carrying the ref parsed out of the URL, then the
+link's own text.
+
+| You write | You get |
+|---|---|
+| `[Rewrite the path](…/browse/PLAT-412)` | `PLAT-412 │ Rewrite the path` |
+| `<…/wiki/spaces/ENG/pages/1/Cache+Strategy>` | `ENG │ Cache Strategy` |
+| `[Drop the layer](…/-/merge_requests/284)` | `!284 │ Drop the layer` |
+| `<…/-/issues/77>` | `platform/api#77` |
+| `<…/-/commit/a1b2c3d4>` | `platform/api@a1b2c3d` |
+| `<…/-/blob/main/src/cache.ts>` | `api/src/cache.ts` |
+
+A link with no text of its own (a bare URL or an autolink) shows the
+fully-qualified ref, since nothing else supplies the context; a labelled link
+shows the short one. Confluence is the exception — its page title is recoverable
+from the URL slug, so even a bare link gets a readable tail.
+
+Everything is derived from the href alone: no API calls, no tokens, nothing
+fetched at build time. Atlassian Cloud (`*.atlassian.net`) and `gitlab.com` are
+recognised by default; `smartLinks` adds self-hosted instances (GitLab CE/EE,
+Jira Data Center) and **extends** the defaults rather than replacing them. The
+three service hues are theme tokens like any other — `--sv-jira`,
+`--sv-confluence`, `--sv-gitlab` — so a vault can retune them via `theme`.
 
 ### Theming
 

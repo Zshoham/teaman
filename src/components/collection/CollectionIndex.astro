@@ -1,0 +1,111 @@
+---
+import type { Entry } from '../../lib/entries';
+import { buildFilterTabs, buildTopics } from '../../lib/collection-index';
+import { EntryCard } from './EntryCard';
+import { EntryFilterBar } from './EntryFilterBar';
+
+interface Props {
+  /** Entries to list, already sorted newest-first. */
+  entries: Entry[];
+  /** Unit named in the filter bar's "N of M" readout. */
+  resultLabel?: string;
+  /** Shown in place of the list when the vault has nothing of this kind. */
+  emptyMessage?: string;
+}
+
+const { entries, resultLabel = 'entries', emptyMessage } = Astro.props;
+
+// A list scoped to one type gets `all` only, which drops the Type field. That
+// leaves Tag as the sole filter, so open it as a chip instead of burying it in
+// a one-item add-filter menu.
+const filterTabs = buildFilterTabs(entries);
+const topics = buildTopics(entries);
+const scoped = filterTabs.length === 1;
+const preselectField = scoped && topics.length > 0 ? 'tag' : undefined;
+---
+
+<div class="grid gap-10 pt-4 md:grid-cols-1" data-list-layout>
+  <div>
+    {entries.length === 0 && emptyMessage ? (
+      <p class="py-10 text-center font-mono text-sm text-faint">{emptyMessage}</p>
+    ) : (
+      <>
+        <EntryFilterBar
+          filterTabs={filterTabs}
+          topics={topics}
+          entries={entries.map(({ id, type, tags }) => ({ id, type, tags }))}
+          resultLabel={resultLabel}
+          preselectField={preselectField}
+          client:load
+        />
+
+        <div id="entries" class="flex flex-col scroll-mt-[calc(var(--header-h)_+_4rem)]" data-entries>
+          {entries.map(e => <EntryCard entry={e} />)}
+        </div>
+        <div class="py-10 text-center font-mono text-sm text-faint [&[hidden]]:hidden" data-empty hidden>
+          nothing matches.
+        </div>
+        <button
+          type="button"
+          class="mx-auto mt-8 block cursor-pointer rounded-md border border-border bg-transparent px-4.5 py-2 font-[inherit] text-meta-lg tabular-nums tracking-wide text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none [&[hidden]]:hidden"
+          data-load-more
+          hidden
+        >load more</button>
+      </>
+    )}
+  </div>
+</div>
+
+<script>
+  import { createListController } from '../../scripts/list-controller';
+  import {
+    ENTRY_FILTER_CHANGE_EVENT,
+    ENTRY_FILTER_TERM_EVENT,
+    type EntryFilterChangeDetail,
+    type EntryFilterTermDetail,
+  } from '../../lib/entry-filter-events';
+
+  const entriesList = document.querySelector<HTMLElement>('[data-entries]');
+  const layout = document.querySelector<HTMLElement>('[data-list-layout]');
+  if (entriesList) {
+    const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
+    const loadMoreBtn = document.querySelector<HTMLButtonElement>('[data-load-more]');
+
+    const controller = createListController({
+      container: entriesList,
+      itemSelector: '[data-entry]',
+      emptyState: document.querySelector<HTMLElement>('[data-empty]'),
+      sort: sortToggle
+        ? {
+            toggle: sortToggle,
+            attr: 'data-updated',
+            arrow: sortToggle.querySelector<HTMLElement>('.sort-arrow'),
+            ariaLabelFor: dir => `Sort: ${dir === 'asc' ? 'oldest first' : 'newest first'}`,
+          }
+        : undefined,
+      loadMore: loadMoreBtn
+        ? {
+            button: loadMoreBtn,
+            pageSize: 10,
+            label: remaining => `load more · ${remaining}`,
+          }
+        : undefined,
+    });
+
+    const filterRoot = document.querySelector<HTMLElement>('[data-entry-filter-bar]');
+    filterRoot?.addEventListener(ENTRY_FILTER_CHANGE_EVENT, (event) => {
+      const detail = (event as CustomEvent<EntryFilterChangeDetail>).detail;
+      controller.setMatchedIds(detail.matchedIds);
+    });
+
+    layout?.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      const tagButton = target?.closest<HTMLElement>('[data-tag]');
+      const value = tagButton?.dataset.tag;
+      if (!filterRoot || !value) return;
+      event.preventDefault();
+      const detail: EntryFilterTermDetail = { field: 'tag', value };
+      filterRoot.dispatchEvent(new CustomEvent(ENTRY_FILTER_TERM_EVENT, { detail }));
+    });
+  }
+</script>

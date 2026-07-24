@@ -1,0 +1,20 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CollectionIndex from '../../components/collection/CollectionIndex.astro';
+import { loadSlideEntries } from '../../lib/entries';
+import { footerSummary } from '../../lib/collection-index';
+
+// Each deck links out to its own Slidev SPA at /slides/<deck>/, which
+// `scripts/build-slides.mjs` writes alongside this page after `astro build`.
+const entries = (await loadSlideEntries()).sort((a, b) => b.updated.localeCompare(a.updated));
+const footerLeft = footerSummary(entries, 'deck', 'decks');
+---
+
+<Layout title="Slides" footerLeft={footerLeft}>
+  <h1 class="sr-only">Slides</h1>
+  <CollectionIndex
+    entries={entries}
+    resultLabel="decks"
+    emptyMessage="no slide decks yet."
+  />
+</Layout>

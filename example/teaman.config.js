@@ -48,6 +48,24 @@ export default {
     { label: 'made slowly', url: 'https://slowdown.xyz', icon: 'coffee' },
   ],
 
+  // Hosts whose links render as smart-link chips in note prose (see the demo
+  // at the bottom of notes/shipping-cadence.md). The ref in the chip is parsed
+  // out of the URL itself — no API calls, nothing fetched at build time.
+  //
+  // The three lists below are exactly the built-in defaults, spelled out here
+  // so the shape is visible; a vault that only links to Atlassian Cloud and
+  // gitlab.com can omit the whole block. Entries **extend** the defaults rather
+  // than replacing them, so adding a self-hosted instance keeps the public ones
+  // working. A bare hostname is enough; `*.` matches any subdomain.
+  smartLinks: {
+    jira: ['*.atlassian.net'],
+    confluence: ['*.atlassian.net'],
+    gitlab: ['gitlab.com'],
+    // Self-hosted instances go alongside them:
+    // gitlab: ['gitlab.com', 'gitlab.acme.io'],
+    // jira: ['*.atlassian.net', 'jira.acme.io'],
+  },
+
   // Per-vault theming is the entire customization surface — override CSS tokens
   // here rather than editing engine source, so upgrades never need a merge.
   // theme: {

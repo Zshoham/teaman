@@ -81,6 +81,23 @@ export interface SiteConfig {
    */
   links?: QuickLink[];
   /**
+   * Extra hostnames that should render as smart-link chips in note prose —
+   * links to Jira issues, Confluence pages and GitLab MRs/issues/commits/files
+   * are drawn as a tinted chip carrying the ref parsed out of the URL.
+   *
+   * Atlassian Cloud (`*.atlassian.net`) and `gitlab.com` are recognised out of
+   * the box; this is for self-hosted instances (GitLab CE/EE, Jira Data
+   * Center). Entries **extend** the defaults rather than replacing them, so a
+   * vault linking to both its own GitLab and gitlab.com keeps working. A bare
+   * hostname is enough (`gitlab.acme.io`); a scheme or `*.` subdomain wildcard
+   * is also accepted.
+   */
+  smartLinks?: {
+    jira?: string[];
+    confluence?: string[];
+    gitlab?: string[];
+  };
+  /**
    * Semver range of the `teaman` engine this vault targets (e.g. `"^1.4"`).
    * Read only by the CLI, which warns when the running engine falls outside it.
    * Ignored by the site itself.

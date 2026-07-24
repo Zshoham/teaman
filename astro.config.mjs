@@ -13,6 +13,7 @@ import { remarkMermaid } from './src/lib/remark-mermaid.mjs';
 import { remarkPlantuml } from './src/lib/remark-plantuml.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
 import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
+import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { normalizeBase } from './src/lib/site-base.mjs';
 
@@ -38,6 +39,18 @@ const svgRoots = [
   join(vaultRoot, 'public'),
   fileURLToPath(new URL('./resources', import.meta.url)),
 ].filter(Boolean);
+
+// Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira
+// Data Center. The markdown pipeline runs inside this config, which can't import
+// the TS `src/config.ts`, so read the same TEAMAN_CONFIG env var it reads —
+// absent (plain `npm run dev`, the tests) just means the built-in hosts.
+const smartLinkHosts = (() => {
+  try {
+    return JSON.parse(process.env.TEAMAN_CONFIG ?? '{}').smartLinks ?? undefined;
+  } catch {
+    return undefined;
+  }
+})();
 
 export default defineConfig({
   base,
@@ -71,6 +84,9 @@ export default defineConfig({
           hrefTemplate: (permalink) => `${base}notes/${permalink}/`,
           aliasDivider: '|',
         }],
+        // After wiki-link so it sees every link node; in-site hrefs never match
+        // a service host, so the two don't interact.
+        [remarkSmartLinks, { hosts: smartLinkHosts }],
       ],
       rehypePlugins: [
         rehypeCallouts,

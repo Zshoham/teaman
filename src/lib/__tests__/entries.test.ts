@@ -9,6 +9,7 @@ import { stat } from 'fs/promises';
 import {
   isoDate,
   loadDailyNoteEntries,
+  loadGuideEntries,
   loadNoteEntries,
   loadSlideEntries,
 } from '../entries';
@@ -279,10 +280,61 @@ describe('loadDailyNoteEntries', () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       id: 'daily-2026-05-04',
+      type: 'daily',
       title: 'Monday, may 4',
       updated: '2026-05-04',
       created: '2026-05-04',
       href: '/daily/2026-05-03/#day-2026-05-04',
     });
+  });
+});
+
+describe('loadGuideEntries', () => {
+  beforeEach(() => {
+    vi.mocked(getCollection).mockReset();
+    vi.mocked(stat).mockReset();
+    vi.mocked(stat).mockResolvedValue({
+      mtime: new Date('2026-03-10T00:00:00Z'),
+      birthtime: new Date('2026-01-05T00:00:00Z'),
+    } as any);
+  });
+
+  function stubGuide(summaryData: Record<string, unknown>) {
+    vi.mocked(getCollection).mockImplementation(((name: string) => {
+      if (name === 'guideSummaries') {
+        return Promise.resolve([
+          {
+            id: 'rust/summary',
+            data: summaryData,
+            body: '# Rust\n\n- [Intro](./intro.md)\n',
+          },
+        ]);
+      }
+      if (name === 'guides') {
+        return Promise.resolve([
+          { id: 'rust/intro', data: { title: 'Intro' }, body: 'chapter body' },
+        ]);
+      }
+      return Promise.resolve([]);
+    }) as any);
+  }
+
+  it('carries the tags declared on SUMMARY.md', async () => {
+    stubGuide({ tags: ['rust', 'systems'] });
+
+    const entries = await loadGuideEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      id: 'guide-rust',
+      type: 'guide',
+      tags: ['rust', 'systems'],
+    });
+  });
+
+  it('defaults to no tags when SUMMARY.md declares none', async () => {
+    stubGuide({});
+
+    const entries = await loadGuideEntries();
+    expect(entries[0].tags).toEqual([]);
   });
 });

@@ -1,21 +1,27 @@
 ---
 import { SITE_CONFIG } from '../config';
 import { ThemeToggle } from './ThemeToggle';
-import { loadDailyWeeks, weekHref } from '../lib/dailies';
+import { NavMenu } from './NavMenu';
+import { isSectionActive, loadNavSections } from '../lib/nav';
 
 const base = import.meta.env.BASE_URL;
 const logoUrl = SITE_CONFIG.logo ? `${base}${SITE_CONFIG.logo}` : null;
 
-// Link straight at the latest week. `/daily/` works too (it redirects), but
-// the redirect renders a brief intermediate page in static builds — pointing
-// at the resolved week URL keeps the click instant.
-const dailyDir = `${base}daily/`;
-const dailyWeeks = await loadDailyWeeks();
-const dailyHref = dailyWeeks[0] ? weekHref(dailyWeeks[0]) : dailyDir;
-const onDaily = Astro.url.pathname.startsWith(dailyDir);
+const sections = await loadNavSections();
+const pathname = Astro.url.pathname;
+const activeId = sections.find(section => isSectionActive(section, pathname))?.id;
 
-const decisionsDir = `${base}decisions/`;
-const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
+// Below `md` the content sections (notes/guides/slides) collapse into one
+// dropdown so the header keeps a single nav row; daily/decisions stay inline.
+const grouped = sections.filter(section => section.grouped);
+const standalone = sections.filter(section => !section.grouped);
+
+const linkClass = (id: string) => [
+  'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
+  id === activeId
+    ? 'border-primary text-foreground'
+    : 'border-transparent text-muted-foreground hover:text-foreground',
+];
 ---
 
 <header
@@ -39,26 +45,33 @@ const onDecisions = Astro.url.pathname.startsWith(decisionsDir);
     class="section-nav col-span-2 row-start-2 flex min-w-0 items-center justify-center gap-4 md:col-span-1 md:col-start-2 md:row-start-1"
     aria-label="Sections"
   >
-    <a
-      href={dailyHref}
-      class:list={[
-        'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
-        onDaily
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground',
-      ]}
-      aria-current={onDaily ? 'page' : undefined}
-    >daily</a>
-    <a
-      href={decisionsDir}
-      class:list={[
-        'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
-        onDecisions
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground',
-      ]}
-      aria-current={onDecisions ? 'page' : undefined}
-    >decisions</a>
+    {grouped.length > 0 && (
+      <div class="md:hidden">
+        <NavMenu
+          items={grouped.map(({ id, label, href }) => ({ id, label, href }))}
+          activeId={activeId}
+          client:load
+        />
+      </div>
+    )}
+
+    {grouped.map(section => (
+      <a
+        href={section.href}
+        class:list={['hidden md:inline-block', ...linkClass(section.id)]}
+        aria-current={section.id === activeId ? 'page' : undefined}
+        data-nav-section={section.id}
+      >{section.label}</a>
+    ))}
+
+    {standalone.map(section => (
+      <a
+        href={section.href}
+        class:list={linkClass(section.id)}
+        aria-current={section.id === activeId ? 'page' : undefined}
+        data-nav-section={section.id}
+      >{section.label}</a>
+    ))}
   </nav>
 
   <div class="col-span-2 row-start-3 flex min-w-0 w-full items-center justify-between gap-3 md:col-span-1 md:col-start-3 md:row-start-1 md:w-auto md:justify-self-end md:gap-5">

@@ -9,20 +9,15 @@ async function firstEntryHref(page: Page, type: EntryType): Promise<string | nul
 }
 
 /**
- * Daily notes also surface as `data-type="note"`, but their hrefs point at the
- * daily page (e.g. `/daily/2026-05-10/#day-...`). For tests that exercise the
- * standalone note layout, find the first card that links to `/notes/`.
+ * Daily notes carry their own `data-type="daily"`, so every `note` card links to
+ * the standalone note layout at `/notes/`.
  */
 async function firstStandaloneNoteCard(page: Page) {
   await page.goto('/');
-  const cards = page.locator('[data-entry][data-type="note"]');
-  const total = await cards.count();
-  for (let i = 0; i < total; i++) {
-    const card = cards.nth(i);
-    const href = await card.locator('.entry-title a').getAttribute('href');
-    if (href?.startsWith('/notes/')) return { card, href };
-  }
-  return null;
+  const card = page.locator('[data-entry][data-type="note"]').first();
+  if ((await card.count()) === 0) return null;
+  const href = await card.locator('.entry-title a').getAttribute('href');
+  return href ? { card, href } : null;
 }
 
 test.describe('note page', () => {
@@ -74,13 +69,62 @@ test.describe('note page', () => {
     await expect(page.locator('.prose').first()).toBeVisible();
   });
 
-  test('breadcrumb links back to the index', async ({ page }) => {
+  test('breadcrumb links back to the notes index', async ({ page }) => {
     const result = await firstStandaloneNoteCard(page);
     test.skip(result === null, 'no standalone notes present');
 
     await page.goto(result!.href);
-    await page.click('.crumbs a[href="/"]');
-    await expect(page).toHaveURL('/');
+    await page.click('.crumbs a[href="/notes/"]');
+    await expect(page).toHaveURL('/notes/');
+  });
+});
+
+test.describe('smart links', () => {
+  // The bundled vault's shipping-cadence note carries one of every form.
+  const NOTE = '/notes/shipping-cadence/';
+
+  test('renders a labelled link as a stub + tail chip', async ({ page }) => {
+    await page.goto(NOTE);
+    const chip = page.locator('.tm-link[data-tm-kind="merge_request"]').first();
+    await expect(chip).toBeVisible();
+    await expect(chip.locator('.tm-ref')).toHaveText('!284');
+    await expect(chip.locator('.tm-tail')).toHaveText('Surface cut items on the board');
+  });
+
+  test('renders a bare link as a stub carrying the qualified ref', async ({ page }) => {
+    await page.goto(NOTE);
+    const chip = page.locator('.tm-link.tm-bare[data-tm-kind="issue"][data-tm-service="gitlab"]').first();
+    await expect(chip).toBeVisible();
+    await expect(chip.locator('.tm-ref')).toHaveText('platform/api#77');
+    await expect(chip.locator('.tm-tail')).toHaveCount(0);
+  });
+
+  test('recovers a tail from the confluence page slug', async ({ page }) => {
+    await page.goto(NOTE);
+    const chip = page.locator('.tm-link[data-tm-service="confluence"]').first();
+    await expect(chip.locator('.tm-ref')).toHaveText('ENG');
+    await expect(chip.locator('.tm-tail')).toHaveText('Shipping Cadence Retro');
+  });
+
+  test('the chip sits inside its own line box', async ({ page }) => {
+    // The metric the design depends on: an inline-flex chip contributes its
+    // height to the line box, so a too-tall chip would push the lines around it
+    // apart. Guard it by comparing the chip against the paragraph's leading.
+    await page.goto(NOTE);
+    const chip = page.locator('.tm-link').first();
+    const box = await chip.boundingBox();
+    const lineHeight = await chip.evaluate((el) => {
+      const p = el.closest('p') as HTMLElement;
+      return parseFloat(getComputedStyle(p).lineHeight);
+    });
+    expect(box!.height).toBeLessThan(lineHeight);
+  });
+
+  test('keeps the link navigable, with the ref and host in its tooltip', async ({ page }) => {
+    await page.goto(NOTE);
+    const chip = page.locator('.tm-link[data-tm-service="jira"]').first();
+    await expect(chip).toHaveAttribute('href', /atlassian\.net\/browse\/PLAT-412$/);
+    await expect(chip).toHaveAttribute('title', 'PLAT-412 · acme.atlassian.net');
   });
 });
 

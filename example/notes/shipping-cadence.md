@@ -45,3 +45,20 @@ ship arrow, so review becomes a rubber stamp and the loop loses its teeth.
 The bar for "done enough" is not *finished* — it is *the system is doing the
 lifting, not the discipline*. Once you are relying on willpower to hit the
 cadence, the cadence is already broken.
+
+## Where the week is written down
+
+Links to the tools the week actually runs on render as chips carrying the ref
+parsed straight out of the URL — no plugin, no API call, just markdown links:
+
+The cadence experiment was tracked in
+[Trial a one-week loop](https://acme.atlassian.net/browse/PLAT-412) for a
+quarter, written up in
+<https://acme.atlassian.net/wiki/spaces/ENG/pages/884736/Shipping+Cadence+Retro>,
+and the tooling that made the cut arrow visible shipped as
+[Surface cut items on the board](https://gitlab.com/platform/api/-/merge_requests/284).
+Leftovers live in
+<https://gitlab.com/platform/api/-/issues/77>, the commit that started it is
+<https://gitlab.com/platform/api/-/commit/a1b2c3d4e5f6>, and the schedule itself
+is a single file:
+[the cadence config](https://gitlab.com/platform/api/-/blob/main/src/cadence.ts).

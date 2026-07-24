@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CollectionIndex from '../../components/collection/CollectionIndex.astro';
+import { loadNoteEntries } from '../../lib/entries';
+import { footerSummary } from '../../lib/collection-index';
+
+const entries = (await loadNoteEntries()).sort((a, b) => b.updated.localeCompare(a.updated));
+const footerLeft = footerSummary(entries, 'note', 'notes');
+---
+
+<Layout title="Notes" footerLeft={footerLeft}>
+  <h1 class="sr-only">Notes</h1>
+  <CollectionIndex
+    entries={entries}
+    resultLabel="notes"
+    emptyMessage="no notes yet."
+  />
+</Layout>

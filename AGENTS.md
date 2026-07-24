@@ -124,6 +124,10 @@ images become a `<figure>` with the alt as caption), `remarkFenceSvg` (compiles
 WASM TeX / native `typst.ts`, black ink → `currentColor`, renders cached by
 content hash in the gitignored `.diagram-cache/`; TikZ text needs the
 Computer Modern `@font-face` set that `global.css` imports from node-tikzjax),
+`remarkSmartLinks` (Jira / Confluence / GitLab links → a chip carrying the ref
+parsed from the href by `src/lib/smart-links.mjs`; vault hosts extend the
+built-in ones via `config.smartLinks`, which `astro.config.mjs` reads straight
+off `TEAMAN_CONFIG` since it can't import the TS config),
 `rehype-callouts` (Obsidian callouts), and slug +
 autolinked headings. Note `astro build` is run from the engine dir with `.astro/`
 cache dropped each build, because the content-layer store is keyed by collection
@@ -166,11 +170,22 @@ Three sequential stages, all reading the env seam:
 
 ### Frontend
 
-Astro pages in `src/pages/` (`index`, `notes/[...slug]`, `guides/[...slug]`,
-`daily/index`, `daily/[week]`) compose React islands (`@astrojs/react`) from
+Astro pages in `src/pages/` (`index`, `notes/index`, `notes/[...slug]`,
+`guides/index`, `guides/[...slug]`, `slides/index`, `daily/index`,
+`daily/[week]`, `decisions/index`) compose React islands (`@astrojs/react`) from
 `src/components/` (shadcn-style UI under `components/ui/`). Tailwind v4 via
 `@tailwindcss/vite`; tokens in `src/styles/global.css`. Client-side list
 filter/sort/tag logic is the framework-agnostic `src/scripts/list-controller.ts`.
+
+The home feed and the three per-collection indexes are the same surface:
+`components/collection/CollectionIndex.astro` (cards + filter bar + sort +
+pagination, driven by `lib/collection-index.ts`), differing only in which
+`loadXEntries()` feeds it — a single-type list drops the Type filter. The
+header's section links come from `lib/nav.ts`, which lists only sections the
+vault has content for. `slides/index.astro` writes `<out>/slides/index.html`,
+which `build-slides.mjs` leaves in place when it writes each deck to
+`<out>/slides/<deck>/`.
+
 Shared logic (path/format/entry-loading/dailies/guides parsing) lives in `src/lib/` —
 prefer extending those helpers over duplicating logic in pages.
 

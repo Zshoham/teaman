@@ -9,10 +9,11 @@ import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, t
 import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
-export type EntryType = 'note' | 'guide' | 'slides' | 'decision';
+export type EntryType = 'note' | 'daily' | 'guide' | 'slides' | 'decision';
 
 export const TYPE_LABEL: Record<EntryType, string> = {
   note: 'note',
+  daily: 'daily',
   guide: 'guide',
   slides: 'slides',
   decision: 'decision',
@@ -106,12 +107,16 @@ export async function loadGuideEntries(): Promise<Entry[]> {
   ]);
   const chaptersById = new Map(chapters.map(chapter => [chapter.id, chapter]));
   const summariesBySlug = new Map(
-    summaries.map(summary => [guideSlugFromSummaryId(summary.id), summary.body ?? '']),
+    summaries.map(summary => [
+      guideSlugFromSummaryId(summary.id),
+      { body: summary.body ?? '', tags: summary.data.tags ?? [] },
+    ]),
   );
 
   const entries = guides.map(async g => {
     const summaryPath = join(g.dir, 'SUMMARY.md');
-    const summaryBody = summariesBySlug.get(g.slug) ?? '';
+    const summary = summariesBySlug.get(g.slug);
+    const summaryBody = summary?.body ?? '';
     const summaryDates = await safeFileDates(summaryPath);
     let excerpt = '';
     let words = 0;
@@ -136,7 +141,7 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       type: 'guide' as const,
       title: g.title,
       excerpt,
-      tags: [],
+      tags: summary?.tags ?? [],
       updated: isoDate(updated),
       created: isoDate(created),
       meta: wordMeta(words),
@@ -154,8 +159,9 @@ function dailyDateId(entry: { id: string; data: { date: Date } }): string {
 }
 
 /**
- * Daily notes show up in the index alongside regular notes. Each daily file
- * becomes one entry whose href deep-links to its anchor inside the week page.
+ * Daily notes show up in the index alongside regular notes, under their own
+ * `daily` type so the home filter can single them out. Each daily file becomes
+ * one entry whose href deep-links to its anchor inside the week page.
  */
 export async function loadDailyNoteEntries(): Promise<Entry[]> {
   const dailies = await getCollection('dailies');
@@ -174,7 +180,7 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
       const weekId = localIsoDate(sundayOf(date));
       return {
         id: `daily-${iso}`,
-        type: 'note' as const,
+        type: 'daily' as const,
         title: `${weekday}, ${fmtLongDay(iso)}`,
         excerpt: extractExcerpt(body),
         tags: d.data.tags ?? [],

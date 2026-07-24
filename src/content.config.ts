@@ -36,6 +36,9 @@ const guideSummaries = defineCollection({
   }),
   schema: z.object({
     title: z.string().optional(),
+    // A guide is tagged once, on its SUMMARY.md — chapters inherit nothing, so
+    // the guide travels through the index and filters as a single item.
+    tags: tagList,
   }),
 });
 

@@ -140,6 +140,38 @@ describe('teaman doctor', () => {
     expect(stderr).toMatch(/"links" must be an array/);
   });
 
+  it('accepts a valid smartLinks host map', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'),
+      'export default { brand: "x", smartLinks: { gitlab: ["gitlab.acme.io"], jira: ["*.acme.io"] } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).not.toMatch(/smartLinks/);
+  });
+
+  it('warns on an unknown smartLinks service', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'),
+      'export default { brand: "x", smartLinks: { github: ["github.com"] } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/unknown smartLinks service "github"/);
+  });
+
+  it('flags a smartLinks service whose value is not an array', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'),
+      'export default { brand: "x", smartLinks: { gitlab: "gitlab.acme.io" } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/smartLinks\.gitlab must be an array/);
+  });
+
+  it('warns on a smartLinks entry that is not a hostname', () => {
+    writeFileSync(join(dir, 'teaman.config.mjs'),
+      'export default { brand: "x", smartLinks: { gitlab: ["not a host!"] } };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/doesn't look like a hostname/);
+  });
+
   it('flags a guide directory missing SUMMARY.md', () => {
     mkdirSync(join(dir, 'guides', 'my-guide'), { recursive: true });
     writeFileSync(join(dir, 'guides', 'my-guide', 'chapter.md'), '# Chapter\n');

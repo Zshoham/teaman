@@ -50,7 +50,7 @@ const words = wordCount(entry.body ?? '');
 <Layout title={docTitle}>
   <article class="pt-6 pb-2">
     <Breadcrumbs segments={[
-      { label: 'index', href: base },
+      { label: 'guides', href: `${base}guides/` },
       { label: guide.title, href: `${base}guides/${guide.slug}/` },
       ...(idx > 0 ? [{ label: currentTitle }] : []),
     ]} />
