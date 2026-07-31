@@ -45,7 +45,11 @@ try {
     cwd: engineDir,
     encoding: 'utf8',
   });
-  const tarball = join(workDir, JSON.parse(packed)[0].filename);
+  // npm <=11 returns an array; npm 12 keys the result by package name.
+  const packResult = JSON.parse(packed);
+  const packInfo = Array.isArray(packResult) ? packResult[0] : packResult[enginePkg.name];
+  if (!packInfo?.filename) throw new Error('npm pack did not report a tarball filename');
+  const tarball = join(workDir, packInfo.filename);
   if (!existsSync(tarball)) throw new Error(`npm pack did not produce ${tarball}`);
 
   // 2. Install the tarball into a fresh consumer project.

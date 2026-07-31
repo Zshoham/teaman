@@ -38,7 +38,7 @@ cpSync(slidesSrcDir, slidesTmpDir, { recursive: true });
 
 // Slidev merges a vite.config found in the deck's directory; we use it to mute
 // Rolldown's harmless INVALID_ANNOTATION noise (see renderViteConfig).
-writeFileSync(join(slidesTmpDir, 'vite.config.ts'), renderViteConfig());
+writeFileSync(join(slidesTmpDir, 'vite.config.mts'), renderViteConfig());
 
 // Stage the engine's Slidev theme next to the decks and personalise the staged
 // copy with the project's `slides` knobs (accent colours + logo), so every deck

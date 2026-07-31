@@ -37,7 +37,7 @@ export function slidevBuildArgs(deckPath, { out, theme }) {
 // re-introduces BASE_URL into router paths.
 
 /**
- * Render the staged `.slides-build/vite.config.ts`. Slidev merges a `vite.config`
+ * Render the staged `.slides-build/vite.config.mts`. Slidev merges a `vite.config`
  * found in the deck's own directory (resolveSourceFiles over its roots), so this
  * is how we inject the Rolldown `checks` knob that mutes @vueuse/core's harmless
  * INVALID_ANNOTATION noise — without touching node_modules.

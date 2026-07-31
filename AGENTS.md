@@ -37,6 +37,11 @@ npm run test:e2e:ui    # Playwright interactive UI
 npm run test:integration  # pack → install tarball outside repo → build example/ (slow)
 ```
 
+TypeScript is intentionally installed side by side: `@typescript/native` provides
+the TypeScript 7 `tsc` binary used by `npm run typecheck`, while the `typescript`
+package name aliases `@typescript/typescript6` for Astro/Slidev tools that still
+consume the compiler API (TypeScript 7.0 does not ship one).
+
 Run a single unit test file / pattern:
 ```sh
 npx vitest run src/lib/__tests__/format.test.ts
@@ -162,7 +167,7 @@ Three sequential stages, all reading the env seam:
    base-less router paths; Slidev ≥ 52.17 ships that (`getSlideRoutePath`), which
    is why `@slidev/cli` has a `^52.17.0` floor — a unit test reads the installed
    client source to catch an upstream regression. build-slides also stages a
-   `<work dir>/vite.config.ts` (`renderViteConfig`) that mutes Rolldown's
+   `<work dir>/vite.config.mts` (`renderViteConfig`) that mutes Rolldown's
    harmless INVALID_ANNOTATION noise.
 3. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck via
