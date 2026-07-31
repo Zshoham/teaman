@@ -110,7 +110,9 @@ export default {
     { label: 'Obsidian', url: 'https://obsidian.md', description: 'The app this vault lives in.', icon: 'book' },
     { label: 'repo', url: 'https://github.com/me/vault', icon: 'github' },
   ],                             // `icon`: curated lucide set or any string (emoji ok).
-                                 // tile sizes are auto-computed from content + count.
+                                 // card size *and* treatment are auto-computed from
+                                 // content + count; links with no description leave
+                                 // the grid and render as chips beneath it.
   smartLinks: {                 // extra hosts rendered as service chips in prose
     gitlab: ['gitlab.acme.io'], // (*.atlassian.net + gitlab.com work out of the box)
     jira: ['jira.acme.io'],

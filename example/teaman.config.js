@@ -13,10 +13,14 @@ export default {
   logo: 'teacup.svg', // resolved from this vault, then vault/public, then engine defaults
 
   // Quick-link tiles rendered as a bento grid above the home feed. Each tile
-  // is pure data: label, url, optional description / icon. Tile sizes are not
-  // configurable — the engine sizes them from the content (description length,
-  // label length) and the total link count, and the grid always fills exactly
-  // (every row sums to the grid width, no empty cells). `icon` maps to a
+  // is pure data: label, url, optional description / icon. Sizes and
+  // treatments are not configurable — the engine derives both from the content
+  // (description length, label length) and the total link count, and the grid
+  // always fills exactly (every row sums to the grid width, no empty cells).
+  // The richest link gets the feature panel (oversized ghost icon + the
+  // destination host) and short-description links become cards; links with no
+  // description get no tile at all — they leave the grid and render as a strip
+  // of compact chips below it, sized to their own labels. `icon` maps to a
   // curated lucide-style set (github, book, globe, link, code, rss, mail,
   // rocket, lightbulb, coffee, file, arrow-up-right); any other string renders
   // verbatim (emoji ok). Absent/empty → no grid.
@@ -41,7 +45,7 @@ export default {
       description: 'The web framework underneath.',
       icon: 'code',
     },
-    { label: 'lucide', url: 'https://lucide.dev', icon: 'lightbulb' },
+    { label: 'lucide', url: 'https://lucide.dev', description: 'icons for the things you need', icon: 'lightbulb' },
     { label: 'changelog', url: 'https://github.com/obsidianmd/obsidian-release/releases', icon: 'rss' },
     { label: 'docs', url: 'https://docs.obsidian.md', description: 'API & plugin reference.', icon: 'file' },
     { label: 'forum', url: 'https://forum.obsidian.md', icon: 'globe' },

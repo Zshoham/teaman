@@ -23,16 +23,21 @@
  * - `url` — the destination (required). External (`https://…`) opens in a new
  *   tab; relative paths render as same-tab in-site links.
  * - `description` — optional one-line muted caption. A tile with a description
- *   gets more grid space than one without (see `src/lib/bento.ts`).
+ *   gets more grid space *and* a louder treatment than one without (see
+ *   `src/lib/bento.ts`).
  * - `icon` — optional. A name from the engine's curated lucide-style set
  *   (`github`, `book`, `globe`, `link`, `file`, `code`, `rocket`, `lightbulb`,
  *   `rss`, `mail`, `coffee`, `arrow-up-right`) renders as a themed inline SVG.
  *   Any other string renders verbatim, so an emoji or short glyph works too.
- *   Defaults to `link`.
+ *   Defaults to `link`. Whichever it is, the tile also draws it oversized as a
+ *   ghost watermark that leans on hover.
  *
- * Tile sizes are **not** configurable — the engine computes the bento layout
- * from each tile's content and the total link count (`src/lib/bento.ts`), and
- * the grid always fills exactly (no empty cells).
+ * Tile sizes and treatments are **not** configurable — the engine computes the
+ * bento layout from each tile's content and the total link count
+ * (`src/lib/bento.ts`), and the grid always fills exactly (no empty cells).
+ * The richest link becomes the one `feature` panel and links with a short
+ * description become cards; links with no description at all get no tile at
+ * all — they leave the grid and render as a strip of compact chips below it.
  */
 export interface QuickLink {
   label: string;
