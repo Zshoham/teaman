@@ -16,6 +16,9 @@ node_modules/
 # cached tikz/typst fence renders (remark-fence-svg — disposable)
 .diagram-cache/
 
+# cached reference PDFs, keyed by Typst source digest (disposable)
+.reference-cache/
+
 # OS
 .DS_Store
 Thumbs.db

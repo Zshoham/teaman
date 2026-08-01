@@ -1,0 +1,74 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import { Breadcrumbs } from '../../components/Breadcrumbs';
+import { ReferenceReader } from '../../components/reference/ReferenceReader';
+import { fmtDate } from '../../lib/format';
+import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
+
+export async function getStaticPaths() {
+  const references = await getCollection('references', reference => !reference.data.draft);
+  return references.map(reference => ({
+    params: { slug: reference.id },
+    props: { reference },
+  }));
+}
+
+const { reference } = Astro.props;
+const { Content, headings } = await render(reference);
+const base = import.meta.env.BASE_URL;
+const words = wordCount(reference.body ?? '');
+const title = reference.data.title ?? reference.id;
+// rehype-autolink-headings appends a visible `#` permalink to headings. Astro's
+// rendered heading metadata includes that child text, so remove only the
+// plugin's trailing marker before handing labels to the reader rail.
+const tocHeadings = headings
+  .filter(heading => heading.depth >= 2 && heading.depth <= 6)
+  .map(heading => ({ ...heading, text: heading.text.replace(/#$/, '').trim() }));
+const pdfHref = `${base}references/${reference.id}/reference.pdf`;
+---
+
+<Layout title={title}>
+  <article class="reference-document pt-6 pb-2" data-reference-document>
+    <Breadcrumbs segments={[
+      { label: 'references', href: `${base}references/` },
+      { label: reference.id },
+    ]} />
+
+    <div class="grid items-start gap-8 lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:gap-14">
+      <ReferenceReader headings={tocHeadings} pdfHref={pdfHref} client:load />
+
+      <div class="min-w-0 max-w-[760px]">
+        <header class="mb-10 border-b border-border pb-7">
+          <p class="m-0 font-mono text-meta uppercase tracking-label text-primary">reference document</p>
+          <h1 class="reference-title mt-3 mb-0 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{title}</h1>
+          {reference.data.summary && (
+            <p class="mt-4 max-w-[62ch] font-serif text-lg leading-relaxed text-muted-foreground text-pretty">
+              {reference.data.summary}
+            </p>
+          )}
+          <div class="mt-5 flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint">
+            <span>{wordMeta(words)}</span>
+            <span class="opacity-50">·</span>
+            <span>{readingTimeMeta(words)}</span>
+            <span class="opacity-50">·</span>
+            <span>{tocHeadings.length} {tocHeadings.length === 1 ? 'section' : 'sections'}</span>
+            {reference.data.date && <span class="opacity-50">·</span>}
+            {reference.data.date && (
+              <time datetime={reference.data.date.toISOString()}>Updated {fmtDate(reference.data.date)}</time>
+            )}
+          </div>
+          {reference.data.tags && reference.data.tags.length > 0 && (
+            <div class="mt-4 flex flex-wrap gap-2 font-mono text-meta text-faint">
+              {reference.data.tags.map(tag => <span>#{tag}</span>)}
+            </div>
+          )}
+        </header>
+
+        <div id="reference-content" class="prose reference-prose">
+          <Content />
+        </div>
+      </div>
+    </div>
+  </article>
+</Layout>

@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CollectionIndex from '../../components/collection/CollectionIndex.astro';
+import { loadReferenceEntries } from '../../lib/entries';
+import { footerSummary } from '../../lib/collection-index';
+
+const entries = (await loadReferenceEntries()).sort((a, b) => b.updated.localeCompare(a.updated));
+const footerLeft = footerSummary(entries, 'reference', 'references');
+---
+
+<Layout title="References" footerLeft={footerLeft}>
+  <h1 class="sr-only">References</h1>
+  <CollectionIndex
+    entries={entries}
+    resultLabel="references"
+    emptyMessage="no references yet."
+  />
+</Layout>

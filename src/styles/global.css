@@ -396,6 +396,25 @@ body {
 .prose :where(table) { display: block; max-width: 100%; overflow-x: auto; }
 .prose :where(img, video, iframe) { max-width: 100%; }
 
+/* A reference is one HTML document, so a book-sized one asks the browser to
+   lay out and paint every chapter before the page is usable. Chapters are
+   wrapped by rehype-reference-sections.mjs, which also supplies each one's
+   `contain-intrinsic-size`, letting offscreen chapters be skipped until they
+   are scrolled near. */
+.reference-chapter { content-visibility: auto; }
+
+/* Long reference documents keep in-page jumps below the sticky site header.
+   The extra breathing room also makes active-section tracking feel anchored
+   to the start of a section instead of to the browser chrome.
+   The prose wrapper itself is a jump target too — it backs the reader's
+   synthetic "Introduction" entry, which has no heading of its own. */
+.reference-prose,
+.reference-prose :where(h2, h3, h4, h5, h6),
+.reference-rule-anchor,
+.reference-grammar-anchor {
+  scroll-margin-top: calc(var(--header-h) + 2rem);
+}
+
 .week-strip-chips { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 
 /* ── Home quick-links (src/components/home/QuickLinks.astro) ──────────
@@ -691,17 +710,35 @@ body {
    faux-bold; pin h2 to a real 600 and let size (not brute weight) carry the
    hierarchy. Slight negative tracking + tighter leading match the titles, and
    the margins bond each heading to the paragraph it introduces. */
-.prose :where(h2, h3, h4) {
+.prose :where(h2, h3, h4, h5, h6) {
   font-weight: 600;
-  letter-spacing: -0.012em;
   line-height: 1.25;
   text-wrap: balance;
 }
+.prose :where(h2, h3, h4) { letter-spacing: -0.012em; }
 .prose :where(h2) { font-size: 1.5em;  margin-top: 1.9em; margin-bottom: 0.6em; }
-.prose :where(h3) { font-size: 1.2em;  margin-top: 1.7em; margin-bottom: 0.5em; }
-.prose :where(h4) { font-size: 1.05em; margin-top: 1.5em; margin-bottom: 0.4em; }
+.prose :where(h3) { font-size: 1.24em; margin-top: 1.7em; margin-bottom: 0.5em; }
+.prose :where(h4) { font-size: 1.08em; margin-top: 1.5em; margin-bottom: 0.4em; }
+/* h5/h6 sit at or below body size, so size can no longer carry the step — and
+   neither the Typography plugin nor Preflight styles them at all, which left
+   them pixel-identical to a paragraph. They change voice instead, borrowing the
+   mono label treatment the rest of the site uses for eyebrows and meta rows.
+   Deep levels are not exotic here: an imported reference book's chapters are
+   demoted by src/lib/reference-documents.mjs, so a chapter's own `###` routinely
+   lands on h5. The printed template mirrors this ladder in
+   resources/reference-template.typ. */
+.prose :where(h5, h6) {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 1.6em;
+  margin-bottom: 0.45em;
+}
+.prose :where(h5) { font-size: 0.82em; color: var(--muted-foreground); }
+.prose :where(h6) { font-size: 0.76em; color: var(--faint); }
 /* Bold nested in a heading would jump to 700/800 (faux) — keep it level. */
-.prose :where(h2, h3, h4) strong { font-weight: inherit; }
+.prose :where(h2, h3, h4, h5, h6) strong { font-weight: inherit; }
 
 /* Inline links — quiet underline that sits a little low and warms to the
    accent on hover, rather than the plugin's default heavy same-color rule. */
@@ -823,7 +860,7 @@ body {
   opacity: 0;
   transition: opacity .15s, color .15s;
 }
-.prose :is(h1,h2,h3,h4):hover > .heading-anchor,
+.prose :is(h1,h2,h3,h4,h5,h6):hover > .heading-anchor,
 .prose .heading-anchor:focus { opacity: 1; }
 .prose .heading-anchor:hover { color: var(--primary); }
 

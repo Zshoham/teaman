@@ -23,11 +23,13 @@ describe('buildFilterTabs', () => {
       entry({ type: 'decision' }),
       entry({ type: 'note', title: 'a' }),
       entry({ type: 'note', title: 'b' }),
+      entry({ type: 'reference' }),
       entry({ type: 'slides' }),
     ]);
     expect(tabs).toEqual([
-      { id: 'all', label: 'all', count: 4 },
+      { id: 'all', label: 'all', count: 5 },
       { id: 'note', label: 'notes', count: 2 },
+      { id: 'reference', label: 'references', count: 1 },
       { id: 'slides', label: 'slides', count: 1 },
       { id: 'decision', label: 'decisions', count: 1 },
     ]);

@@ -21,7 +21,7 @@ interface Props {
 }
 
 /**
- * Narrow-screen collapse for the content sections (notes/guides/slides). The
+ * Narrow-screen collapse for the content sections (notes/references/guides/slides). The
  * header already wraps to three rows on mobile; five inline links would push it
  * further, so below `md` these fold into one trigger while daily/decisions —
  * the dated views people jump to most — stay directly clickable.

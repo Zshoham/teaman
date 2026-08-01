@@ -19,6 +19,9 @@ The vault never contains engine source, only:
 my-vault/
   teaman.config.js     # site identity + theme (see below)
   notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml, tikz, typst)
+  references/           # long-form references: one .md or one SUMMARY.md book per page
+    system.md
+    language/SUMMARY.md + ordered chapter files
   guides/   <slug>/SUMMARY.md + chapters   # tag the guide in SUMMARY.md frontmatter
   slides/   *.md        # Slidev decks
   dailies/  YYYY-MM-DD.md
@@ -28,8 +31,8 @@ my-vault/
 
 Run `npx @zshoham/teaman init my-vault` to scaffold the config and content dirs.
 
-Every content kind gets its own index — `/notes/`, `/guides/`, `/slides/`,
-`/daily/`, `/decisions/` — and the header links the ones your vault actually
+Every content kind gets its own index — `/notes/`, `/references/`, `/guides/`,
+`/slides/`, `/daily/`, `/decisions/` — and the header links the ones your vault actually
 has, so a vault with no decks never shows a `slides` link. `/` stays the
 combined feed across all of them.
 
@@ -38,6 +41,46 @@ carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), opti
 `tags`, a one-line `summary`, and optional `supersedes` / `supersededBy` (the `NNNN`
 of a related ADR); the body holds the prose (Context / Decision / Consequences). They
 render as a filterable timeline at `/decisions/` and also appear in the home feed.
+
+References can be authored in either of two additive forms:
+
+- `references/system.md` is one standalone document at `/references/system/`.
+- `references/rust/SUMMARY.md` is an mdBook-style multi-file document at
+  `/references/rust/`. The Markdown links in `SUMMARY.md` define chapter order
+  and nesting; only listed chapters are assembled. A chapter may live in a
+  nested directory, and its relative `.md` links become in-page jumps, so an
+  existing book can be copied in without flattening it.
+
+Frontmatter lives on the standalone file or, for a book, on `SUMMARY.md`. It
+matches a regular note (`title`, `date`, `tags`, `draft`) and adds an optional
+one-line `summary`; without `title`, the first `#` heading supplies it. The page
+renders a sticky table of contents from the complete assembled outline, tracks
+the current section and reading progress, and lets the reader search the entire
+reference; results identify the exact sections that contain the phrase. Chapter
+heading IDs and reference-style links are isolated so repeated names such as
+“Syntax” remain unambiguous. mdBook fence annotations such as `rust,ignore` are
+normalized for highlighting, and Rust Reference rule labels such as
+`r[items.functions]` become navigable anchors. On small screens the rail folds
+into a “Browse this document” panel above the article.
+
+Every publishable reference also gets one `reference.pdf` beside its HTML page;
+a multi-file reference produces one PDF containing every listed chapter in
+`SUMMARY.md` order.
+
+The bundled `example/references/rust-reference/` is the actual 120-chapter
+[Rust Reference source](https://github.com/rust-lang/reference), pinned to the
+revision recorded in its `UPSTREAM.txt`; it exercises this book path in the
+production build and browser tests rather than relying on a reduced fixture.
+The normal build converts common Markdown (headings, emphasis, links, lists,
+quotes, Obsidian callouts, tables, code, and local images) to Typst and applies
+the engine's bundled `resources/reference-template.typ`; vaults do not carry a
+template or compiler. Mermaid and PlantUML fences render to print-friendly SVG
+with the same bundled engines used by the site, while TikZ and Typst fences
+reuse the build-time SVG pipeline. Local PDF images—including Markdown and
+Obsidian `![[diagram.svg]]` embeds—resolve note-relative, then from the vault
+root, then `public/`. A missing image or failed diagram becomes a visible
+fallback instead of failing the whole PDF. Draft references produce neither a
+page nor a PDF.
 
 **SVG images are inlined and theme-aware.** A markdown image pointing at a local
 `.svg` (`![alt](attachments/diagram.svg)`) is inlined into the page at build
@@ -66,7 +109,7 @@ build instead of failing it.
 
 | Command | What it does |
 |---|---|
-| `teaman build [vault]` | Build to `<vault>/dist` (or `--out DIR`). Runs Astro + Slidev + Pagefind. |
+| `teaman build [vault]` | Build to `<vault>/dist` (or `--out DIR`). Runs Astro + Typst PDFs + Slidev + Pagefind. |
 | `teaman dev [vault]` | Live Astro dev server. |
 | `teaman preview [vault]` | Serve a previously built site. |
 | `teaman init [vault]` | Scaffold `teaman.config.js` + content dirs. |
@@ -231,7 +274,7 @@ CLI warns `no content dirs found` but still builds — you get the home page wit
 
 ```sh
 npm install
-node bin/teaman.mjs build ./example      # → example/dist (Astro + Slidev + Pagefind)
+node bin/teaman.mjs build ./example      # → example/dist (Astro + Typst PDFs + Slidev + Pagefind)
 node bin/teaman.mjs preview ./example     # serve example/dist as it'll ship
 ```
 

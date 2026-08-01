@@ -15,6 +15,7 @@ export interface Topic {
 /** Plural tab labels, in the order the type filter lists them. */
 const TAB_LABEL: Record<EntryType, string> = {
   note: 'notes',
+  reference: 'references',
   daily: 'dailies',
   guide: 'guides',
   slides: 'slides',

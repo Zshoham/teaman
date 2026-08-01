@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // teaman — build an Obsidian vault into a static site with the bundled Astro
 // engine. The vault carries only data: a `teaman.config.js` plus content
-// directories (notes/ guides/ slides/ dailies/). This CLI resolves the vault,
+// directories (notes/ references/ guides/ slides/ dailies/). This CLI resolves the vault,
 // loads its config, stages static assets, and runs the engine via the env seam
 // (TEAMAN_VAULT / TEAMAN_OUT / TEAMAN_BASE / TEAMAN_CONFIG / TEAMAN_PUBLIC).
 
@@ -16,13 +16,14 @@ import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'p
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
+import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 
 const require = createRequire(import.meta.url);
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const enginePkg = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'));
 const VERSION = enginePkg.version;
 
-const CONTENT_DIRS = ['notes', 'guides', 'slides', 'dailies', 'decisions'];
+const CONTENT_DIRS = ['notes', 'references', 'guides', 'slides', 'dailies', 'decisions'];
 
 // ── tiny terminal helpers ────────────────────────────────────────────────
 const c = {
@@ -252,11 +253,12 @@ async function cmdBuild(vaultArg, opts) {
   // The content collections resolve their roots from TEAMAN_VAULT at build
   // time, but Astro's content-layer store under `.astro/` is keyed by
   // collection name, not vault. Building a different vault from the same engine
-  // checkout would otherwise reuse the previous vault's cached notes/guides, so
+  // checkout would otherwise reuse the previous vault's cached notes/references/guides, so
   // drop the cache to isolate each build.
   try {
     rmSync(join(engineDir, '.astro'), { recursive: true, force: true });
     await run(node, [astroBin, 'build'], env);
+    await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], env);
     await run(node, [join(engineDir, 'scripts', 'build-slides.mjs')], env);
     await run(node, [join(engineDir, 'scripts', 'build-search.mjs')], env);
     commitBuild(stagedOut, out);
@@ -276,6 +278,13 @@ async function cmdDev(vaultArg, opts) {
   const env = envFor(vault, config, { base: opts.base ?? config.base ?? '/', publicDir });
   info(`dev server for ${c.bold(vault)} ${c.dim(`(engine ${VERSION})`)}`);
   try {
+    // PDFs are build artifacts rather than authored public files. Render them
+    // into the staged public dir before Astro starts so download links work in
+    // the local dev loop as well as in a production build.
+    await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], {
+      ...env,
+      TEAMAN_OUT: publicDir,
+    });
     await run(node, [astroBin, 'dev', ...(opts.port ? ['--port', String(opts.port)] : [])], env);
   } finally {
     rmSync(workDir, { recursive: true, force: true });
@@ -344,6 +353,23 @@ function walkMd(dir) {
     else if (name.endsWith('.md')) out.push(p);
   }
   return out;
+}
+
+function markdownWikiLinks(source) {
+  const links = [];
+  let fence = null;
+  for (const line of source.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:>\s*)*(`{3,}|~{3,})/);
+    if (match) {
+      if (!fence) fence = match[1];
+      else if (match[1][0] === fence[0] && match[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const prose = line.replace(/`[^`]*`/g, '');
+    links.push(...prose.matchAll(/(?<!!)\[\[([^\]|#]+)/g));
+  }
+  return links;
 }
 
 async function cmdDoctor(vaultArg) {
@@ -464,14 +490,36 @@ async function cmdDoctor(vaultArg) {
       }
     }
   }
-  // unresolved wiki-links in notes
+  const referencesDir = join(vault, 'references');
+  if (existsSync(referencesDir)) {
+    for (const document of discoverReferenceDocuments(referencesDir)) {
+      if (document.error) {
+        problems.push(`references: ${document.error}`);
+        continue;
+      }
+      if (document.kind !== 'book') continue;
+      if (document.chapters.length === 0) {
+        problems.push(`references: ${document.id}/SUMMARY.md lists no Markdown chapters`);
+      }
+      for (const chapter of document.missing) {
+        problems.push(`references: ${document.id}/SUMMARY.md points at missing chapter ${chapter}`);
+      }
+      for (const chapter of document.invalid) {
+        problems.push(`references: ${document.id}/SUMMARY.md points outside its directory (${chapter})`);
+      }
+    }
+  }
+  // Unresolved wiki-links in note-like documents. References use the same
+  // Obsidian wiki-link resolver and may point at regular notes.
   const noteSlugs = new Set(
     walkMd(join(vault, 'notes')).map(f => basename(f, '.md').replace(/ /g, '-').toLowerCase()),
   );
-  for (const file of walkMd(join(vault, 'notes'))) {
-    for (const m of readFileSync(file, 'utf8').matchAll(/\[\[([^\]|#]+)/g)) {
-      const target = m[1].trim().replace(/ /g, '-').toLowerCase();
-      if (!noteSlugs.has(target)) warnings.push(`notes: ${basename(file)} links to missing [[${m[1].trim()}]]`);
+  for (const kind of ['notes', 'references']) {
+    for (const file of walkMd(join(vault, kind))) {
+      for (const m of markdownWikiLinks(readFileSync(file, 'utf8'))) {
+        const target = m[1].trim().replace(/ /g, '-').toLowerCase();
+        if (!noteSlugs.has(target)) warnings.push(`${kind}: ${basename(file)} links to missing [[${m[1].trim()}]]`);
+      }
     }
   }
 

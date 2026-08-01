@@ -79,6 +79,206 @@ test.describe('note page', () => {
   });
 });
 
+test.describe('reference page', () => {
+  const REFERENCE = '/references/teaman-system/';
+  const LONG_REFERENCE = '/references/rust-reference/';
+
+  test('renders a long-form title and heading table of contents', async ({ page }) => {
+    await page.goto(REFERENCE);
+    await expect(page.locator('h1.reference-title')).toHaveText('teaman system reference');
+    const rail = page.locator('aside');
+    await expect(rail.getByRole('navigation', { name: 'Table of contents' })).toBeVisible();
+    await expect(rail.getByRole('link', { name: 'Environment seam', exact: true })).toBeVisible();
+  });
+
+  test('document search reports only sections containing the phrase', async ({ page }) => {
+    await page.goto(REFERENCE);
+    const rail = page.locator('aside');
+    const search = rail.getByLabel('Search sections in this document');
+
+    await search.fill('durable reference');
+    await expect(rail.getByText('1 section', { exact: true })).toBeVisible();
+    await expect(rail.getByRole('link', { name: /Introduction/ }))
+      .toHaveAttribute('href', '#reference-content');
+
+    await search.fill('exactly one leading');
+    await expect(rail.getByText('1 section', { exact: true })).toBeVisible();
+    await expect(rail.getByRole('link', { name: /Base paths/ })).toBeVisible();
+  });
+
+  test('offers the generated Typst PDF as a download', async ({ page }) => {
+    await page.goto(REFERENCE);
+    const link = page.locator('aside').getByRole('link', { name: 'Download PDF' });
+    await expect(link).toHaveAttribute('href', '/references/teaman-system/reference.pdf');
+    const response = await page.request.get(await link.getAttribute('href') ?? '');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toContain('application/pdf');
+  });
+
+  test('keeps a long table of contents scrollable and follows the active section', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    const rail = page.locator('aside');
+    const scrollArea = rail.locator('[data-reference-toc-scroll]');
+    const viewport = scrollArea.locator('[data-slot="scroll-area-viewport"]');
+
+    const dimensions = await viewport.evaluate(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(dimensions.clientHeight).toBeGreaterThan(0);
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+
+    await rail.getByRole('button', {
+      name: 'Collapse all table of contents sections',
+    }).click();
+    await expect(rail.getByRole('link', { name: 'Input format', exact: true })).toBeHidden();
+
+    await page.locator('#glossary').evaluate(element => element.scrollIntoView());
+    await expect.poll(async () => (
+      rail.locator('a[aria-current="location"]').getAttribute('href')
+    )).toBe('#glossary');
+    await expect(rail.getByRole('link', {
+      name: 'Abstract syntax tree',
+      exact: true,
+    })).toBeHidden();
+
+    await expect.poll(async () => viewport.evaluate((element) => {
+      const active = element.querySelector('a[aria-current="location"]');
+      if (!active) return false;
+      const viewportRect = element.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      return activeRect.top >= viewportRect.top && activeRect.bottom <= viewportRect.bottom;
+    })).toBe(true);
+  });
+
+  test('fills the available viewport and collapses nested section groups', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+
+    const rail = page.locator('aside');
+    const bottomGap = () => rail.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return Math.abs(window.innerHeight - 24 - rect.bottom);
+    });
+    await expect.poll(bottomGap).toBeLessThan(2);
+    await page.evaluate(() => window.scrollTo(0, 320));
+    await expect.poll(bottomGap).toBeLessThan(2);
+
+    const child = rail.getByRole('link', { name: 'Input format', exact: true });
+    await rail.getByRole('button', {
+      name: 'Collapse all table of contents sections',
+    }).click();
+    await expect(child).toBeHidden();
+    await expect(rail.getByRole('button', {
+      name: 'Expand all table of contents sections',
+    })).toBeVisible();
+    await rail.getByRole('button', {
+      name: 'Expand all table of contents sections',
+    }).click();
+    await expect(child).toBeVisible();
+
+    const trigger = rail.getByRole('button', {
+      name: 'Collapse subsections of Lexical structure',
+    });
+    await expect(child).toBeVisible();
+    await trigger.click();
+    await expect(child).toBeHidden();
+    await expect(rail.getByRole('link', { name: 'Lexical structure', exact: true })).toBeVisible();
+    await rail.getByRole('button', {
+      name: 'Expand subsections of Lexical structure',
+    }).click();
+    await expect(child).toBeVisible();
+  });
+
+  test('lets the reader collapse the branch they are currently reading', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    const rail = page.locator('aside');
+    const child = rail.getByRole('link', { name: 'Input format', exact: true });
+    const target = await child.getAttribute('href');
+
+    await page.locator(target ?? '').evaluate(element => element.scrollIntoView());
+    await expect.poll(async () => (
+      rail.locator('a[aria-current="location"]').getAttribute('href')
+    )).toBe(target);
+
+    // Reading inside a group must not pin it open — the trigger stays live.
+    await rail.getByRole('button', {
+      name: 'Collapse subsections of Lexical structure',
+    }).click();
+    await expect(child).toBeHidden();
+  });
+
+  test('assembles real mdBook chapters into one page with working cross-chapter and rule links', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    await expect(page.locator('h1.reference-title')).toHaveText('The Rust Reference');
+    await expect(page.locator('#introduction')).toBeVisible();
+    await expect(page.locator('[id="r-example.rule.label"]')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'expressions chapter' }).first()).toHaveAttribute('href', '#expressions');
+  });
+
+  test('contains chapters without disturbing deep links into the document', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    // Chapters are the unit `content-visibility` is applied to, so the browser
+    // can skip the parts of a book-sized reference nobody is reading.
+    const chapters = page.locator('#reference-content > section.reference-chapter');
+    expect(await chapters.count()).toBeGreaterThan(5);
+    for (const style of await chapters.evaluateAll(nodes => nodes.map(n => n.getAttribute('style')))) {
+      expect(style).toMatch(/contain-intrinsic-size: auto \d+px/);
+    }
+
+    // Skipped chapters are laid out from an estimate, so a jump deep into the
+    // document must still land on its target and stay there as the chapters
+    // above it render and report their real heights.
+    for (const id of ['expressions', 'glossary']) {
+      await page.goto(`${LONG_REFERENCE}#${id}`);
+      const offset = () => page.locator(`#${id}`).evaluate(el => Math.round(el.getBoundingClientRect().top));
+      await expect.poll(offset).toBeLessThan(200);
+      const landed = await offset();
+      await page.waitForTimeout(1500);
+      expect(Math.abs(await offset() - landed)).toBeLessThan(4);
+    }
+
+    // The document height must be honest up front, or the scrollbar visibly
+    // stretches while reading.
+    const atLoad = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.documentElement.scrollHeight; y += 900) {
+        window.scrollTo(0, y);
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    });
+    const settled = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(Math.abs(settled - atLoad) / settled).toBeLessThan(0.15);
+  });
+
+  test('keeps a stable rail when reversing from the end of the document', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    const rail = page.locator('aside');
+
+    const scrollTo = async (offsetFromEnd: number) => {
+      await page.evaluate((offset) => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo(0, Math.max(0, max - offset));
+      }, offsetFromEnd);
+      await page.waitForTimeout(150);
+      return rail.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, height: rect.height };
+      });
+    };
+
+    const beforeEnd = await scrollTo(900);
+    const atEnd = await scrollTo(0);
+    const afterReversing = await scrollTo(900);
+
+    expect(atEnd.height).toBeLessThanOrEqual(beforeEnd.height);
+    expect(Math.abs(atEnd.top - beforeEnd.top)).toBeLessThan(2);
+    expect(Math.abs(afterReversing.height - beforeEnd.height)).toBeLessThan(2);
+    expect(Math.abs(afterReversing.top - beforeEnd.top)).toBeLessThan(2);
+    expect(atEnd.bottom).toBeGreaterThan(0);
+    expect(atEnd.top).toBeLessThan(page.viewportSize()!.height);
+  });
+});
+
 test.describe('smart links', () => {
   // The bundled vault's shipping-cadence note carries one of every form.
   const NOTE = '/notes/shipping-cadence/';

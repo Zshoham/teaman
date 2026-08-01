@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { EntryType } from '../src/lib/entries';
 
-const TYPES = ['note', 'daily', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
+const TYPES = ['note', 'reference', 'daily', 'guide', 'slides', 'decision'] as const satisfies readonly EntryType[];
 
 async function entryCount(page: Page, type?: EntryType): Promise<number> {
   const sel = type ? `[data-entry][data-type="${type}"]` : '[data-entry]';
@@ -10,6 +10,7 @@ async function entryCount(page: Page, type?: EntryType): Promise<number> {
 
 const TYPE_OPTION: Record<EntryType, RegExp> = {
   note: /^Notes \(/,
+  reference: /^References \(/,
   daily: /^Dailies \(/,
   guide: /^Guides \(/,
   slides: /^Slides \(/,

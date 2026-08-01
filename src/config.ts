@@ -16,6 +16,8 @@
 // or the unit tests — DEFAULT_CONFIG is used directly. The config is pure data
 // (no functions) so it round-trips through JSON and stays easy to validate.
 
+import { DEFAULT_BRAND } from './lib/config-defaults.mjs';
+
 /**
  * One tile in the home-page quick-links bento grid.
  *
@@ -142,7 +144,7 @@ export interface SiteConfig {
 }
 
 export const DEFAULT_CONFIG: SiteConfig = {
-  brand: 'vault.teaman',
+  brand: DEFAULT_BRAND,
   tagline: 'a working garden',
   logo: 'teacup.svg',
 

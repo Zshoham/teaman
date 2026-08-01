@@ -1,0 +1,8 @@
+The Markdown files in this directory are copied from:
+https://github.com/rust-lang/reference
+
+Revision: bec6b5e6631be1e45ed905c9e058ffa7ecd9eb62
+Commit date: 2026-07-28T18:20:15Z
+
+They remain available under the upstream Apache-2.0 or MIT licenses included
+as LICENSE-APACHE and LICENSE-MIT.

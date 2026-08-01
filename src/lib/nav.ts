@@ -22,8 +22,9 @@ const base = import.meta.env.BASE_URL;
  * dead link in the nav — same rule the home page's type tabs already follow.
  */
 export async function loadNavSections(): Promise<NavSection[]> {
-  const [notes, slides, guides, weeks, decisions] = await Promise.all([
+  const [notes, references, slides, guides, weeks, decisions] = await Promise.all([
     getCollection('notes'),
+    getCollection('references'),
     getCollection('slides'),
     listGuides(),
     loadDailyWeeks(),
@@ -38,6 +39,16 @@ export async function loadNavSections(): Promise<NavSection[]> {
   push(
     { id: 'notes', label: 'notes', href: `${base}notes/`, dir: `${base}notes/`, grouped: true },
     notes.some(n => !n.data.draft),
+  );
+  push(
+    {
+      id: 'references',
+      label: 'references',
+      href: `${base}references/`,
+      dir: `${base}references/`,
+      grouped: true,
+    },
+    references.some(reference => !reference.data.draft),
   );
   push(
     { id: 'guides', label: 'guides', href: `${base}guides/`, dir: `${base}guides/`, grouped: true },

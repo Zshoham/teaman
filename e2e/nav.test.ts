@@ -4,6 +4,7 @@ import type { EntryType } from '../src/lib/entries';
 /** Section id → the entry type its index page is scoped to. */
 const SECTIONS: { id: string; type: EntryType; path: RegExp }[] = [
   { id: 'notes', type: 'note', path: /\/notes\/$/ },
+  { id: 'references', type: 'reference', path: /\/references\/$/ },
   { id: 'guides', type: 'guide', path: /\/guides\/$/ },
   { id: 'slides', type: 'slides', path: /\/slides\/$/ },
 ];
@@ -50,7 +51,7 @@ test.describe('section nav', () => {
     expect(response.status()).toBe(200);
   });
 
-  for (const path of ['/notes/', '/guides/', '/slides/']) {
+  for (const path of ['/notes/', '/references/', '/guides/', '/slides/']) {
     test(`${path} opens with the tag filter ready and no add-filter menu`, async ({ page }) => {
       await page.goto(path);
       const toolbar = page.locator('[data-filter-toolbar]');

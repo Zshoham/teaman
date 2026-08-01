@@ -16,9 +16,10 @@ afterEach(() => {
 
 describe('content-paths', () => {
   it('falls back to the bundled example/ vault when TEAMAN_VAULT is unset', async () => {
-    const { contentRoot, notesRoot, guidesRoot, slidesRoot, dailiesRoot } = await load(undefined);
+    const { contentRoot, notesRoot, referencesRoot, guidesRoot, slidesRoot, dailiesRoot } = await load(undefined);
     expect(contentRoot.replace(/\\/g, '/')).toMatch(/\/example$/);
     expect(notesRoot.replace(/\\/g, '/')).toMatch(/\/example\/notes$/);
+    expect(referencesRoot.replace(/\\/g, '/')).toMatch(/\/example\/references$/);
     expect(guidesRoot.replace(/\\/g, '/')).toMatch(/\/example\/guides$/);
     expect(slidesRoot.replace(/\\/g, '/')).toMatch(/\/example\/slides$/);
     expect(dailiesRoot.replace(/\\/g, '/')).toMatch(/\/example\/dailies$/);

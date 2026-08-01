@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Astro engine** (`npm`/`npx @zshoham/teaman`). The core idea: **the vault is pure data, the
 engine is code**, and the two never mix.
 
-- A *vault* contains only content (`notes/ guides/ slides/ dailies/`), a
+- A *vault* contains only content (`notes/ references/ guides/ slides/ dailies/`), a
   `teaman.config.js`, and optional `public/` passthrough assets. It carries **no
   engine source**, so upgrading the engine is bumping one version number — there
   is never a merge.
@@ -27,7 +27,7 @@ semver contract before changing config keys, frontmatter schemas, or URL structu
 ```sh
 npm install
 npm run dev            # Astro dev server on the bundled example/ vault (fastest loop)
-npm run build          # full prod build: astro → slides → search  (build:all)
+npm run build          # full prod build: astro → reference PDFs → slides → search  (build:all)
 npm run preview        # preview the production build
 npm test               # vitest unit suite (node env)
 npm run typecheck      # astro sync + tsc --noEmit (repo is typecheck-clean; CI enforces it)
@@ -104,14 +104,18 @@ mergeless.
 
 ### Content collections
 
-`src/content.config.ts` defines five Astro collections — `notes`, `guides`,
-`guideSummaries`, `slides`, `dailies` — each a `glob` loader rooted at the matching
+`src/content.config.ts` defines seven Astro collections — `notes`, `references`,
+`guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — each a `glob` loader rooted at the matching
 `*Root` from `content-paths.ts`. Notes about the model:
 - `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (its own
   `guideSummaries` collection, excluded from `guides`), and the other `.md` files are
   chapters.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
+- `references/*.md` are standalone long-form documents with a dedicated reader
+  (`/references/<slug>/`) and build-time Typst PDF (`reference.pdf`). Their
+  frontmatter mirrors notes and adds optional `summary`; `##`–`####` headings
+  feed the in-page TOC and section search.
 - Wiki-links (`[[name]]`) are resolved by `remark-wiki-link` in `astro.config.mjs` to
   `${base}notes/<slug>/`; slugs are `name.replace(/ /g,'-').toLowerCase()`. `doctor`
   warns on links to missing notes using the same slug rule.
@@ -134,15 +138,37 @@ parsed from the href by `src/lib/smart-links.mjs`; vault hosts extend the
 built-in ones via `config.smartLinks`, which `astro.config.mjs` reads straight
 off `TEAMAN_CONFIG` since it can't import the TS config),
 `rehype-callouts` (Obsidian callouts), and slug +
-autolinked headings. Note `astro build` is run from the engine dir with `.astro/`
+autolinked headings. In the rehype phase `rehypeReferenceSections` (references
+only, runs last so heading ids/permalinks are already set) wraps each `##`
+chapter in `<section class="reference-chapter">` carrying a
+`contain-intrinsic-size` estimate, which `global.css` pairs with
+`content-visibility: auto` — a book-sized reference is one HTML document, and
+chapters are the granularity at which the browser can skip the parts nobody is
+reading (per-block containment measured *worse* than none). Note `astro build` is run from the engine dir with `.astro/`
 cache dropped each build, because the content-layer store is keyed by collection
 name not vault — otherwise a second vault reuses the first vault's cached entries.
 
 ### Build pipeline (`build:all`)
 
-Three sequential stages, all reading the env seam:
+Four sequential stages, all reading the env seam:
 1. `astro build` → HTML into `outDir`.
-2. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`.
+2. `scripts/build-references.mjs` → converts publishable Markdown under
+   `<vault>/references/` to Typst, applies `resources/reference-template.typ`,
+   and writes `<out>/references/<slug>/reference.pdf` using the bundled native
+   compiler. Local images stay inside the vault workspace; unresolved/remote
+   images become labelled placeholders rather than breaking the PDF. The
+   template's callouts come from **showybox** and its code blocks from **codly**;
+   both are vendored under `resources/typst-packages/` and mounted as compiler
+   shadow files by `src/lib/typst-packages.mjs` (imported as
+   `/_teaman/<pkg>/...`, never `@preview/...`) so the build stays offline and
+   version-pinned — use `createReferenceCompiler()` rather than
+   `NodeCompiler.create()` anywhere the reference template is compiled. See
+   `resources/typst-packages/README.md` to bump a package. Compiled PDFs are
+   cached in the gitignored `.reference-cache/` under `referencePdfCacheKey()`
+   (the Typst source plus the bytes of every image it names, since images are
+   referenced by path rather than inlined) — a book-sized reference takes tens
+   of seconds to compile, and `teaman dev` runs this stage on every start.
+3. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`.
    Decks are discovered recursively by the shared `src/lib/discover-decks.mjs`
    (also used by `build-search.mjs`, so the built decks and the search index
    always agree): it walks subdirectories, skips any path with a segment
@@ -169,20 +195,20 @@ Three sequential stages, all reading the env seam:
    client source to catch an upstream regression. build-slides also stages a
    `<work dir>/vite.config.mts` (`renderViteConfig`) that mutes Rolldown's
    harmless INVALID_ANNOTATION noise.
-3. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
+4. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck via
    `parse-deck.mjs`.
 
 ### Frontend
 
 Astro pages in `src/pages/` (`index`, `notes/index`, `notes/[...slug]`,
-`guides/index`, `guides/[...slug]`, `slides/index`, `daily/index`,
+`references/index`, `references/[...slug]`, `guides/index`, `guides/[...slug]`, `slides/index`, `daily/index`,
 `daily/[week]`, `decisions/index`) compose React islands (`@astrojs/react`) from
 `src/components/` (shadcn-style UI under `components/ui/`). Tailwind v4 via
 `@tailwindcss/vite`; tokens in `src/styles/global.css`. Client-side list
 filter/sort/tag logic is the framework-agnostic `src/scripts/list-controller.ts`.
 
-The home feed and the three per-collection indexes are the same surface:
+The home feed and the four per-collection indexes are the same surface:
 `components/collection/CollectionIndex.astro` (cards + filter bar + sort +
 pagination, driven by `lib/collection-index.ts`), differing only in which
 `loadXEntries()` feeds it — a single-type list drops the Type filter. The

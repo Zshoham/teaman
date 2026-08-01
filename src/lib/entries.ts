@@ -9,10 +9,11 @@ import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, t
 import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
-export type EntryType = 'note' | 'daily' | 'guide' | 'slides' | 'decision';
+export type EntryType = 'note' | 'reference' | 'daily' | 'guide' | 'slides' | 'decision';
 
 export const TYPE_LABEL: Record<EntryType, string> = {
   note: 'note',
+  reference: 'reference',
   daily: 'daily',
   guide: 'guide',
   slides: 'slides',
@@ -71,6 +72,27 @@ export async function loadNoteEntries(): Promise<Entry[]> {
         created: isoDate(date),
         meta: wordMeta(wordCount(body)),
         href: `${base}notes/${n.id}/`,
+      };
+    });
+}
+
+export async function loadReferenceEntries(): Promise<Entry[]> {
+  const references = await getCollection('references');
+  return references
+    .filter(reference => !reference.data.draft)
+    .map(reference => {
+      const body = (reference.body ?? '') as string;
+      const date = (reference.data.date ?? new Date()) as Date;
+      return {
+        id: `reference-${reference.id}`,
+        type: 'reference' as const,
+        title: reference.data.title ?? reference.id,
+        excerpt: reference.data.summary ?? extractExcerpt(body),
+        tags: reference.data.tags ?? [],
+        updated: isoDate(date),
+        created: isoDate(date),
+        meta: wordMeta(wordCount(body)),
+        href: `${base}references/${reference.id}/`,
       };
     });
 }
@@ -214,16 +236,17 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
   });
 }
 
-/** Loads notes, slides, guides, and decisions as a single list sorted by `updated` desc. */
+/** Loads every publishable content type as a single list sorted by `updated` desc. */
 export async function loadAllEntries(): Promise<Entry[]> {
-  const [notes, dailies, slides, guides, decisions] = await Promise.all([
+  const [notes, references, dailies, slides, guides, decisions] = await Promise.all([
     loadNoteEntries(),
+    loadReferenceEntries(),
     loadDailyNoteEntries(),
     loadSlideEntries(),
     loadGuideEntries(),
     loadDecisionEntries(),
   ]);
-  return [...notes, ...dailies, ...slides, ...guides, ...decisions].sort((a, b) =>
+  return [...notes, ...references, ...dailies, ...slides, ...guides, ...decisions].sort((a, b) =>
     b.updated.localeCompare(a.updated),
   );
 }

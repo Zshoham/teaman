@@ -11,6 +11,7 @@ import {
   loadDailyNoteEntries,
   loadGuideEntries,
   loadNoteEntries,
+  loadReferenceEntries,
   loadSlideEntries,
 } from '../entries';
 import { extractExcerpt, readingTimeMeta, wordCount, wordMeta } from '../text';
@@ -108,6 +109,25 @@ describe('extractExcerpt', () => {
     expect(extractExcerpt('This is **bold** and `code`.')).toBe('This is bold and code.');
   });
 
+  it('strips HTML comments and tags', () => {
+    const body = '<!--teaman-reference-chapter:introduction.md-->\n\n<span id="x"></span>Real text.';
+    expect(extractExcerpt(body)).toBe('Real text.');
+  });
+
+  it('preserves URI and email autolinks while stripping HTML', () => {
+    const body = 'See <https://example.com> or <alice@example.com> for details.';
+    expect(extractExcerpt(body)).toBe('See https://example.com or alice@example.com for details.');
+  });
+
+  it('keeps comparison operators in prose', () => {
+    expect(extractExcerpt('Holds when a < b and c > d.')).toBe('Holds when a < b and c > d.');
+  });
+
+  it('does not strip prose through a later paragraph as an HTML tag', () => {
+    const body = 'alpha<beta.\n\nThe other side is gamma>delta.';
+    expect(extractExcerpt(body)).toBe('alpha<beta.');
+  });
+
   it('truncates long paragraphs at a word boundary', () => {
     const longWord = 'word';
     const words = Array.from({ length: 60 }, (_, i) => `${longWord}${i}`);
@@ -175,6 +195,49 @@ describe('loadNoteEntries', () => {
   it('returns an empty array when the collection is empty', async () => {
     vi.mocked(getCollection).mockResolvedValue([] as any);
     expect(await loadNoteEntries()).toEqual([]);
+  });
+});
+
+describe('loadReferenceEntries', () => {
+  beforeEach(() => {
+    vi.mocked(getCollection).mockReset();
+  });
+
+  it('maps a long-form reference and prefers its authored summary', async () => {
+    vi.mocked(getCollection).mockResolvedValue([
+      {
+        id: 'platform/system',
+        data: {
+          title: 'Platform system',
+          summary: 'The durable system map.',
+          tags: ['platform'],
+          date: new Date('2026-08-01T00:00:00Z'),
+        },
+        body: '## Architecture\n\nA much longer body.',
+      },
+    ] as any);
+
+    const [entry] = await loadReferenceEntries();
+    expect(entry).toMatchObject({
+      id: 'reference-platform/system',
+      type: 'reference',
+      title: 'Platform system',
+      excerpt: 'The durable system map.',
+      tags: ['platform'],
+      updated: '2026-08-01',
+      href: '/references/platform/system/',
+    });
+  });
+
+  it('filters drafts and falls back to a body excerpt', async () => {
+    vi.mocked(getCollection).mockResolvedValue([
+      { id: 'draft', data: { draft: true }, body: 'Hidden.' },
+      { id: 'live', data: { date: new Date('2026-08-01T00:00:00Z') }, body: 'Visible reference.' },
+    ] as any);
+
+    const entries = await loadReferenceEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].excerpt).toBe('Visible reference.');
   });
 });
 

@@ -23,6 +23,25 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Long-form references** (minor, additive). Markdown files under the new
+  `references/` content root render at `/references/<slug>/` with a dedicated
+  reading surface: sticky heading navigation, active-section + reading-progress
+  tracking, document-local phrase search that reports matching sections, and a
+  downloadable `reference.pdf`. The PDF is produced offline during `build` by
+  the engine's bundled Typst template and compiler; vaults need no Typst install
+  or engine source. Obsidian callouts, local SVG images, and Mermaid, PlantUML,
+  TikZ, and Typst diagram fences are preserved in the PDF. Reference frontmatter
+  accepts the regular optional note fields (`title`, `date`, `tags`, `draft`)
+  plus optional `summary`. Existing vaults are unaffected; `teaman init` now
+  scaffolds an empty `references/`
+  directory and the header only exposes it when a publishable reference exists.
+  A reference may also be an mdBook-style directory:
+  `references/<slug>/SUMMARY.md` plus linked chapter files. `SUMMARY.md` owns
+  the reference frontmatter and its links define chapter order/nesting; the
+  engine assembles those chapters into the same single reader URL and one large
+  `reference.pdf`. Existing standalone `.md` references and their URLs are
+  unchanged.
+
 - **Smart links for Jira / Confluence / GitLab** (minor, additive). Links to
   those three services in note prose now render as a chip: a tinted stub
   carrying the ref parsed out of the URL (`PLAT-412`, `ENG`, `!284`, `#77`,

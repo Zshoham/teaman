@@ -11,7 +11,7 @@ const sections = await loadNavSections();
 const pathname = Astro.url.pathname;
 const activeId = sections.find(section => isSectionActive(section, pathname))?.id;
 
-// Below `md` the content sections (notes/guides/slides) collapse into one
+// Below `md` the content sections (notes/references/guides/slides) collapse into one
 // dropdown so the header keeps a single nav row; daily/decisions stay inline.
 const grouped = sections.filter(section => section.grouped);
 const standalone = sections.filter(section => !section.grouped);

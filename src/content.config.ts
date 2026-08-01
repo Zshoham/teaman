@@ -1,11 +1,32 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { dailiesRoot, decisionsRoot, guidesRoot, notesRoot, slidesRoot } from './lib/content-paths';
+import { referenceLoader } from './lib/reference-loader.mjs';
+import {
+  dailiesRoot,
+  decisionsRoot,
+  guidesRoot,
+  notesRoot,
+  referencesRoot,
+  slidesRoot,
+} from './lib/content-paths';
 
 const notes = defineCollection({
   loader: glob({ pattern: '**/*.md', base: notesRoot }),
   schema: z.object({
     title: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    date: z.coerce.date().optional(),
+    draft: z.boolean().optional(),
+  }),
+});
+
+const references = defineCollection({
+  // A SUMMARY.md directory is one logical entry assembled from its ordered
+  // chapters; ordinary .md files remain one standalone reference apiece.
+  loader: referenceLoader({ base: referencesRoot }),
+  schema: z.object({
+    title: z.string().optional(),
+    summary: z.string().optional(),
     tags: z.array(z.string()).optional(),
     date: z.coerce.date().optional(),
     draft: z.boolean().optional(),
@@ -73,4 +94,12 @@ const decisions = defineCollection({
   }),
 });
 
-export const collections = { notes, guides, guideSummaries, slides, dailies, decisions };
+export const collections = {
+  notes,
+  references,
+  guides,
+  guideSummaries,
+  slides,
+  dailies,
+  decisions,
+};

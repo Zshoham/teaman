@@ -12,6 +12,7 @@ export const contentRoot = fromEnv
   : fallbackRoot;
 
 export const notesRoot = join(contentRoot, 'notes');
+export const referencesRoot = join(contentRoot, 'references');
 export const guidesRoot = join(contentRoot, 'guides');
 export const slidesRoot = join(contentRoot, 'slides');
 export const dailiesRoot = join(contentRoot, 'dailies');

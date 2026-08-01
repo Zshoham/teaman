@@ -9,6 +9,7 @@ const mockGetCollection = vi.mocked(getCollection);
 
 interface Fixture {
   notes?: { id: string; draft?: boolean }[];
+  references?: { id: string; draft?: boolean }[];
   slides?: { id: string; draft?: boolean }[];
   /** Guide slugs; each becomes a `guideSummaries` entry with one chapter. */
   guides?: string[];
@@ -23,6 +24,10 @@ function stubCollections(fixture: Fixture) {
       case 'notes':
         return Promise.resolve(
           (fixture.notes ?? []).map(n => ({ id: n.id, data: { draft: n.draft ?? false } })),
+        );
+      case 'references':
+        return Promise.resolve(
+          (fixture.references ?? []).map(item => ({ id: item.id, data: { draft: item.draft ?? false } })),
         );
       case 'slides':
         return Promise.resolve(
@@ -67,6 +72,7 @@ describe('loadNavSections', () => {
   it('lists every section that has content, content sections first', async () => {
     stubCollections({
       notes: [{ id: 'a' }],
+      references: [{ id: 'system' }],
       slides: [{ id: 'deck' }],
       guides: ['rust'],
       dailies: ['2026-03-04'],
@@ -74,6 +80,7 @@ describe('loadNavSections', () => {
     });
     expect(ids(await loadNavSections())).toEqual([
       'notes',
+      'references',
       'guides',
       'slides',
       'daily',
@@ -89,6 +96,7 @@ describe('loadNavSections', () => {
   it('ignores drafts when deciding whether a section exists', async () => {
     stubCollections({
       notes: [{ id: 'a', draft: true }],
+      references: [{ id: 'system', draft: true }],
       slides: [{ id: 'deck', draft: true }],
     });
     expect(ids(await loadNavSections())).toEqual([]);
@@ -105,13 +113,14 @@ describe('loadNavSections', () => {
   it('groups only the content sections into the mobile menu', async () => {
     stubCollections({
       notes: [{ id: 'a' }],
+      references: [{ id: 'system' }],
       guides: ['rust'],
       slides: [{ id: 'deck' }],
       dailies: ['2026-03-04'],
       decisions: ['0001'],
     });
     const sections = await loadNavSections();
-    expect(ids(sections.filter(s => s.grouped))).toEqual(['notes', 'guides', 'slides']);
+    expect(ids(sections.filter(s => s.grouped))).toEqual(['notes', 'references', 'guides', 'slides']);
     expect(ids(sections.filter(s => !s.grouped))).toEqual(['daily', 'decisions']);
   });
 
@@ -123,10 +132,16 @@ describe('loadNavSections', () => {
   });
 
   it('sends the content sections at their index pages', async () => {
-    stubCollections({ notes: [{ id: 'a' }], guides: ['rust'], slides: [{ id: 'deck' }] });
+    stubCollections({
+      notes: [{ id: 'a' }],
+      references: [{ id: 'system' }],
+      guides: ['rust'],
+      slides: [{ id: 'deck' }],
+    });
     const sections = await loadNavSections();
     expect(sections.map(s => s.href)).toEqual([
       expect.stringMatching(/notes\/$/),
+      expect.stringMatching(/references\/$/),
       expect.stringMatching(/guides\/$/),
       expect.stringMatching(/slides\/$/),
     ]);

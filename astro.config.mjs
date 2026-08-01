@@ -5,7 +5,6 @@ import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
 import remarkWikiLink from 'remark-wiki-link';
-import rehypeCallouts from 'rehype-callouts';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
@@ -14,6 +13,9 @@ import { remarkPlantuml } from './src/lib/remark-plantuml.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
 import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
 import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
+import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
+import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
+import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { normalizeBase } from './src/lib/site-base.mjs';
 
@@ -72,6 +74,10 @@ export default defineConfig({
       smartypants: true,
       remarkPlugins: [
         remarkStripLeadingH1,
+        // SUMMARY.md-backed references carry chapter boundary markers. This
+        // pass gives each chapter a collision-free outline and rewrites its
+        // local .md links into jumps within the assembled document.
+        remarkReferenceBooks,
         remarkMermaid,
         remarkPlantuml,
         [remarkInlineSvg, { roots: svgRoots }],
@@ -89,13 +95,17 @@ export default defineConfig({
         [remarkSmartLinks, { hosts: smartLinkHosts }],
       ],
       rehypePlugins: [
-        rehypeCallouts,
+        rehypeFlexibleCallouts,
         rehypeSlug,
         [rehypeAutolinkHeadings, {
           behavior: 'append',
           properties: { className: ['heading-anchor'], 'aria-label': 'Permalink to this heading' },
           content: { type: 'text', value: '#' },
         }],
+        // Last: heading ids and permalinks are already in place, so wrapping
+        // chapters cannot disturb them. References only — see the plugin for
+        // why containment is applied per chapter rather than per block.
+        [rehypeReferenceSections, { referencesRoot: join(vaultRoot, 'references') }],
       ],
     }),
   },

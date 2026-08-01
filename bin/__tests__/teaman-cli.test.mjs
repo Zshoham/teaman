@@ -49,7 +49,7 @@ describe('teaman init', () => {
     // CommonJS host project would refuse to import as ESM.
     expect(existsSync(join(dir, 'teaman.config.mjs'))).toBe(true);
     expect(existsSync(join(dir, 'teaman.config.js'))).toBe(false);
-    for (const d of ['notes', 'guides', 'slides', 'dailies']) {
+    for (const d of ['notes', 'references', 'guides', 'slides', 'dailies']) {
       expect(existsSync(join(dir, d))).toBe(true);
     }
   });
@@ -181,6 +181,25 @@ describe('teaman doctor', () => {
     expect(stderr).toMatch(/my-guide\/ has no SUMMARY.md/);
   });
 
+  it('flags a reference book whose SUMMARY points at a missing chapter', () => {
+    mkdirSync(join(dir, 'references', 'language'), { recursive: true });
+    writeFileSync(join(dir, 'references', 'language', 'SUMMARY.md'), '# Language\n\n- [Missing](missing.md)\n');
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/language\/SUMMARY\.md points at missing chapter missing\.md/);
+  });
+
+  it('accepts a complete multi-file reference book', () => {
+    mkdirSync(join(dir, 'references', 'language'), { recursive: true });
+    writeFileSync(join(dir, 'references', 'language', 'SUMMARY.md'), '# Language\n\n- [Intro](intro.md)\n');
+    writeFileSync(join(dir, 'references', 'language', 'intro.md'), '# Intro\n\nBody.\n');
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).not.toMatch(/references:/);
+  });
+
   it('warns on unresolved wiki-links in notes', () => {
     mkdirSync(join(dir, 'notes'), { recursive: true });
     writeFileSync(join(dir, 'notes', 'a.md'), 'See [[nonexistent]] here.\n');
@@ -188,6 +207,16 @@ describe('teaman doctor', () => {
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
     expect(stderr).toMatch(/links to missing \[\[nonexistent\]\]/);
+  });
+
+  it('does not lint Obsidian image embeds as missing notes', () => {
+    mkdirSync(join(dir, 'references'), { recursive: true });
+    writeFileSync(join(dir, 'references', 'system.md'), '# System\n\n![[diagram.svg|System diagram]]\n');
+    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
+
+    const { code, stderr } = cli(['doctor', dir]);
+    expect(code).toBe(0);
+    expect(stderr).not.toMatch(/diagram\.svg.*missing|missing.*diagram\.svg/i);
   });
 });
 

@@ -18,7 +18,7 @@ import { join } from 'path';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v1';
+const FORMAT_VERSION = 'v2';
 
 const escapeHtml = (value) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
