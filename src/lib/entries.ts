@@ -5,7 +5,16 @@ import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
 import { slidesRoot } from './content-paths';
 import { isPublishableDeckId } from './discover-decks.mjs';
-import { dayAnchor, sundayOf, weekHref, WEEKDAY_LONG, isoDate as localIsoDate, type WeekdayShort } from './dailies';
+import {
+  dailyDateId,
+  dateFromIsoDate,
+  dayAnchor,
+  localIsoDate,
+  sundayOf,
+  weekHref,
+  WEEKDAY_LONG,
+  type WeekdayShort,
+} from './dailies';
 import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
@@ -175,11 +184,6 @@ export async function loadGuideEntries(): Promise<Entry[]> {
 
 const WEEKDAY_FROM_INDEX: WeekdayShort[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function dailyDateId(entry: { id: string; data: { date: Date } }): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(entry.id)) return entry.id;
-  return isoDate(entry.data.date);
-}
-
 /**
  * Daily notes show up in the index alongside regular notes, under their own
  * `daily` type so the home filter can single them out. Each daily file becomes
@@ -192,13 +196,8 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
     .map(d => {
       const body = (d.body ?? '') as string;
       const iso = dailyDateId(d);
-      const date = new Date(`${iso}T00:00:00`);
+      const date = dateFromIsoDate(iso);
       const weekday = WEEKDAY_LONG[WEEKDAY_FROM_INDEX[date.getDay()]];
-      // `date` and `sundayOf` work in *local* time, so format the week id with
-      // the daily module's local isoDate — NOT this file's UTC isoDate. With the
-      // UTC one, a positive-offset build (e.g. UTC+3) formats the local-midnight
-      // Sunday as the previous UTC day, rolling the week back and breaking the
-      // link to the actual /daily/<sunday>/ page.
       const weekId = localIsoDate(sundayOf(date));
       return {
         id: `daily-${iso}`,

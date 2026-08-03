@@ -3,7 +3,9 @@ import { wordCount } from './text';
 import {
   SHORT_FROM_INDEX,
   addDays,
-  isoDate,
+  dailyDateId,
+  dateFromIsoDate,
+  localIsoDate,
   sundayOf,
   type WeekdayShort,
 } from './dailies-shared';
@@ -11,7 +13,9 @@ import {
 export {
   WEEKDAY_LONG,
   WEEKDAY_INITIALS,
-  isoDate,
+  localIsoDate,
+  dateFromIsoDate,
+  dailyDateId,
   sundayOf,
   addDays,
   weekHref,
@@ -42,15 +46,6 @@ export interface DailyWeek {
   totalWords: number;
 }
 
-function dailyDateId(entry: CollectionEntry<'dailies'>): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(entry.id)) return entry.id;
-  return isoDate(entry.data.date as Date);
-}
-
-function dateFromIsoDate(date: string): Date {
-  return new Date(`${date}T00:00:00`);
-}
-
 export async function loadDailyEntries(): Promise<DailyEntry[]> {
   const dailies = await getCollection('dailies');
   return dailies
@@ -73,7 +68,7 @@ export function groupByWeek(entries: DailyEntry[]): DailyWeek[] {
   const bySunday = new Map<string, DailyEntry[]>();
   for (const e of entries) {
     const d = dateFromIsoDate(e.date);
-    const key = isoDate(sundayOf(d));
+    const key = localIsoDate(sundayOf(d));
     const list = bySunday.get(key) ?? [];
     list.push(e);
     bySunday.set(key, list);
@@ -86,7 +81,7 @@ export function groupByWeek(entries: DailyEntry[]): DailyWeek[] {
       return {
         id: sundayIso,
         start: sundayIso,
-        end: isoDate(saturday),
+        end: localIsoDate(saturday),
         days: days.slice().sort((a, b) => a.date.localeCompare(b.date)),
         totalWords: days.reduce((n, d) => n + d.words, 0),
       };
