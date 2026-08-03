@@ -15,13 +15,13 @@
 import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { escapeHtml } from './html-escape.mjs';
+import { replaceChildren } from './mdast-walk.mjs';
+import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
 const FORMAT_VERSION = 'v2';
-
-const escapeHtml = (value) =>
-  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // Black is the compilers' "default ink"; rewrite it to currentColor so text
 // and strokes follow the site theme. Explicit non-black colors are kept —
@@ -36,14 +36,8 @@ export function themeAdaptSvg(svg) {
 // Trim to the root <svg> tag and merge our classes into it (`content-svg` for
 // the shared prose sizing, plus a per-language class for targeted styling).
 export function classifySvg(source, extraClass) {
-  const start = source.search(/<svg[\s>]/i);
-  if (start === -1) return null;
-  const svg = source.slice(start).trim();
-  return svg.replace(/<svg\b[^>]*>/i, (tag) =>
-    /\bclass\s*=\s*"/i.test(tag)
-      ? tag.replace(/\bclass\s*=\s*"([^"]*)"/i, (_, cls) => `class="${cls} content-svg ${extraClass}"`)
-      : tag.replace(/<svg/i, `<svg class="content-svg ${extraClass}"`),
-  );
+  const svg = svgRootOf(source);
+  return svg === null ? null : withSvgClass(svg, ['content-svg', extraClass]);
 }
 
 // ── compilers (lazy: only pages that actually carry a fence pay the import) ──
@@ -122,14 +116,11 @@ export function remarkFenceSvg({ cacheDir, compilers } = {}) {
     // Collect first, then compile: the transformer must be async and mdast
     // mutation during an async walk is easier to reason about in two phases.
     const fences = [];
-    const walk = (node) => {
-      if (!node || !Array.isArray(node.children)) return;
-      node.children.forEach((child, index) => {
-        if (child.type === 'code' && child.lang in compile) fences.push({ parent: node, index, node: child });
-        else walk(child);
-      });
-    };
-    walk(tree);
+    replaceChildren(tree, (node, parent, index) => {
+      if (node.type !== 'code' || !(node.lang in compile)) return undefined;
+      fences.push({ parent, index, node });
+      return null;
+    });
 
     for (const { parent, index, node } of fences) {
       const { lang, value: source } = node;
