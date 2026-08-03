@@ -1,14 +1,12 @@
 import type { Entry, EntryType } from './entries';
 import { fmtDate } from './format';
+import { tagCounts } from './tags';
+
+export type { Topic } from './tags';
 
 export interface FilterTab {
   id: string;
   label: string;
-  count: number;
-}
-
-export interface Topic {
-  tag: string;
   count: number;
 }
 
@@ -48,17 +46,7 @@ export function buildFilterTabs(entries: Entry[]): FilterTab[] {
 }
 
 /** Tags across the entries, most-used first then alphabetical. */
-export function buildTopics(entries: Entry[]): Topic[] {
-  const tagCounts = new Map<string, number>();
-  for (const entry of entries) {
-    for (const tag of entry.tags) {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
-    }
-  }
-  return [...tagCounts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([tag, count]) => ({ tag, count }));
-}
+export const buildTopics = tagCounts;
 
 /**
  * Footer summary line, e.g. `12 entries · last edit Mar 4, 2026`. `noun` names

@@ -34,6 +34,28 @@ export function matchesFilterRules(
 }
 
 /**
+ * Drop rules that would match everything, which is what ReUI hands back while a
+ * chip is open with nothing picked yet. `empty` / `not_empty` carry their whole
+ * meaning in the operator, so they survive with no values.
+ *
+ * `keepField` exempts one field: a per-collection index opens its sole filter as
+ * a ready-to-use chip, and clearing that chip's values must leave the picker in
+ * place (removing the chip outright still removes it).
+ */
+export function retainMeaningfulRules<T extends FilterRule>(
+  rules: T[],
+  { keepField }: { keepField?: string } = {},
+): T[] {
+  return rules.filter(
+    (rule) =>
+      rule.values.length > 0 ||
+      rule.operator === 'empty' ||
+      rule.operator === 'not_empty' ||
+      rule.field === keepField,
+  );
+}
+
+/**
  * ReUI can add the same multiselect field more than once when it remains in the
  * Add Filter menu. Collapse equal field/operator pairs into one multi-value rule
  * so repeated selections retain the expected OR semantics and one compact chip.

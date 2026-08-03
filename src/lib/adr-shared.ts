@@ -116,14 +116,8 @@ export function statusCounts(list: Array<{ status: AdrStatus }>): Record<AdrStat
   return counts;
 }
 
-/** Tag → count, sorted by frequency then name. */
-export function tagCounts(list: Array<{ tags: string[] }>): Array<{ tag: string; count: number }> {
-  const m = new Map<string, number>();
-  for (const a of list) for (const t of a.tags) m.set(t, (m.get(t) ?? 0) + 1);
-  return [...m.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([tag, count]) => ({ tag, count }));
-}
+// Tag counting is not ADR-specific — the collection indexes count the same way.
+export { tagCounts, type Topic } from './tags';
 
 /** Active filter selection for the timeline. */
 export interface AdrFilter {
