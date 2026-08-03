@@ -1,22 +1,16 @@
 import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
 import { execFileSync } from 'child_process';
-import { fileURLToPath } from 'url';
 import { join, extname } from 'path';
 import { renderVarsCss, renderLogoConfig, resolveLogoSource, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import { engineDir, outDir, publicDir, teamanConfig, vaultDir } from '../src/lib/build-env.mjs';
 
-const engineDir = fileURLToPath(new URL('..', import.meta.url));
-const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
-const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
 const slidesSrcDir = join(vaultDir, 'slides');
 const slidesTmpDir = process.env.TEAMAN_SLIDES_WORK ?? join(engineDir, '.slides-build');
-const publicDir = join(outDir, 'slides');
+const slidesOutDir = join(outDir, 'slides');
 
-// `slides` knobs from teaman.config.js (serialized via TEAMAN_CONFIG by the CLI).
-let slidesConfig = {};
-try {
-  slidesConfig = (JSON.parse(process.env.TEAMAN_CONFIG ?? '{}').slides) ?? {};
-} catch { /* malformed config → fall back to theme defaults */ }
+// `slides` knobs from teaman.config.js; absent or malformed → theme defaults.
+const slidesConfig = teamanConfig.slides ?? {};
 
 if (!existsSync(slidesSrcDir)) {
   console.log('No slides directory, skipping.');
@@ -50,7 +44,7 @@ cpSync(join(engineDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
 writeFileSync(join(themeDir, 'styles', 'vars.css'), renderVarsCss(slidesConfig));
 
 const logoSrc = resolveLogoSource(slidesConfig.logo, {
-  teamanPublic: process.env.TEAMAN_PUBLIC,
+  teamanPublic: publicDir,
   vaultDir,
 });
 let logoFile = null;
@@ -71,9 +65,9 @@ try {
   for (const deck of decks) {
     const name = deck.id;
     const tmpDeck = join(slidesTmpDir, deck.relativePath);
-    const outDir = join(publicDir, ...name.split('/'));
+    const deckOutDir = join(slidesOutDir, ...name.split('/'));
 
-    mkdirSync(outDir, { recursive: true });
+    mkdirSync(deckOutDir, { recursive: true });
     console.log(`Building deck: ${name}`);
     // Path-agnostic build: relative asset base (./) + hash routing. Slidev's
     // getSlidePath prefixes import.meta.env.BASE_URL while the router is ALSO
@@ -89,7 +83,7 @@ try {
     // Slide navigation from deeper routes (presenter mode, the overview) needs
     // router paths that are absolute and base-less; Slidev ≥ 52.17 ships that
     // (getSlideRoutePath) — see the routing note in scripts/slides-theme.mjs.
-    execFileSync('npx', slidevBuildArgs(tmpDeck, { out: outDir, theme: themeDir }), {
+    execFileSync('npx', slidevBuildArgs(tmpDeck, { out: deckOutDir, theme: themeDir }), {
       cwd: engineDir,
       stdio: 'inherit',
     });

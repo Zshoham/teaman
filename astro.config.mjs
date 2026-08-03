@@ -1,5 +1,4 @@
-import { fileURLToPath } from 'url';
-import { join, resolve as resolvePath } from 'path';
+import { join } from 'path';
 import { defineConfig } from 'astro/config';
 import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
@@ -17,47 +16,40 @@ import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
 import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
 import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
-import { normalizeBase } from './src/lib/site-base.mjs';
+import {
+  engineDir,
+  outDir,
+  publicDir,
+  siteBase as base,
+  teamanConfig,
+  vaultDir,
+} from './src/lib/build-env.mjs';
 
 import react from '@astrojs/react';
-
-// Normalize the same way the build scripts do (single leading + trailing slash)
-// so `import.meta.env.BASE_URL` and the wiki-link hrefTemplate below never
-// concatenate into broken URLs like `/fooguides/...` for `--base /foo`.
-const base = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 // Where remark-inline-svg finds the files behind `![alt](diagram.svg)`.
 // Obsidian keeps attachments anywhere in the vault, so the whole vault root is
 // searched (the plugin also tries the note's own directory for relative URLs),
-// plus the public-asset roots for site-root-style `/images/x.svg` references —
-// same env-seam fallbacks as content-paths.ts: bundled example/ + resources/
-// when the CLI didn't set TEAMAN_VAULT / TEAMAN_PUBLIC.
-const vaultRoot = process.env.TEAMAN_VAULT
-  ? resolvePath(process.env.TEAMAN_VAULT)
-  : fileURLToPath(new URL('./example', import.meta.url));
-const svgRoots = [
-  vaultRoot,
-  process.env.TEAMAN_PUBLIC,
-  join(vaultRoot, 'public'),
-  fileURLToPath(new URL('./resources', import.meta.url)),
-].filter(Boolean);
+// plus the public-asset roots for site-root-style `/images/x.svg` references.
+// De-duplicated because `publicDir` already *is* engine resources/ when the CLI
+// didn't stage one.
+const svgRoots = [...new Set([
+  vaultDir,
+  publicDir,
+  join(vaultDir, 'public'),
+  join(engineDir, 'resources'),
+])];
 
 // Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira
 // Data Center. The markdown pipeline runs inside this config, which can't import
-// the TS `src/config.ts`, so read the same TEAMAN_CONFIG env var it reads —
+// the TS `src/config.ts`, so it reads the vault config off the same env seam —
 // absent (plain `npm run dev`, the tests) just means the built-in hosts.
-const smartLinkHosts = (() => {
-  try {
-    return JSON.parse(process.env.TEAMAN_CONFIG ?? '{}').smartLinks ?? undefined;
-  } catch {
-    return undefined;
-  }
-})();
+const smartLinkHosts = teamanConfig.smartLinks ?? undefined;
 
 export default defineConfig({
   base,
-  outDir: process.env.TEAMAN_OUT ?? './public',
-  publicDir: process.env.TEAMAN_PUBLIC ?? './resources',
+  outDir,
+  publicDir,
   integrations: [mdx(), react(), excalidrawAssets({ base })],
   vite: {
     plugins: [tailwindcss()],
@@ -84,7 +76,7 @@ export default defineConfig({
         // tikz/typst fences compile to svg at build time; renders are cached
         // in the engine dir (like .slides-build/.teaman-public — gitignored,
         // disposable) so unchanged diagrams never pay the compiler again.
-        [remarkFenceSvg, { cacheDir: fileURLToPath(new URL('./.diagram-cache', import.meta.url)) }],
+        [remarkFenceSvg, { cacheDir: join(engineDir, '.diagram-cache') }],
         [remarkWikiLink, {
           pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
           hrefTemplate: (permalink) => `${base}notes/${permalink}/`,
@@ -105,7 +97,7 @@ export default defineConfig({
         // Last: heading ids and permalinks are already in place, so wrapping
         // chapters cannot disturb them. References only — see the plugin for
         // why containment is applied per chapter rather than per block.
-        [rehypeReferenceSections, { referencesRoot: join(vaultRoot, 'references') }],
+        [rehypeReferenceSections, { referencesRoot: join(vaultDir, 'references') }],
       ],
     }),
   },

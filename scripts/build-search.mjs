@@ -1,17 +1,13 @@
 import { readdirSync, readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
 import { join, basename } from 'path';
 import matter from 'gray-matter';
 import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
-import { normalizeBase } from '../src/lib/site-base.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
 
-const publicDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
-const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
-const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 const { index, errors: createErrors } = await pagefind.createIndex({
   forceLanguage: 'en',
@@ -25,7 +21,7 @@ if (createErrors.length) {
 // until JS runs, so pagefind would only see a stub title). `slides/index.html`
 // is the Astro-rendered deck index, not a deck, so it is listed explicitly.
 const { errors: dirErrors, page_count } = await index.addDirectory({
-  path: publicDir,
+  path: outDir,
   glob: '{index.html,slides/index.html,{collections,daily,guides,notes,references}/**/*.html}',
 });
 if (dirErrors.length) {
@@ -84,7 +80,7 @@ if (existsSync(decisionsSrcDir)) {
 }
 
 const { errors: writeErrors, outputPath } = await index.writeFiles({
-  outputPath: join(publicDir, 'pagefind'),
+  outputPath: join(outDir, 'pagefind'),
 });
 if (writeErrors.length) {
   console.error('pagefind.writeFiles errors:', writeErrors);

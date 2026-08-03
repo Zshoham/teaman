@@ -9,7 +9,6 @@ import {
   utimesSync,
   writeFileSync,
 } from 'fs';
-import { fileURLToPath } from 'url';
 import { join } from 'path';
 import {
   compileReferenceDiagrams,
@@ -19,20 +18,12 @@ import {
 import { createReferenceCompiler } from '../src/lib/typst-packages.mjs';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { DEFAULT_BRAND } from '../src/lib/config-defaults.mjs';
+import { engineDir, outDir, teamanConfig, vaultDir } from '../src/lib/build-env.mjs';
 
-const outDir = process.env.TEAMAN_OUT ?? fileURLToPath(new URL('../public', import.meta.url));
-const vaultDir = process.env.TEAMAN_VAULT ?? fileURLToPath(new URL('../example', import.meta.url));
 const referencesDir = join(vaultDir, 'references');
-const diagramCacheDir = fileURLToPath(new URL('../.diagram-cache', import.meta.url));
-const pdfCacheDir = fileURLToPath(new URL('../.reference-cache', import.meta.url));
-const template = readFileSync(
-  fileURLToPath(new URL('../resources/reference-template.typ', import.meta.url)),
-  'utf8',
-);
-const config = (() => {
-  try { return JSON.parse(process.env.TEAMAN_CONFIG ?? '{}'); }
-  catch { return {}; }
-})();
+const diagramCacheDir = join(engineDir, '.diagram-cache');
+const pdfCacheDir = join(engineDir, '.reference-cache');
+const template = readFileSync(join(engineDir, 'resources', 'reference-template.typ'), 'utf8');
 
 // Every edit to a reference strands its previous render, and these are whole
 // PDFs rather than the kilobyte-sized SVGs in `.diagram-cache` — a few days of
@@ -73,7 +64,7 @@ if (!existsSync(referencesDir)) {
       summary: document.data.summary,
       date: document.data.date,
       tags: Array.isArray(document.data.tags) ? document.data.tags : [],
-      brand: config.brand ?? DEFAULT_BRAND,
+      brand: teamanConfig.brand ?? DEFAULT_BRAND,
       body: document.body,
       chapters: document.kind === 'book' ? document.chapters : undefined,
       sourcePath: document.sourcePath,

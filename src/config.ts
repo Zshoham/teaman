@@ -17,6 +17,7 @@
 // (no functions) so it round-trips through JSON and stays easy to validate.
 
 import { DEFAULT_BRAND } from './lib/config-defaults.mjs';
+import { teamanConfig } from './lib/build-env.mjs';
 
 /**
  * One tile in the home-page quick-links bento grid.
@@ -208,21 +209,15 @@ export const DEFAULT_CONFIG: SiteConfig = {
 };
 
 function loadConfig(): SiteConfig {
-  const raw = process.env.TEAMAN_CONFIG;
-  if (!raw) return DEFAULT_CONFIG;
-  try {
-    // The CLI may pass a partial config; fill gaps from DEFAULT_CONFIG. `hero`
-    // is merged one level deep so a vault can override e.g. just the title.
-    const parsed = JSON.parse(raw) as Partial<SiteConfig>;
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      hero: { ...DEFAULT_CONFIG.hero, ...(parsed.hero ?? {}) },
-    };
-  } catch (error) {
-    console.warn('[teaman] could not parse TEAMAN_CONFIG, using defaults:', error);
-    return DEFAULT_CONFIG;
-  }
+  // The CLI may pass a partial config; fill gaps from DEFAULT_CONFIG. `hero` is
+  // merged one level deep so a vault can override e.g. just the title. Parsing
+  // (and warning about a malformed value) belongs to the env seam.
+  const parsed = teamanConfig as Partial<SiteConfig>;
+  return {
+    ...DEFAULT_CONFIG,
+    ...parsed,
+    hero: { ...DEFAULT_CONFIG.hero, ...(parsed.hero ?? {}) },
+  };
 }
 
 export const SITE_CONFIG: SiteConfig = loadConfig();
