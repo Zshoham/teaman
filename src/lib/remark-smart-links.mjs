@@ -20,14 +20,10 @@
  *  Parsing (and the vault-configurable host map) is in `smart-links.mjs`.
  */
 import { parseSmartLink, resolveHosts } from './smart-links.mjs';
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+// The chip interleaves attributes and text, so everything goes through the
+// attribute-safe escape — `&quot;` renders as `"` in text content anyway.
+import { escapeAttr as escapeHtml } from './html-escape.mjs';
+import { replaceChildren } from './mdast-walk.mjs';
 
 /** Flatten a link's children to plain text — the label is display-only, so
  *  emphasis inside it is dropped rather than nested into the chip. */
@@ -82,27 +78,17 @@ export function remarkSmartLinks(options = {}) {
   const hosts = resolveHosts(options.hosts);
 
   return (tree) => {
-    const walk = (node) => {
-      if (!node || !Array.isArray(node.children)) return;
-      for (let i = 0; i < node.children.length; i++) {
-        const child = node.children[i];
-        if (child.type !== 'link') {
-          walk(child);
-          continue;
-        }
-        const parsed = parseSmartLink(child.url, hosts);
-        if (!parsed) {
-          walk(child);
-          continue;
-        }
-        const text = textOf(child);
-        let label = isRedundantLabel(text, parsed, child.url) ? '' : text.trim();
-        // A bare Confluence URL still has a human title hiding in its slug.
-        if (!label && parsed.title) label = parsed.title;
+    replaceChildren(tree, (node) => {
+      if (node.type !== 'link') return undefined;
+      const parsed = parseSmartLink(node.url, hosts);
+      if (!parsed) return undefined;
 
-        node.children[i] = { type: 'html', value: render(parsed, label, child.url) };
-      }
-    };
-    walk(tree);
+      const text = textOf(node);
+      let label = isRedundantLabel(text, parsed, node.url) ? '' : text.trim();
+      // A bare Confluence URL still has a human title hiding in its slug.
+      if (!label && parsed.title) label = parsed.title;
+
+      return { type: 'html', value: render(parsed, label, node.url) };
+    });
   };
 }

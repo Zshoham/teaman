@@ -15,11 +15,9 @@
  *  in markdown, so it is not sanitized. */
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
-
-// `>` must be escaped too: a literal `>` inside an injected attribute value
-// would end every later `<svg[^>]*>` opening-tag match early.
-const escapeAttr = (value) =>
-  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+import { escapeAttr } from './html-escape.mjs';
+import { replaceChildren } from './mdast-walk.mjs';
+import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 
 // A local `.svg` url → absolute file, first hit wins. `false` means "not ours
 // to inline" (remote, non-svg); `null` means "should exist but doesn't" so the
@@ -44,13 +42,10 @@ function resolveSvg(url, roots, noteDir) {
 // graphic shows the alt as a native tooltip. Empty alt marks it `aria-hidden`,
 // mirroring how an empty `alt=""` marks an <img> decorative.
 export function decorateSvg(source, alt) {
-  const start = source.search(/<svg[\s>]/i);
-  if (start === -1) return null;
-  let svg = source.slice(start).trim();
-  svg = svg.replace(/<svg\b[^>]*>/i, (tag) => {
-    let out = /\bclass\s*=\s*"/i.test(tag)
-      ? tag.replace(/\bclass\s*=\s*"([^"]*)"/i, (_, cls) => `class="${cls} content-svg"`)
-      : tag.replace(/<svg/i, '<svg class="content-svg"');
+  const root = svgRootOf(source);
+  if (root === null) return null;
+  let svg = withSvgClass(root, ['content-svg']).replace(/<svg\b[^>]*>/i, (tag) => {
+    let out = tag;
     if (alt) {
       if (!/\brole\s*=/i.test(out)) out = out.replace(/<svg/i, '<svg role="img"');
       if (!/\baria-label\s*=/i.test(out)) {
@@ -100,26 +95,21 @@ export function remarkInlineSvg({ roots = [] } = {}) {
 
     const isImage = (node) => node?.type === 'image' && typeof node.url === 'string';
 
-    const walk = (node) => {
-      if (!node || !Array.isArray(node.children)) return;
-      for (let i = 0; i < node.children.length; i++) {
-        const child = node.children[i];
-        if (child.type === 'paragraph' && child.children.length === 1 && isImage(child.children[0])) {
-          const image = child.children[0];
-          const svg = inlineSvg(image);
-          if (svg !== null) {
-            node.children[i] = { type: 'html', value: renderBlock(svg, image.alt ?? '') };
-          }
-        } else if (isImage(child)) {
-          // An image flowing inside text stays inline: no figure, the alt
-          // still surfaces as the svg <title> tooltip + aria-label.
-          const svg = inlineSvg(child);
-          if (svg !== null) node.children[i] = { type: 'html', value: svg };
-        } else {
-          walk(child);
-        }
+    replaceChildren(tree, (node) => {
+      if (node.type === 'paragraph' && node.children.length === 1 && isImage(node.children[0])) {
+        const image = node.children[0];
+        const svg = inlineSvg(image);
+        // `null` either way: an image we couldn't inline is still ours, so the
+        // walk must not descend and inline it a second time as a bare image.
+        return svg === null ? null : { type: 'html', value: renderBlock(svg, image.alt ?? '') };
       }
-    };
-    walk(tree);
+      if (isImage(node)) {
+        // An image flowing inside text stays inline: no figure, the alt
+        // still surfaces as the svg <title> tooltip + aria-label.
+        const svg = inlineSvg(node);
+        return svg === null ? null : { type: 'html', value: svg };
+      }
+      return undefined;
+    });
   };
 }
