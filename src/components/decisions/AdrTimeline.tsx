@@ -5,10 +5,10 @@ import {
   CircleDotIcon,
   GitCommitVerticalIcon,
   Rows3Icon,
-  TagsIcon,
 } from 'lucide-react';
 
 import { CollectionFilterBar } from '@/components/CollectionFilterBar';
+import { multiselectField, tagField } from '@/components/filter-fields';
 import { StatusBadge } from '@/components/StatusBadge';
 import {
   type Filter,
@@ -40,6 +40,7 @@ import {
   type AdrRelation,
   type AdrStatus,
 } from '@/lib/adr-shared';
+import { retainMeaningfulRules } from '@/lib/filter-rules';
 import { cn } from '@/lib/utils';
 import { AdrDetailDialog } from './AdrDetailDialog';
 import type { AdrView } from './types';
@@ -88,18 +89,11 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   const allTags = useMemo(() => tagCounts(adrs), [adrs]);
   const filterFields = useMemo<FilterFieldConfig<string>[]>(
     () => {
-      const fields: FilterFieldConfig<string>[] = [
-        {
+      const fields = [
+        multiselectField({
           key: 'status',
           label: 'Status',
           icon: <CircleDotIcon className="size-3.5" aria-hidden="true" />,
-          type: 'multiselect',
-          searchable: true,
-          defaultOperator: 'is_any_of',
-          operators: [
-            { value: 'is_any_of', label: 'is any of' },
-            { value: 'is_not_any_of', label: 'is not any of' },
-          ],
           options: STATUS_ORDER.map((status) => ({
             value: status,
             label: `${STATUS_LABEL[status]} (${statusTotals[status]})`,
@@ -110,29 +104,10 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
               />
             ),
           })),
-        },
+        }),
       ];
 
-      if (allTags.length > 0) {
-        fields.push({
-          key: 'tag',
-          label: 'Tag',
-          icon: <TagsIcon className="size-3.5" aria-hidden="true" />,
-          type: 'multiselect',
-          searchable: true,
-          defaultOperator: 'is_any_of',
-          operators: [
-            { value: 'is_any_of', label: 'is any of' },
-            { value: 'is_not_any_of', label: 'is not any of' },
-            { value: 'includes_all', label: 'includes all' },
-            { value: 'excludes_all', label: 'excludes all' },
-          ],
-          options: allTags.map(({ tag, count }) => ({
-            value: tag,
-            label: `#${tag} (${count})`,
-          })),
-        });
-      }
+      if (allTags.length > 0) fields.push(tagField(allTags));
 
       return fields;
     },
@@ -157,14 +132,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
   }, [layout]);
 
   const handleFiltersChange = (next: Filter<string>[]) => {
-    setFilters(
-      next.filter(
-        (filter) =>
-          filter.values.length > 0 ||
-          filter.operator === 'empty' ||
-          filter.operator === 'not_empty',
-      ),
-    );
+    setFilters(retainMeaningfulRules(next));
   };
 
   const rels = shown ? adrRelations(shown, lookup) : [];

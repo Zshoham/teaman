@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FilesIcon, TagsIcon } from 'lucide-react';
+import { FilesIcon } from 'lucide-react';
 
 import { CollectionFilterBar } from '@/components/CollectionFilterBar';
+import { multiselectField, tagField } from '@/components/filter-fields';
 import {
   createFilter,
   type Filter,
   type FilterFieldConfig,
 } from '@/components/reui/filters';
-import { coalesceFilterRules, matchesFilterRules } from '@/lib/filter-rules';
+import {
+  coalesceFilterRules,
+  matchesFilterRules,
+  retainMeaningfulRules,
+} from '@/lib/filter-rules';
 import {
   ENTRY_FILTER_CHANGE_EVENT,
   ENTRY_FILTER_TERM_EVENT,
@@ -88,44 +93,18 @@ export function EntryFilterBar({
     // hands back only the `all` tab there and the Type field is dropped.
     const typeTabs = filterTabs.filter((tab) => tab.id !== 'all');
     if (typeTabs.length > 0) {
-      next.push({
+      next.push(multiselectField({
         key: 'type',
         label: 'Type',
         icon: <FilesIcon className="size-3.5" aria-hidden="true" />,
-        type: 'multiselect',
-        searchable: true,
-        defaultOperator: 'is_any_of',
-        operators: [
-          { value: 'is_any_of', label: 'is any of' },
-          { value: 'is_not_any_of', label: 'is not any of' },
-        ],
         options: typeTabs.map((tab) => ({
           value: tab.id,
           label: `${titleCase(tab.label)} (${tab.count})`,
         })),
-      });
+      }));
     }
 
-    if (topics.length > 0) {
-      next.push({
-        key: 'tag',
-        label: 'Tag',
-        icon: <TagsIcon className="size-3.5" aria-hidden="true" />,
-        type: 'multiselect',
-        searchable: true,
-        defaultOperator: 'is_any_of',
-        operators: [
-          { value: 'is_any_of', label: 'is any of' },
-          { value: 'is_not_any_of', label: 'is not any of' },
-          { value: 'includes_all', label: 'includes all' },
-          { value: 'excludes_all', label: 'excludes all' },
-        ],
-        options: topics.map(({ tag, count }) => ({
-          value: tag,
-          label: `#${tag} (${count})`,
-        })),
-      });
-    }
+    if (topics.length > 0) next.push(tagField(topics));
 
     return next;
   }, [filterTabs, topics]);
@@ -159,14 +138,7 @@ export function EntryFilterBar({
   }, []);
 
   const handleChange = (next: Filter<string>[]) => {
-    setFilters(next.filter(
-      (filter) => filter.values.length > 0 ||
-        filter.operator === 'empty' ||
-        filter.operator === 'not_empty' ||
-        // Clearing the preselected chip's values leaves the picker in place;
-        // removing the chip outright still removes it.
-        filter.field === preselectField,
-    ));
+    setFilters(retainMeaningfulRules(next, { keepField: preselectField }));
   };
 
   return (
