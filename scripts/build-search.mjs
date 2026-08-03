@@ -5,6 +5,7 @@ import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
+import { pagefindGlob } from '../src/lib/collections.mjs';
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
@@ -17,12 +18,12 @@ if (createErrors.length) {
   process.exit(1);
 }
 
-// Index every built HTML page except the slidev SPAs (their bodies are empty
-// until JS runs, so pagefind would only see a stub title). `slides/index.html`
-// is the Astro-rendered deck index, not a deck, so it is listed explicitly.
+// Index every built HTML page whose content is actually in the HTML — the
+// collection registry says which those are, and which types feed Pagefind
+// custom records below instead (the Slidev SPAs and the decisions island).
 const { errors: dirErrors, page_count } = await index.addDirectory({
   path: outDir,
-  glob: '{index.html,slides/index.html,{collections,daily,guides,notes,references}/**/*.html}',
+  glob: pagefindGlob(),
 });
 if (dirErrors.length) {
   console.error('pagefind.addDirectory errors:', dirErrors);

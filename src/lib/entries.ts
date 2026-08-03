@@ -1,6 +1,7 @@
 import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
 import { join } from 'path';
+import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
 import { slidesRoot } from './content-paths';
@@ -18,16 +19,11 @@ import {
 import { fmtLongDay, isoDate } from './format';
 import { extractExcerpt, wordCount, wordMeta } from './text';
 
-export type EntryType = 'note' | 'reference' | 'daily' | 'guide' | 'slides' | 'decision';
+export type { EntryType } from './collections.mjs';
 
-export const TYPE_LABEL: Record<EntryType, string> = {
-  note: 'note',
-  reference: 'reference',
-  daily: 'daily',
-  guide: 'guide',
-  slides: 'slides',
-  decision: 'decision',
-};
+export const TYPE_LABEL = Object.fromEntries(
+  COLLECTIONS.map(collection => [collection.type, collection.label]),
+) as Record<EntryType, string>;
 
 export interface Entry {
   id: string;
@@ -64,46 +60,43 @@ async function safeFileDates(path: string): Promise<{ updated: Date; created: Da
   }
 }
 
-export async function loadNoteEntries(): Promise<Entry[]> {
-  const notes = await getCollection('notes');
-  return notes
-    .filter(n => !n.data.draft)
-    .map(n => {
-      const body = (n.body ?? '') as string;
-      const date = (n.data.date ?? new Date()) as Date;
+/**
+ * Notes and references are the same shape of entry: a dated markdown document
+ * served one-per-file under its own route. References additionally carry an
+ * authored `summary`, which stands in for the extracted excerpt when present.
+ */
+async function loadDocumentEntries(
+  collection: 'notes' | 'references',
+  type: 'note' | 'reference',
+): Promise<Entry[]> {
+  const { route } = collectionFor(type);
+  const documents = await getCollection(collection);
+  return documents
+    .filter(document => !document.data.draft)
+    .map(document => {
+      const body = (document.body ?? '') as string;
+      const date = (document.data.date ?? new Date()) as Date;
+      const summary = 'summary' in document.data ? document.data.summary : undefined;
       return {
-        id: `note-${n.id}`,
-        type: 'note' as const,
-        title: n.data.title ?? n.id,
-        excerpt: extractExcerpt(body),
-        tags: n.data.tags ?? [],
+        id: `${type}-${document.id}`,
+        type,
+        title: document.data.title ?? document.id,
+        excerpt: summary ?? extractExcerpt(body),
+        tags: document.data.tags ?? [],
         updated: isoDate(date),
         created: isoDate(date),
         meta: wordMeta(wordCount(body)),
-        href: `${base}notes/${n.id}/`,
+        href: `${base}${route}/${document.id}/`,
       };
     });
 }
 
-export async function loadReferenceEntries(): Promise<Entry[]> {
-  const references = await getCollection('references');
-  return references
-    .filter(reference => !reference.data.draft)
-    .map(reference => {
-      const body = (reference.body ?? '') as string;
-      const date = (reference.data.date ?? new Date()) as Date;
-      return {
-        id: `reference-${reference.id}`,
-        type: 'reference' as const,
-        title: reference.data.title ?? reference.id,
-        excerpt: reference.data.summary ?? extractExcerpt(body),
-        tags: reference.data.tags ?? [],
-        updated: isoDate(date),
-        created: isoDate(date),
-        meta: wordMeta(wordCount(body)),
-        href: `${base}references/${reference.id}/`,
-      };
-    });
+export function loadNoteEntries(): Promise<Entry[]> {
+  return loadDocumentEntries('notes', 'note');
+}
+
+export function loadReferenceEntries(): Promise<Entry[]> {
+  return loadDocumentEntries('references', 'reference');
 }
 
 export async function loadSlideEntries(): Promise<Entry[]> {
@@ -235,17 +228,37 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
   });
 }
 
+/**
+ * Newest first — the order every list in the site is built and paginated in.
+ *
+ * Dates here are day-resolution, so ties are common (every daily written in a
+ * batch, a deck and a guide touched the same day). `id` breaks them: without an
+ * explicit tie-break, a stable sort falls back to the order the loaders
+ * happened to be concatenated in, and the feed reshuffles when that changes.
+ */
+export function byUpdatedDesc(entries: Entry[]): Entry[] {
+  return entries.sort((a, b) => b.updated.localeCompare(a.updated) || a.id.localeCompare(b.id));
+}
+
+/** One loader per content type, keyed the same way `Entry.type` is. */
+export const ENTRY_LOADERS: Record<EntryType, () => Promise<Entry[]>> = {
+  note: loadNoteEntries,
+  reference: loadReferenceEntries,
+  daily: loadDailyNoteEntries,
+  guide: loadGuideEntries,
+  slides: loadSlideEntries,
+  decision: loadDecisionEntries,
+};
+
+/** Loads one content type, sorted newest first. */
+export async function loadEntriesOfType(type: EntryType): Promise<Entry[]> {
+  return byUpdatedDesc(await ENTRY_LOADERS[type]());
+}
+
 /** Loads every publishable content type as a single list sorted by `updated` desc. */
 export async function loadAllEntries(): Promise<Entry[]> {
-  const [notes, references, dailies, slides, guides, decisions] = await Promise.all([
-    loadNoteEntries(),
-    loadReferenceEntries(),
-    loadDailyNoteEntries(),
-    loadSlideEntries(),
-    loadGuideEntries(),
-    loadDecisionEntries(),
-  ]);
-  return [...notes, ...references, ...dailies, ...slides, ...guides, ...decisions].sort((a, b) =>
-    b.updated.localeCompare(a.updated),
+  const loaded = await Promise.all(
+    COLLECTIONS.map(collection => ENTRY_LOADERS[collection.type]()),
   );
+  return byUpdatedDesc(loaded.flat());
 }

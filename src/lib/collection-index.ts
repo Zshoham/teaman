@@ -1,6 +1,7 @@
 import type { Entry, EntryType } from './entries';
 import { fmtDate } from './format';
 import { tagCounts } from './tags';
+import { COLLECTIONS } from './collections.mjs';
 
 export type { Topic } from './tags';
 
@@ -11,16 +12,11 @@ export interface FilterTab {
 }
 
 /** Plural tab labels, in the order the type filter lists them. */
-const TAB_LABEL: Record<EntryType, string> = {
-  note: 'notes',
-  reference: 'references',
-  daily: 'dailies',
-  guide: 'guides',
-  slides: 'slides',
-  decision: 'decisions',
-};
+const TAB_LABEL = Object.fromEntries(
+  COLLECTIONS.map(collection => [collection.type, collection.plural]),
+) as Record<EntryType, string>;
 
-const TYPE_ORDER = Object.keys(TAB_LABEL) as EntryType[];
+const TYPE_ORDER = COLLECTIONS.map(collection => collection.type);
 
 /**
  * Type tabs for a list of entries: `all` first, then one tab per type that is
