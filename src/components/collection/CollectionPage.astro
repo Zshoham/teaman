@@ -1,0 +1,34 @@
+---
+/**
+ * A whole per-collection index page: `/notes/`, `/references/`, `/guides/`,
+ * `/slides/`. They differ only in which type they list, so everything else —
+ * the loader, the document title, the counting noun, the empty state — comes
+ * off the collection registry.
+ */
+import Layout from '../../layouts/Layout.astro';
+import CollectionIndex from './CollectionIndex.astro';
+import { collectionFor, type EntryType } from '../../lib/collections.mjs';
+import { loadEntriesOfType } from '../../lib/entries';
+import { footerSummary } from '../../lib/collection-index';
+
+interface Props {
+  type: EntryType;
+}
+
+const { type } = Astro.props;
+const collection = collectionFor(type);
+const entries = await loadEntriesOfType(type);
+const footerLeft = footerSummary(entries, collection.unit, collection.units);
+
+// The section name, title-cased for the document title: "notes" → "Notes".
+const title = collection.route.charAt(0).toUpperCase() + collection.route.slice(1);
+---
+
+<Layout title={title} footerLeft={footerLeft}>
+  <h1 class="sr-only">{title}</h1>
+  <CollectionIndex
+    entries={entries}
+    resultLabel={collection.units}
+    emptyMessage={collection.emptyMessage ?? undefined}
+  />
+</Layout>

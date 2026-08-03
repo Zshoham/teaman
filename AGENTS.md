@@ -110,6 +110,20 @@ mergeless.
 
 ### Content collections
 
+**`src/lib/collections.mjs` is the registry of content types** — the one list of
+what exists. Per type it carries the vault `dir`, the URL `route` (they differ for
+`dailies/` → `/daily/`), the singular/plural type names, the counting noun (a
+deck, not "a slides"), the empty-state copy, whether it has an index page, how
+Pagefind should crawl it, and where its nav link sits. Derived from it:
+`content-paths.ts` roots, `TYPE_LABEL` (`entries.ts`), `TAB_LABEL` + type-filter
+order (`collection-index.ts`), the header sections (`nav.ts`), `CONTENT_DIRS`
+(`bin/teaman.mjs`), the Pagefind glob (`scripts/build-search.mjs`), and the four
+index pages (`components/collection/CollectionPage.astro`).
+
+Adding a content type means: an entry in the registry, a schema in
+`content.config.ts`, a loader in `ENTRY_LOADERS` (`entries.ts`), and the route
+pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
+
 `src/content.config.ts` defines seven Astro collections — `notes`, `references`,
 `guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — each a `glob` loader rooted at the matching
 `*Root` from `content-paths.ts`. Notes about the model:

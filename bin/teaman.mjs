@@ -17,13 +17,12 @@ import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
+import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 
 const require = createRequire(import.meta.url);
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const enginePkg = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'));
 const VERSION = enginePkg.version;
-
-const CONTENT_DIRS = ['notes', 'references', 'guides', 'slides', 'dailies', 'decisions'];
 
 // ── tiny terminal helpers ────────────────────────────────────────────────
 const c = {

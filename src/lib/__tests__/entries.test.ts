@@ -7,6 +7,7 @@ vi.mock('fs/promises', () => ({ stat: vi.fn() }));
 import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
 import {
+  byUpdatedDesc,
   isoDate,
   loadDailyNoteEntries,
   loadGuideEntries,
@@ -399,5 +400,34 @@ describe('loadGuideEntries', () => {
 
     const entries = await loadGuideEntries();
     expect(entries[0].tags).toEqual([]);
+  });
+});
+
+describe('byUpdatedDesc', () => {
+  const entry = (id: string, updated: string) => ({ id, updated }) as any;
+
+  it('sorts newest first', () => {
+    const sorted = byUpdatedDesc([
+      entry('a', '2026-01-01'),
+      entry('b', '2026-03-01'),
+      entry('c', '2026-02-01'),
+    ]);
+    expect(sorted.map(e => e.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  // Dates are day-resolution, so ties are the common case. Without an explicit
+  // tie-break the feed order fell out of whichever loader ran first, and moved
+  // whenever that changed.
+  it('breaks same-date ties by id, not by input order', () => {
+    const forward = byUpdatedDesc([
+      entry('slides-intro', '2026-07-24'),
+      entry('guide-using-this-system', '2026-07-24'),
+    ]);
+    const reversed = byUpdatedDesc([
+      entry('guide-using-this-system', '2026-07-24'),
+      entry('slides-intro', '2026-07-24'),
+    ]);
+    expect(forward.map(e => e.id)).toEqual(['guide-using-this-system', 'slides-intro']);
+    expect(reversed.map(e => e.id)).toEqual(forward.map(e => e.id));
   });
 });
