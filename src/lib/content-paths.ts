@@ -1,15 +1,10 @@
-import { isAbsolute, join, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
+import { vaultDir } from './build-env.mjs';
 
-// The vault root the site is built from. The CLI (`teaman build`) sets
-// `TEAMAN_VAULT` to the target vault; when unset we fall back to the repo's
-// bundled `example/` vault so `npm run dev` and the test suite work in place.
-const fallbackRoot = fileURLToPath(new URL('../../example', import.meta.url));
-
-const fromEnv = process.env.TEAMAN_VAULT;
-export const contentRoot = fromEnv
-  ? (isAbsolute(fromEnv) ? fromEnv : resolve(fromEnv))
-  : fallbackRoot;
+// The vault root the site is built from, straight off the env seam — which
+// falls back to the repo's bundled `example/` vault so `npm run dev` and the
+// test suite work in place. See `build-env.mjs`.
+export const contentRoot = vaultDir;
 
 export const notesRoot = join(contentRoot, 'notes');
 export const referencesRoot = join(contentRoot, 'references');

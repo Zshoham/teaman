@@ -68,24 +68,30 @@ The CLI never edits engine files to point at a vault. Instead `bin/teaman.mjs`
 resolves the vault, merges its config, stages static assets, and spawns Astro/scripts
 with environment variables. **Every engine entry point reads the same env vars and
 falls back to the bundled `example/` → `public/` when they are unset** — which is
-exactly why the plain `npm` scripts and the test suite work in place:
+exactly why the plain `npm` scripts and the test suite work in place.
 
-| Env var | Meaning | Read by |
+`src/lib/build-env.mjs` resolves that seam **once** and is the only module that
+reads these vars. Import `vaultDir` / `outDir` / `publicDir` / `siteBase` /
+`teamanConfig` / `engineDir` from it — never reach for `process.env` again, and
+never hardcode a path:
+
+| Env var | Meaning | Exported by `build-env.mjs` as |
 |---|---|---|
-| `TEAMAN_VAULT` | vault root | `src/lib/content-paths.ts`, `scripts/*.mjs` |
-| `TEAMAN_OUT` | output dir | `astro.config.mjs` (`outDir`), `scripts/*.mjs` |
-| `TEAMAN_BASE` | base URL path | `astro.config.mjs`, `scripts/*.mjs` (also legacy `SITE_BASE`) |
-| `TEAMAN_CONFIG` | the vault config, serialized to JSON | `src/config.ts` |
-| `TEAMAN_PUBLIC` | staged static dir | `astro.config.mjs` (`publicDir`) |
-| `TEAMAN_SLIDES_WORK` | Slidev work dir | `scripts/build-slides.mjs` (falls back to `<engine>/.slides-build/` when unset) |
+| `TEAMAN_VAULT` | vault root | `vaultDir` (→ `content-paths.ts` roots) |
+| `TEAMAN_OUT` | output dir | `outDir` (→ `astro.config.mjs` `outDir`) |
+| `TEAMAN_BASE` | base URL path | `siteBase`, already `normalizeBase`d (also legacy `SITE_BASE`) |
+| `TEAMAN_CONFIG` | the vault config, serialized to JSON | `teamanConfig` (→ `src/config.ts` merges it over `DEFAULT_CONFIG`) |
+| `TEAMAN_PUBLIC` | staged static dir | `publicDir` (→ `astro.config.mjs` `publicDir`) |
+
+The one exception is `TEAMAN_SLIDES_WORK` (Slidev work dir), read directly by
+`scripts/build-slides.mjs`, which falls back to `<engine>/.slides-build/`.
 
 Consequences when changing things:
-- Anything that needs the vault root or output dir must read these env vars with the
-  bundled-`example/`/`public/` fallback — don't hardcode paths. Mirror the existing
-  pattern in `content-paths.ts` and the two `scripts/*.mjs`.
+- `build-env.mjs` resolves at module load, so a test that needs a different vault
+  must set the env and then `vi.resetModules()` — see `build-env.test.mjs`.
 - Base-path handling goes through `src/lib/site-base.mjs` `normalizeBase` (single
-  leading + trailing slash). Use it everywhere a URL is composed so `--base /foo/`
-  never concatenates into `/fooguides/...`.
+  leading + trailing slash), which `siteBase` has already applied. Use it everywhere
+  a URL is composed so `--base /foo/` never concatenates into `/fooguides/...`.
 
 ### Config flow
 
