@@ -17,7 +17,7 @@ import {
   type WeekdayShort,
 } from './dailies';
 import { fmtLongDay, isoDate } from './format';
-import { extractExcerpt, wordCount, wordMeta } from './text';
+import { extractExcerpt, plural, wordCount, wordMeta } from './text';
 
 export type { EntryType } from './collections.mjs';
 
@@ -36,10 +36,6 @@ export interface Entry {
   /** Display-ready summary string, e.g. "1,234 words" or "12 slides". */
   meta: string;
   href: string;
-}
-
-function slidesMeta(count: number): string {
-  return `${count} ${count === 1 ? 'slide' : 'slides'}`;
 }
 
 const base = import.meta.env.BASE_URL;
@@ -116,7 +112,7 @@ export async function loadSlideEntries(): Promise<Entry[]> {
         tags: s.data.tags ?? [],
         updated: isoDate(dates.updated),
         created: isoDate(dates.created),
-        meta: slidesMeta(slideCount),
+        meta: plural(slideCount, 'slide'),
         href: `${base}slides/${s.id}/`,
       };
     });

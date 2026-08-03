@@ -3,8 +3,10 @@ import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { ReferenceReader } from '../../components/reference/ReferenceReader';
+import DocMeta from '../../components/DocMeta.astro';
 import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
+import { plural } from '../../lib/text';
 
 export async function getStaticPaths() {
   const references = await getCollection('references', reference => !reference.data.draft);
@@ -41,23 +43,24 @@ const pdfHref = `${base}references/${reference.id}/reference.pdf`;
       <div class="min-w-0 max-w-[760px]">
         <header class="mb-10 border-b border-border pb-7">
           <p class="m-0 font-mono text-meta uppercase tracking-label text-primary">reference document</p>
-          <h1 class="reference-title mt-3 mb-0 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{title}</h1>
+          <h1 class="reference-title doc-title mt-3 mb-0">{title}</h1>
           {reference.data.summary && (
             <p class="mt-4 max-w-[62ch] font-serif text-lg leading-relaxed text-muted-foreground text-pretty">
               {reference.data.summary}
             </p>
           )}
-          <div class="mt-5 flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint">
-            <span>{wordMeta(words)}</span>
-            <span class="opacity-50">·</span>
-            <span>{readingTimeMeta(words)}</span>
-            <span class="opacity-50">·</span>
-            <span>{tocHeadings.length} {tocHeadings.length === 1 ? 'section' : 'sections'}</span>
-            {reference.data.date && <span class="opacity-50">·</span>}
+          <DocMeta
+            class="mt-5"
+            items={[
+              wordMeta(words),
+              readingTimeMeta(words),
+              plural(tocHeadings.length, 'section'),
+            ]}
+          >
             {reference.data.date && (
               <time datetime={reference.data.date.toISOString()}>Updated {fmtDate(reference.data.date)}</time>
             )}
-          </div>
+          </DocMeta>
           {reference.data.tags && reference.data.tags.length > 0 && (
             <div class="mt-4 flex flex-wrap gap-2 font-mono text-meta text-faint">
               {reference.data.tags.map(tag => <span>#{tag}</span>)}

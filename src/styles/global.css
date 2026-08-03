@@ -396,6 +396,27 @@ body {
 .prose :where(table) { display: block; max-width: 100%; overflow-x: auto; }
 .prose :where(img, video, iframe) { max-width: 100%; }
 
+/* ── Long-form document title ──────────────────────────────────────────
+   The display heading on a note, a reference, a guide chapter and a day in
+   the weekly view. It was the same 90-character utility string copied into
+   four templates, so a typography tweak was a four-file edit that was easy
+   to do three-quarters of. The per-type hooks (.note-title, .guide-title,
+   .reference-title) stay — the e2e suite selects on them — and each template
+   still owns its own margins. */
+.doc-title {
+  font-family: var(--font-serif);
+  font-size: var(--text-3xl);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+  color: var(--foreground);
+}
+
+@media (width >= 48rem) {
+  .doc-title { font-size: var(--text-display); }
+}
+
 /* A reference is one HTML document, so a book-sized one asks the browser to
    lay out and paint every chapter before the page is usable. Chapters are
    wrapped by rehype-reference-sections.mjs, which also supplies each one's

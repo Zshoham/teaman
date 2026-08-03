@@ -5,6 +5,7 @@ import DaySection from '../../components/daily/DaySection.astro';
 import { loadDailyWeeks } from '../../lib/dailies';
 import type { DailyWeekShape } from '../../lib/dailies-shared';
 import { fmtDayRange } from '../../lib/format';
+import { plural } from '../../lib/text';
 
 export async function getStaticPaths() {
   const weeks = await loadDailyWeeks();
@@ -22,7 +23,7 @@ if (!week) throw new Error(`Unknown daily week: ${weekId}`);
 const stripWeeks: DailyWeekShape[] = weeks.map(({ id, start, end }) => ({ id, start, end }));
 const caption = fmtDayRange(week.start, week.end, { month: 'long', year: true });
 const docTitle = `daily — ${fmtDayRange(week.start, week.end)}`;
-const footerLeft = `${week.days.length} ${week.days.length === 1 ? 'day' : 'days'} · ${week.totalWords.toLocaleString()} words`;
+const footerLeft = `${plural(week.days.length, 'day')} · ${week.totalWords.toLocaleString()} words`;
 ---
 
 <Layout title={docTitle} footerLeft={footerLeft}>
