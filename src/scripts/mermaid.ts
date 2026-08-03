@@ -2,23 +2,21 @@
  *  SVG, lazily importing mermaid only when a page actually contains a diagram,
  *  and re-rendering when the light/dark toggle flips `data-theme` on <html>. */
 
+import {
+  collectDiagramBlocks,
+  isDarkTheme,
+  observeThemeChanges,
+} from './themed-diagrams';
+
 function currentTheme(): 'dark' | 'default' {
-  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default';
+  return isDarkTheme() ? 'dark' : 'default';
 }
 
 /** Renders the page's mermaid blocks. Returns the theme-watching observer (or
  *  `undefined` when the page has no diagrams) so callers can dispose it. */
 export async function initMermaid(): Promise<MutationObserver | undefined> {
-  const nodes = Array.from(
-    document.querySelectorAll<HTMLElement>('pre.mermaid'),
-  );
+  const nodes = collectDiagramBlocks('pre.mermaid');
   if (nodes.length === 0) return;
-
-  // Stash each diagram's source before mermaid replaces the text with SVG, so a
-  // later theme switch can restore it and re-render from scratch.
-  for (const node of nodes) {
-    if (node.dataset.src === undefined) node.dataset.src = node.textContent ?? '';
-  }
 
   const { default: mermaid } = await import('mermaid');
 
@@ -52,18 +50,5 @@ export async function initMermaid(): Promise<MutationObserver | undefined> {
   };
 
   await render();
-
-  let last = currentTheme();
-  const observer = new MutationObserver(() => {
-    const theme = currentTheme();
-    if (theme !== last) {
-      last = theme;
-      void render();
-    }
-  });
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme'],
-  });
-  return observer;
+  return observeThemeChanges(render);
 }
