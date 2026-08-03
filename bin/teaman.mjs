@@ -18,6 +18,7 @@ import { tmpdir } from 'os';
 import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
+import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
@@ -99,6 +100,18 @@ function checkEngine(config) {
   }
 }
 
+/**
+ * Resolve a vault and load its config — the opening move of every command.
+ * `--base` beats `config.base` beats `/`. Pass `check: false` for `doctor`,
+ * which reports the engine-range mismatch itself rather than warning twice.
+ */
+async function openVault(vaultArg, opts = {}, { check = true } = {}) {
+  const vault = resolveVault(vaultArg);
+  const { config, path } = await loadVaultConfig(vault);
+  if (check) checkEngine(config);
+  return { vault, config, path, base: opts.base ?? config.base ?? '/' };
+}
+
 // Stage static assets into a dir handed to Astro as publicDir: engine defaults
 // (teacup fallback) + optional vault/public + the configured logo (rewritten to
 // a bare filename so the site references it by name under `base`).
@@ -121,11 +134,6 @@ function stageStatic(vault, config, stageDir) {
   return stageDir;
 }
 
-function containsPath(parent, child) {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
-
 export function validateOutPath(outArg, { vault, engine = engineDir, cwd = process.cwd() }) {
   const out = resolve(outArg);
   const forbiddenExact = [parse(out).root, vault, engine, cwd, join(vault, 'public')]
@@ -133,7 +141,7 @@ export function validateOutPath(outArg, { vault, engine = engineDir, cwd = proce
   if (forbiddenExact.includes(out)) {
     throw new Error(`refusing unsafe output path: ${out}`);
   }
-  if (containsPath(out, vault) || containsPath(out, engine)) {
+  if (isInside(out, vault) || isInside(out, engine)) {
     throw new Error(`refusing output path that contains the vault or engine: ${out}`);
   }
   return out;
@@ -215,9 +223,7 @@ const astroBin = (() => {
 
 // ── commands ───────────────────────────────────────────────────────────────
 async function cmdBuild(vaultArg, opts) {
-  const vault = resolveVault(vaultArg);
-  const { config } = await loadVaultConfig(vault);
-  checkEngine(config);
+  const { vault, config, base } = await openVault(vaultArg, opts);
 
   const present = CONTENT_DIRS.filter(d => existsSync(join(vault, d)));
   if (present.length === 0) warn(`no content dirs (${CONTENT_DIRS.join('/')}) found under ${vault}`);
@@ -230,7 +236,6 @@ async function cmdBuild(vaultArg, opts) {
     fail(error.message);
   }
   sweepStagedDirs(out);
-  const base = opts.base ?? config.base ?? '/';
   mkdirSync(dirname(out), { recursive: true });
   const workDir = mkdtempSync(join(tmpdir(), 'teaman-build-'));
   // Slidev, run from the temp work dir, walks up to find its deps, so the work
@@ -269,12 +274,10 @@ async function cmdBuild(vaultArg, opts) {
 }
 
 async function cmdDev(vaultArg, opts) {
-  const vault = resolveVault(vaultArg);
-  const { config } = await loadVaultConfig(vault);
-  checkEngine(config);
+  const { vault, config, base } = await openVault(vaultArg, opts);
   const workDir = mkdtempSync(join(tmpdir(), 'teaman-dev-'));
   const publicDir = stageStatic(vault, config, join(workDir, 'public'));
-  const env = envFor(vault, config, { base: opts.base ?? config.base ?? '/', publicDir });
+  const env = envFor(vault, config, { base, publicDir });
   info(`dev server for ${c.bold(vault)} ${c.dim(`(engine ${VERSION})`)}`);
   try {
     // PDFs are build artifacts rather than authored public files. Render them
@@ -291,10 +294,9 @@ async function cmdDev(vaultArg, opts) {
 }
 
 async function cmdPreview(vaultArg, opts) {
-  const vault = resolveVault(vaultArg);
-  const { config } = await loadVaultConfig(vault);
+  const { vault, config, base } = await openVault(vaultArg, opts, { check: false });
   const out = resolve(opts.out ?? join(vault, 'dist'));
-  const env = envFor(vault, config, { out, base: opts.base ?? config.base ?? '/' });
+  const env = envFor(vault, config, { out, base });
   await run(node, [astroBin, 'preview'], env);
 }
 
@@ -343,17 +345,6 @@ function knownThemeTokens() {
   } catch { return null; }
 }
 
-function walkMd(dir) {
-  const out = [];
-  if (!existsSync(dir)) return out;
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...walkMd(p));
-    else if (name.endsWith('.md')) out.push(p);
-  }
-  return out;
-}
-
 function markdownWikiLinks(source) {
   const links = [];
   let fence = null;
@@ -371,85 +362,109 @@ function markdownWikiLinks(source) {
   return links;
 }
 
-async function cmdDoctor(vaultArg) {
-  const vault = resolveVault(vaultArg);
-  const { config, path } = await loadVaultConfig(vault);
+/**
+ * Validate a loaded vault config. Pure: takes the config and whether a config
+ * file was actually found (a vault with none runs on engine defaults, so its
+ * "missing brand" is not a problem), and returns findings rather than printing.
+ *
+ * @param {object} config
+ * @param {{ hasConfigFile: boolean, version?: string, themeTokens?: Set<string>|null }} context
+ * @returns {{ problems: string[], warnings: string[] }}
+ */
+export function validateConfig(config, { hasConfigFile, version = VERSION, themeTokens }) {
   const problems = [];
   const warnings = [];
 
-  // 1. config / engine
-  if (config.engine && !satisfies(VERSION, config.engine)) {
-    warnings.push(`engine range ${config.engine} excludes running engine ${VERSION}`);
+  if (config.engine && !satisfies(version, config.engine)) {
+    warnings.push(`engine range ${config.engine} excludes running engine ${version}`);
   }
-  if (path) {
-    if (!config.brand) problems.push('config: missing required "brand"');
-    if (config.hero && !config.hero.title) problems.push('config: hero is present but missing "title"');
-    for (const k of Object.keys(config)) {
-      if (!KNOWN_KEYS.has(k)) warnings.push(`config: unknown key "${k}"`);
+  if (!hasConfigFile) return { problems, warnings };
+
+  if (!config.brand) problems.push('config: missing required "brand"');
+  if (config.hero && !config.hero.title) problems.push('config: hero is present but missing "title"');
+  for (const k of Object.keys(config)) {
+    if (!KNOWN_KEYS.has(k)) warnings.push(`config: unknown key "${k}"`);
+  }
+  for (const k of Object.keys(config.hero ?? {})) {
+    if (!KNOWN_HERO_KEYS.has(k)) warnings.push(`config: unknown hero key "${k}"`);
+  }
+  for (const k of Object.keys(config.slides ?? {})) {
+    if (!KNOWN_SLIDES_KEYS.has(k)) warnings.push(`config: unknown slides key "${k}"`);
+  }
+
+  if (config.links !== undefined) {
+    if (!Array.isArray(config.links)) {
+      problems.push('config: "links" must be an array');
+    } else {
+      config.links.forEach((l, i) => {
+        if (!l || typeof l !== 'object') {
+          problems.push(`config: links[${i}] must be an object`);
+          return;
+        }
+        if (!l.label) problems.push(`config: links[${i}] missing required "label"`);
+        if (!l.url) problems.push(`config: links[${i}] missing required "url"`);
+        else if (!/^(https?:\/\/|\/|#)/i.test(String(l.url)))
+          warnings.push(`config: links[${i}] url "${l.url}" doesn't look like a URL`);
+        for (const k of Object.keys(l)) {
+          if (!KNOWN_LINK_KEYS.has(k)) warnings.push(`config: unknown link key "${k}" (links[${i}])`);
+        }
+      });
     }
-    for (const k of Object.keys(config.hero ?? {})) {
-      if (!KNOWN_HERO_KEYS.has(k)) warnings.push(`config: unknown hero key "${k}"`);
-    }
-    for (const k of Object.keys(config.slides ?? {})) {
-      if (!KNOWN_SLIDES_KEYS.has(k)) warnings.push(`config: unknown slides key "${k}"`);
-    }
-    if (config.links !== undefined) {
-      if (!Array.isArray(config.links)) {
-        problems.push('config: "links" must be an array');
-      } else {
-        config.links.forEach((l, i) => {
-          if (!l || typeof l !== 'object') {
-            problems.push(`config: links[${i}] must be an object`);
-            return;
-          }
-          if (!l.label) problems.push(`config: links[${i}] missing required "label"`);
-          if (!l.url) problems.push(`config: links[${i}] missing required "url"`);
-          else if (!/^(https?:\/\/|\/|#)/i.test(String(l.url)))
-            warnings.push(`config: links[${i}] url "${l.url}" doesn't look like a URL`);
-          for (const k of Object.keys(l)) {
-            if (!KNOWN_LINK_KEYS.has(k)) warnings.push(`config: unknown link key "${k}" (links[${i}])`);
+  }
+
+  if (config.smartLinks !== undefined) {
+    if (typeof config.smartLinks !== 'object' || Array.isArray(config.smartLinks) || !config.smartLinks) {
+      problems.push('config: "smartLinks" must be an object keyed by service');
+    } else {
+      for (const [service, hosts] of Object.entries(config.smartLinks)) {
+        if (!KNOWN_SMART_LINK_KEYS.has(service)) {
+          warnings.push(`config: unknown smartLinks service "${service}"`);
+          continue;
+        }
+        if (!Array.isArray(hosts)) {
+          problems.push(`config: smartLinks.${service} must be an array of hostnames`);
+          continue;
+        }
+        hosts.forEach((h, i) => {
+          if (typeof h !== 'string' || !h.trim()) {
+            problems.push(`config: smartLinks.${service}[${i}] must be a non-empty hostname`);
+          } else if (!/^(\*\.)?[a-z0-9.-]+$/i.test(h.trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, ''))) {
+            warnings.push(`config: smartLinks.${service}[${i}] "${h}" doesn't look like a hostname`);
           }
         });
       }
     }
-    if (config.smartLinks !== undefined) {
-      if (typeof config.smartLinks !== 'object' || Array.isArray(config.smartLinks) || !config.smartLinks) {
-        problems.push('config: "smartLinks" must be an object keyed by service');
-      } else {
-        for (const [service, hosts] of Object.entries(config.smartLinks)) {
-          if (!KNOWN_SMART_LINK_KEYS.has(service)) {
-            warnings.push(`config: unknown smartLinks service "${service}"`);
-            continue;
-          }
-          if (!Array.isArray(hosts)) {
-            problems.push(`config: smartLinks.${service} must be an array of hostnames`);
-            continue;
-          }
-          hosts.forEach((h, i) => {
-            if (typeof h !== 'string' || !h.trim()) {
-              problems.push(`config: smartLinks.${service}[${i}] must be a non-empty hostname`);
-            } else if (!/^(\*\.)?[a-z0-9.-]+$/i.test(h.trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, ''))) {
-              warnings.push(`config: smartLinks.${service}[${i}] "${h}" doesn't look like a hostname`);
-            }
-          });
-        }
-      }
-    }
-    const tokens = knownThemeTokens();
-    if (tokens && config.theme) {
-      for (const t of Object.keys(config.theme)) {
-        const key = t.startsWith('--') ? t : `--${t}`;
-        if (!tokens.has(key)) warnings.push(`theme: unknown token "${t}"`);
-      }
+  }
+
+  const tokens = themeTokens === undefined ? knownThemeTokens() : themeTokens;
+  if (tokens && config.theme) {
+    for (const t of Object.keys(config.theme)) {
+      const key = t.startsWith('--') ? t : `--${t}`;
+      if (!tokens.has(key)) warnings.push(`theme: unknown token "${t}"`);
     }
   }
 
-  // 2. content lint (cheap) — needs gray-matter from the engine's deps.
+  return { problems, warnings };
+}
+
+/**
+ * Lint a vault's content against what the collection schemas and loaders will
+ * demand at build time, without building. Returns findings rather than printing.
+ *
+ * @param {string} vault
+ * @returns {Promise<{ problems: string[], warnings: string[] }>}
+ */
+export async function lintContent(vault) {
+  const problems = [];
+  const warnings = [];
+
+  // Frontmatter checks need gray-matter from the engine's deps; without it the
+  // build is the backstop, so skip rather than fail.
   let matter;
   try { matter = (await import('gray-matter')).default; } catch { /* skip fm checks */ }
 
   if (matter) {
-    for (const file of walkMd(join(vault, 'dailies'))) {
+    for (const file of walkMarkdown(join(vault, 'dailies'))) {
       const { data } = matter(readFileSync(file, 'utf8'));
       // The dailies collection schema requires `date`; a YYYY-MM-DD filename
       // only supplies the URL slug, not the schema field, so the build rejects
@@ -462,7 +477,7 @@ async function cmdDoctor(vaultArg) {
     const decisionsDir = join(vault, 'decisions');
     if (existsSync(decisionsDir)) {
       const STATUSES = new Set(['accepted', 'proposed', 'superseded']);
-      const files = walkMd(decisionsDir);
+      const files = walkMarkdown(decisionsDir);
       const nums = new Set(
         files.map(f => (basename(f, '.md').match(/(\d+)/) ?? [])[1]).filter(Boolean),
       );
@@ -481,6 +496,7 @@ async function cmdDoctor(vaultArg) {
       }
     }
   }
+
   const guidesDir = join(vault, 'guides');
   if (existsSync(guidesDir)) {
     for (const d of readdirSync(guidesDir, { withFileTypes: true })) {
@@ -489,6 +505,7 @@ async function cmdDoctor(vaultArg) {
       }
     }
   }
+
   const referencesDir = join(vault, 'references');
   if (existsSync(referencesDir)) {
     for (const document of discoverReferenceDocuments(referencesDir)) {
@@ -508,13 +525,14 @@ async function cmdDoctor(vaultArg) {
       }
     }
   }
+
   // Unresolved wiki-links in note-like documents. References use the same
   // Obsidian wiki-link resolver and may point at regular notes.
   const noteSlugs = new Set(
-    walkMd(join(vault, 'notes')).map(f => basename(f, '.md').replace(/ /g, '-').toLowerCase()),
+    walkMarkdown(join(vault, 'notes')).map(f => basename(f, '.md').replace(/ /g, '-').toLowerCase()),
   );
   for (const kind of ['notes', 'references']) {
-    for (const file of walkMd(join(vault, kind))) {
+    for (const file of walkMarkdown(join(vault, kind))) {
       for (const m of markdownWikiLinks(readFileSync(file, 'utf8'))) {
         const target = m[1].trim().replace(/ /g, '-').toLowerCase();
         if (!noteSlugs.has(target)) warnings.push(`${kind}: ${basename(file)} links to missing [[${m[1].trim()}]]`);
@@ -522,7 +540,21 @@ async function cmdDoctor(vaultArg) {
     }
   }
 
-  // report
+  return { problems, warnings };
+}
+
+async function cmdDoctor(vaultArg) {
+  // `check: false` — the engine-range mismatch is reported below as a finding
+  // rather than as a bare warning ahead of the report.
+  const { vault, config, path } = await openVault(vaultArg, {}, { check: false });
+
+  const checks = [
+    validateConfig(config, { hasConfigFile: Boolean(path) }),
+    await lintContent(vault),
+  ];
+  const problems = checks.flatMap(check => check.problems);
+  const warnings = checks.flatMap(check => check.warnings);
+
   info(`doctor: ${c.bold(vault)} ${c.dim(`(engine ${VERSION})`)}`);
   warnings.forEach(w => warn(w));
   problems.forEach(p => console.error(`${c.red('✗')} ${p}`));

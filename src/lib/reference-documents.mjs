@@ -1,30 +1,14 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'path';
+import { existsSync, readFileSync, statSync } from 'fs';
+import { basename, dirname, relative, resolve, sep } from 'path';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
+import { isInside, walkMarkdown } from './fs-walk.mjs';
 
 const SUMMARY_NAME = 'summary.md';
 const MARKER_PREFIX = 'teaman-reference-chapter:';
 const summaryMarkdown = new MarkdownIt();
 
 const posix = value => value.replaceAll(sep, '/');
-
-function isInside(root, path) {
-  const rel = relative(root, path);
-  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
-}
-
-function walkMarkdown(dir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .flatMap(entry => {
-      if (entry.name.startsWith('_')) return [];
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) return walkMarkdown(path);
-      return entry.isFile() && entry.name.toLowerCase().endsWith('.md') ? [path] : [];
-    });
-}
 
 function markdownTitle(source, fallback) {
   const match = source.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/m);
@@ -363,7 +347,7 @@ function standaloneDocument(referencesRoot, sourcePath) {
 
 /** Discover standalone .md references and SUMMARY.md-backed reference books. */
 export function discoverReferenceDocuments(referencesRoot) {
-  const files = walkMarkdown(referencesRoot);
+  const files = walkMarkdown(referencesRoot, { skipUnderscore: true });
   const summaries = files.filter(path => basename(path).toLowerCase() === SUMMARY_NAME);
   const books = summaries.map(path => bookDocument(referencesRoot, path));
   const bookRoots = summaries.map(dirname);
