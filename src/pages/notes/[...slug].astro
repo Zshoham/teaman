@@ -2,6 +2,8 @@
 import { getCollection, render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
+import DocMeta from '../../components/DocMeta.astro';
+import MetaDot from '../../components/MetaDot.astro';
 import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
@@ -29,22 +31,16 @@ const words = wordCount(note.body ?? '');
     ]} />
 
     <header class="mb-8 border-b border-border pb-6">
-      <h1 class="note-title m-0 mb-4 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{note.data.title ?? note.id}</h1>
-      <div class="note-meta flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint">
-        <span>{wordMeta(words)}</span>
-        <span class="opacity-50">·</span>
-        <span>{readingTimeMeta(words)}</span>
-        {note.data.date && <span class="opacity-50">·</span>}
+      <h1 class="note-title doc-title m-0 mb-4">{note.data.title ?? note.id}</h1>
+      <DocMeta class="note-meta" items={[wordMeta(words), readingTimeMeta(words)]}>
         {note.data.date && <time datetime={note.data.date.toISOString()}>{fmtDate(note.data.date)}</time>}
+        {note.data.date && note.data.tags && note.data.tags.length > 0 && <MetaDot />}
         {note.data.tags && note.data.tags.length > 0 && (
-          <>
-            <span class="opacity-50">·</span>
-            <span class="inline-flex flex-wrap gap-2">
-              {note.data.tags.map(tag => <span class="text-faint tracking-wide">#{tag}</span>)}
-            </span>
-          </>
+          <span class="inline-flex flex-wrap gap-2">
+            {note.data.tags.map(tag => <span class="text-faint tracking-wide">#{tag}</span>)}
+          </span>
         )}
-      </div>
+      </DocMeta>
     </header>
 
     <div class="prose">

@@ -4,6 +4,7 @@ import { render } from 'astro:content';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 import { loadAdrs } from '../../lib/adr';
 import { fmtDate } from '../../lib/format';
+import { plural } from '../../lib/text';
 import { AdrTimeline } from '../../components/decisions/AdrTimeline';
 import type { AdrView } from '../../components/decisions/types';
 
@@ -30,7 +31,7 @@ const views: AdrView[] = await Promise.all(
   }),
 );
 
-const footerLeft = `${adrs.length} ${adrs.length === 1 ? 'decision' : 'decisions'}`;
+const footerLeft = plural(adrs.length, 'decision');
 ---
 
 <Layout title="Decisions" footerLeft={footerLeft}>

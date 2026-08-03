@@ -1,3 +1,12 @@
+/**
+ * `"1 section"` / `"3 sections"`. Pass `plural` for anything that isn't a bare
+ * `+s` ("dailies", "days"). The count is locale-formatted, so large ones get
+ * their thousands separators.
+ */
+export function plural(count: number, noun: string, pluralNoun = `${noun}s`): string {
+  return `${count.toLocaleString()} ${count === 1 ? noun : pluralNoun}`;
+}
+
 export function wordMeta(words: number): string {
   return `${words.toLocaleString()} words`;
 }

@@ -41,6 +41,7 @@ import {
   type AdrStatus,
 } from '@/lib/adr-shared';
 import { retainMeaningfulRules } from '@/lib/filter-rules';
+import { plural } from '@/lib/text';
 import { cn } from '@/lib/utils';
 import { AdrDetailDialog } from './AdrDetailDialog';
 import type { AdrView } from './types';
@@ -265,8 +266,7 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
                     <span className="relative z-10 size-[9px] rounded-full bg-muted-foreground" />
                   </div>
                   <div className="font-mono text-meta uppercase tracking-label-sm text-faint max-[760px]:col-span-2">
-                    {group.items.length} decision
-                    {group.items.length > 1 ? 's' : ''}
+                    {plural(group.items.length, 'decision')}
                   </div>
                 </div>
                 {group.items.map((adr) => (

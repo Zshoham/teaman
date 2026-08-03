@@ -4,6 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { GuideTOC } from '../../components/guide/GuideTOC';
 import { GuideNav } from '../../components/guide/GuideNav';
+import DocMeta from '../../components/DocMeta.astro';
 import { listGuides, getGuide } from '../../lib/guides';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
@@ -61,8 +62,8 @@ const words = wordCount(entry.body ?? '');
       <div class="min-w-0 max-w-[var(--measure)]">
         <header class="mb-8 border-b border-border pb-6">
           <p class="guide-eyebrow m-0 font-mono text-meta uppercase tracking-label text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
-          <h1 class="guide-title mt-3 font-serif text-3xl leading-[1.05] font-normal tracking-tight text-balance text-foreground md:text-display">{currentTitle}</h1>
-          <p class="mt-4 font-mono text-meta text-faint">{wordMeta(words)} · {readingTimeMeta(words)}</p>
+          <h1 class="guide-title doc-title mt-3">{currentTitle}</h1>
+          <DocMeta class="mt-4" items={[wordMeta(words), readingTimeMeta(words)]} />
         </header>
 
         <div class="prose">

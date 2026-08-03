@@ -22,6 +22,7 @@ import {
   type ReferenceHeadingNode,
   type ReferenceSection,
 } from '@/lib/reference-reader';
+import { plural } from '@/lib/text';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -292,7 +293,7 @@ function RailContents({
         <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
           <p className="m-0 font-mono text-meta-sm uppercase tracking-label text-faint">
             {searching
-              ? `${matches.length} ${matches.length === 1 ? 'section' : 'sections'}`
+              ? plural(matches.length, 'section')
               : 'On this page'}
           </p>
           {!searching && collapsibleSlugs.length > 0 && (

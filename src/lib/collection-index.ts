@@ -1,5 +1,6 @@
 import type { Entry, EntryType } from './entries';
 import { fmtDate } from './format';
+import { plural as pluralize } from './text';
 import { tagCounts } from './tags';
 import { COLLECTIONS } from './collections.mjs';
 
@@ -49,8 +50,8 @@ export const buildTopics = tagCounts;
  * the unit so a per-collection page can say "notes" instead of "entries";
  * entries are assumed sorted newest-first, as `loadAllEntries` returns them.
  */
-export function footerSummary(entries: Entry[], noun = 'entry', plural = 'entries'): string {
-  const count = `${entries.length} ${entries.length === 1 ? noun : plural}`;
+export function footerSummary(entries: Entry[], noun = 'entry', pluralNoun = 'entries'): string {
+  const count = pluralize(entries.length, noun, pluralNoun);
   const updated = entries.reduce(
     (latest, entry) => (entry.updated > latest ? entry.updated : latest),
     '',

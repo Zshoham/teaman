@@ -1,0 +1,39 @@
+---
+/**
+ * The dot-separated byline under a long-form document title — word count,
+ * reading time, section count, date, tags. Notes and references each built
+ * this row by hand, interleaving `<span class="opacity-50">·</span>`.
+ *
+ * Plain text items go in `items`. Anything needing markup (a `<time>`, the tag
+ * list) goes in the default slot, which is separated from `items` by the same
+ * dot; use `<MetaDot />` between slotted items. An empty slot adds no dot, so a
+ * note with neither date nor tags doesn't end in a dangling separator.
+ */
+interface Props {
+  /** Text items, in order. Empty/nullish entries are dropped. */
+  items?: (string | false | null | undefined)[];
+  /** Extra classes for the row (a per-page hook, margins). */
+  class?: string;
+}
+
+const { items = [], class: className = '' } = Astro.props;
+const shown = items.filter((item): item is string => Boolean(item));
+
+// Rendered rather than probed with `Astro.slots.has`: a slot whose content is
+// all falsy conditionals is "present" but renders nothing, and would otherwise
+// earn a separator with nothing after it.
+const slotHtml = Astro.slots.has('default')
+  ? (await Astro.slots.render('default')).trim()
+  : '';
+---
+
+<div class:list={['flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint', className]}>
+  {shown.map((item, index) => (
+    <>
+      {index > 0 && <span class="opacity-50">·</span>}
+      <span>{item}</span>
+    </>
+  ))}
+  {slotHtml && shown.length > 0 && <span class="opacity-50">·</span>}
+  {slotHtml && <Fragment set:html={slotHtml} />}
+</div>
