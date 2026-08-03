@@ -5,11 +5,12 @@ vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
 import { getCollection } from 'astro:content';
 import {
   addDays,
+  dailyDateId,
   dayAnchor,
   groupByWeek,
-  isoDate,
   loadDailyEntries,
   loadDailyWeeks,
+  localIsoDate,
   sundayOf,
   WEEKDAY_INITIALS,
   WEEKDAY_LONG,
@@ -17,45 +18,50 @@ import {
   type DailyEntry,
 } from '../dailies';
 
+// Frontmatter dates arrive from YAML as UTC midnight (`date: 2026-05-04` →
+// 2026-05-04T00:00:00Z), never as a local-midnight Date. Fixtures have to match,
+// or a formatter that is wrong in negative-offset zones still looks correct.
+const fmDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
 // ── Pure utilities ───────────────────────────────────────────────────────────
 
-describe('isoDate', () => {
+describe('localIsoDate', () => {
   it('formats a local Date as YYYY-MM-DD without timezone drift', () => {
-    expect(isoDate(new Date(2026, 0, 5))).toBe('2026-01-05');
-    expect(isoDate(new Date(2026, 11, 31))).toBe('2026-12-31');
+    expect(localIsoDate(new Date(2026, 0, 5))).toBe('2026-01-05');
+    expect(localIsoDate(new Date(2026, 11, 31))).toBe('2026-12-31');
   });
 
   it('zero-pads single-digit months and days', () => {
-    expect(isoDate(new Date(2026, 2, 7))).toBe('2026-03-07');
+    expect(localIsoDate(new Date(2026, 2, 7))).toBe('2026-03-07');
   });
 });
 
 describe('sundayOf', () => {
   it('returns the same date when already Sunday', () => {
     // May 3 2026 is a Sunday.
-    expect(isoDate(sundayOf(new Date(2026, 4, 3)))).toBe('2026-05-03');
+    expect(localIsoDate(sundayOf(new Date(2026, 4, 3)))).toBe('2026-05-03');
   });
 
   it('walks back to Sunday across weekdays', () => {
     // May 6 2026 is a Wednesday.
-    expect(isoDate(sundayOf(new Date(2026, 4, 6)))).toBe('2026-05-03');
+    expect(localIsoDate(sundayOf(new Date(2026, 4, 6)))).toBe('2026-05-03');
     // May 9 2026 is a Saturday.
-    expect(isoDate(sundayOf(new Date(2026, 4, 9)))).toBe('2026-05-03');
+    expect(localIsoDate(sundayOf(new Date(2026, 4, 9)))).toBe('2026-05-03');
   });
 
   it('crosses month boundaries cleanly', () => {
     // May 1 2026 is a Friday; the prior Sunday is April 26.
-    expect(isoDate(sundayOf(new Date(2026, 4, 1)))).toBe('2026-04-26');
+    expect(localIsoDate(sundayOf(new Date(2026, 4, 1)))).toBe('2026-04-26');
   });
 });
 
 describe('addDays', () => {
   it('adds positive day counts', () => {
-    expect(isoDate(addDays(new Date(2026, 4, 3), 6))).toBe('2026-05-09');
+    expect(localIsoDate(addDays(new Date(2026, 4, 3), 6))).toBe('2026-05-09');
   });
 
   it('handles negative day counts', () => {
-    expect(isoDate(addDays(new Date(2026, 4, 3), -3))).toBe('2026-04-30');
+    expect(localIsoDate(addDays(new Date(2026, 4, 3), -3))).toBe('2026-04-30');
   });
 });
 
@@ -151,7 +157,7 @@ describe('loadDailyEntries', () => {
     // May 4 2026 is a Monday.
     const collected = {
       id: '2026-05-04',
-      data: { date: new Date(2026, 4, 4), tags: ['focus'] },
+      data: { date: fmDate('2026-05-04'), tags: ['focus'] },
       body: 'First paragraph here.\n\nSecond one.',
     };
     vi.mocked(getCollection).mockResolvedValue([collected] as any);
@@ -184,8 +190,8 @@ describe('loadDailyEntries', () => {
 
   it('skips drafts', async () => {
     vi.mocked(getCollection).mockResolvedValue([
-      { id: 'drafted', data: { date: new Date(2026, 4, 4), draft: true }, body: 'x' },
-      { id: 'live', data: { date: new Date(2026, 4, 5) }, body: 'y' },
+      { id: 'drafted', data: { date: fmDate('2026-05-04'), draft: true }, body: 'x' },
+      { id: 'live', data: { date: fmDate('2026-05-05') }, body: 'y' },
     ] as any);
     const entries = await loadDailyEntries();
     expect(entries.map(e => e.date)).toEqual(['2026-05-05']);
@@ -193,9 +199,9 @@ describe('loadDailyEntries', () => {
 
   it('returns entries sorted by date ascending', async () => {
     vi.mocked(getCollection).mockResolvedValue([
-      { id: 'b', data: { date: new Date(2026, 4, 8) }, body: 'b' },
-      { id: 'a', data: { date: new Date(2026, 4, 4) }, body: 'a' },
-      { id: 'c', data: { date: new Date(2026, 4, 10) }, body: 'c' },
+      { id: 'b', data: { date: fmDate('2026-05-08') }, body: 'b' },
+      { id: 'a', data: { date: fmDate('2026-05-04') }, body: 'a' },
+      { id: 'c', data: { date: fmDate('2026-05-10') }, body: 'c' },
     ] as any);
     const entries = await loadDailyEntries();
     expect(entries.map(e => e.date)).toEqual(['2026-05-04', '2026-05-08', '2026-05-10']);
@@ -203,7 +209,7 @@ describe('loadDailyEntries', () => {
 
   it('defaults tags to an empty array', async () => {
     vi.mocked(getCollection).mockResolvedValue([
-      { id: '2026-05-04', data: { date: new Date(2026, 4, 4) }, body: 'x' },
+      { id: '2026-05-04', data: { date: fmDate('2026-05-04') }, body: 'x' },
     ] as any);
     const [entry] = await loadDailyEntries();
     expect(entry.tags).toEqual([]);
@@ -217,12 +223,44 @@ describe('loadDailyWeeks', () => {
 
   it('loads + groups in one call', async () => {
     vi.mocked(getCollection).mockResolvedValue([
-      { id: '2026-05-04', data: { date: new Date(2026, 4, 4) }, body: 'mon' },
-      { id: '2026-05-05', data: { date: new Date(2026, 4, 5) }, body: 'tue' },
-      { id: '2026-04-20', data: { date: new Date(2026, 3, 20) }, body: 'older' },
+      { id: '2026-05-04', data: { date: fmDate('2026-05-04') }, body: 'mon' },
+      { id: '2026-05-05', data: { date: fmDate('2026-05-05') }, body: 'tue' },
+      { id: '2026-04-20', data: { date: fmDate('2026-04-20') }, body: 'older' },
     ] as any);
     const weeks = await loadDailyWeeks();
     expect(weeks.map(w => w.id)).toEqual(['2026-05-03', '2026-04-19']);
     expect(weeks[0].days).toHaveLength(2);
   });
+});
+
+describe('dailyDateId', () => {
+  it('prefers a YYYY-MM-DD filename over the frontmatter date', () => {
+    // The filename is authoritative when it carries a date; frontmatter only
+    // has to exist (the schema requires it) — it need not agree.
+    expect(dailyDateId({ id: '2026-05-04', data: { date: fmDate('2020-01-01') } }))
+      .toBe('2026-05-04');
+  });
+
+  it('falls back to the frontmatter date for a non-dated filename', () => {
+    expect(dailyDateId({ id: 'standup-notes', data: { date: fmDate('2026-05-04') } }))
+      .toBe('2026-05-04');
+  });
+
+  // Regression: this used to be two copies of the same function, one formatting
+  // the UTC-midnight frontmatter date with a *local* formatter. In any negative
+  // -offset zone that silently filed the note under the previous day — and the
+  // fixtures, being local-midnight Dates, agreed with it.
+  it.each(['UTC', 'America/New_York', 'Asia/Tokyo', 'Pacific/Kiritimati'])(
+    'resolves the same day in %s',
+    (tz) => {
+      const original = process.env.TZ;
+      process.env.TZ = tz;
+      try {
+        expect(dailyDateId({ id: 'untitled', data: { date: fmDate('2026-05-04') } }))
+          .toBe('2026-05-04');
+      } finally {
+        process.env.TZ = original;
+      }
+    },
+  );
 });

@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import {
   WEEKDAY_INITIALS,
   addDays,
-  isoDate,
+  dateFromIsoDate,
+  localIsoDate,
   sundayOf,
   weekHref,
   type DailyWeekShape,
@@ -48,7 +49,7 @@ function buildMonth(
   const rows: MonthView["rows"] = [];
   let cursor = start;
   for (let r = 0; r < 6; r++) {
-    const sundayIso = isoDate(cursor);
+    const sundayIso = localIsoDate(cursor);
     const days: Array<{ day: number; inMonth: boolean }> = [];
     for (let i = 0; i < 7; i++) {
       const d = addDays(cursor, i);
@@ -83,10 +84,9 @@ export function DatePicker({ weeks, currentId, triggerClassName }: Props) {
       weeks.map((w) => [w.start, w]),
     );
     const sorted = weeks.slice().sort((a, b) => a.start.localeCompare(b.start));
-    const earliest = new Date(`${sorted[0]?.start ?? isoDate(new Date())}T00:00:00`);
-    const latest = new Date(
-      `${sorted[sorted.length - 1]?.start ?? isoDate(new Date())}T00:00:00`,
-    );
+    const today = localIsoDate(new Date());
+    const earliest = dateFromIsoDate(sorted[0]?.start ?? today);
+    const latest = dateFromIsoDate(sorted[sorted.length - 1]?.start ?? today);
     const months: MonthView[] = [];
     let y = earliest.getFullYear();
     let m = earliest.getMonth();
