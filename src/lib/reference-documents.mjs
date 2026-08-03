@@ -44,8 +44,28 @@ function summaryLink(token) {
   return { href, title: inlineText(children.slice(open + 1, close)) };
 }
 
-/** Parse the mdBook-style chapter list in SUMMARY.md, preserving its nesting. */
-export function parseReferenceSummary(source) {
+/**
+ * Is `target` a link to a Markdown file inside this book/guide? Schemes and
+ * protocol-relative URLs are external; a root-relative `/chapter.md` is only
+ * meaningful where the caller says so.
+ */
+function isLocalMarkdownTarget(target, rootRelative) {
+  if (/^[a-z][a-z\d+.-]*:/i.test(target)) return false;
+  if (target.startsWith('//')) return false;
+  if (target.startsWith('/') && !rootRelative) return false;
+  return /\.md$/i.test(target);
+}
+
+/**
+ * Parse the mdBook-style chapter list in SUMMARY.md, preserving its nesting.
+ *
+ * @param {string} source
+ * @param {{ rootRelative?: boolean }} [options]
+ *   `rootRelative` accepts `/chapter.md` and strips the slash. Guides have
+ *   always allowed that spelling; a reference book resolves chapters against
+ *   its own directory and must not treat a leading `/` as meaningful.
+ */
+export function parseReferenceSummary(source, { rootRelative = false } = {}) {
   const parsedByLine = new Map();
   let listDepth = 0;
   const tokens = summaryMarkdown.parse(source, {});
@@ -72,13 +92,13 @@ export function parseReferenceSummary(source) {
       ?? summaryLink(summaryMarkdown.parseInline(match[2], {})[0]);
     if (!link) continue;
     const target = cleanSummaryTarget(link.href);
-    if (/^(?:[a-z][a-z\d+.-]*:|\/\/|\/)/i.test(target) || !/\.md$/i.test(target)) continue;
+    if (!isLocalMarkdownTarget(target, rootRelative)) continue;
     const indent = match[1].replaceAll('\t', '    ').length;
     while (fallbackLevels.length > 0 && indent < fallbackLevels.at(-1)) fallbackLevels.pop();
     if (fallbackLevels.length === 0 || indent > fallbackLevels.at(-1)) fallbackLevels.push(indent);
     chapters.push({
       title: link.title,
-      path: target.replace(/^\.\//, ''),
+      path: target.replace(/^\.\//, '').replace(/^\//, ''),
       // Keep the existing extension where an indented entry can follow a
       // markerless prefix chapter; CommonMark sees that entry as code.
       depth: link.depth ?? fallbackLevels.length - 1,
