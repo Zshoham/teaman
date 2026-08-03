@@ -106,6 +106,65 @@ describe('parseGuide', () => {
     expect(guide.chapters[0].slug).toBe('ch');
   });
 
+  // Previously dropped: the old line regex only understood `-`/`*` bullets and
+  // a bare `(path.md)` destination. SUMMARY.md now goes through the same
+  // CommonMark parser the reference books use.
+  it('accepts + and numbered list markers', () => {
+    expect(parseGuide('g', '# G\n+ [A](a.md)\n').chapters).toEqual([
+      { slug: 'a', title: 'A' },
+    ]);
+    expect(parseGuide('g', '# G\n1. [A](a.md)\n2. [B](b.md)\n').chapters).toEqual([
+      { slug: 'a', title: 'A' },
+      { slug: 'b', title: 'B' },
+    ]);
+  });
+
+  it('accepts a link title after the destination', () => {
+    expect(parseGuide('g', '# G\n- [A](a.md "The first bit")\n').chapters).toEqual([
+      { slug: 'a', title: 'A' },
+    ]);
+  });
+
+  it('accepts an angle-bracket destination, spaces included', () => {
+    expect(parseGuide('g', '# G\n- [A](<my chapter.md>)\n').chapters).toEqual([
+      { slug: 'my chapter', title: 'A' },
+    ]);
+  });
+
+  it('accepts a percent-encoded destination', () => {
+    expect(parseGuide('g', '# G\n- [A](my%20chapter.md)\n').chapters).toEqual([
+      { slug: 'my chapter', title: 'A' },
+    ]);
+  });
+
+  it('keeps a nested chapter path', () => {
+    expect(parseGuide('g', '# G\n- [A](part-one/a.md)\n').chapters).toEqual([
+      { slug: 'part-one/a', title: 'A' },
+    ]);
+  });
+
+  it('drops the fragment from a chapter link', () => {
+    expect(parseGuide('g', '# G\n- [A](a.md#section)\n').chapters).toEqual([
+      { slug: 'a', title: 'A' },
+    ]);
+  });
+
+  it('ignores external links and non-markdown targets', () => {
+    const guide = parseGuide('g', [
+      '# G',
+      '- [Site](https://example.com/x.md)',
+      '- [Proto](//example.com/x.md)',
+      '- [Asset](diagram.svg)',
+      '- [Real](a.md)',
+    ].join('\n'));
+    expect(guide.chapters).toEqual([{ slug: 'a', title: 'Real' }]);
+  });
+
+  it('ignores a link mentioned in prose rather than listed', () => {
+    const guide = parseGuide('g', '# G\n\nSee [A](a.md) for context.\n\n- [B](b.md)\n');
+    expect(guide.chapters).toEqual([{ slug: 'b', title: 'B' }]);
+  });
+
   it('handles Windows-style line endings', () => {
     const summary = '# Guide\r\n- [Intro](intro.md)\r\n';
     const guide = parseGuide('guide', summary);
