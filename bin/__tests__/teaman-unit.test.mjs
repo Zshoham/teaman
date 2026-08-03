@@ -2,7 +2,7 @@
 // entrypoint check, so importing it here runs no commands — only parseArgs and
 // satisfies are exercised.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs } from '../teaman.mjs';
+import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, validateConfig, lintContent } from '../teaman.mjs';
 import { resolve, join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -204,5 +204,146 @@ describe('commitBuild', () => {
     // original content restored, no backup sibling lingering
     expect(readFileSync(join(out, 'index.html'), 'utf8')).toBe('original');
     expect(readdirSync(dir)).toEqual(['dist']);
+  });
+});
+
+// `doctor` used to be 160 lines of straight-line validation; these two are the
+// pieces it now composes, testable without a vault on disk (validateConfig) or
+// against a scratch one (lintContent).
+describe('validateConfig', () => {
+  const ok = { hasConfigFile: true, themeTokens: new Set(['--primary']) };
+
+  it('reports nothing for a minimal valid config', () => {
+    expect(validateConfig({ brand: 'x' }, ok)).toEqual({ problems: [], warnings: [] });
+  });
+
+  it('requires a brand once a config file exists', () => {
+    expect(validateConfig({}, ok).problems).toContain('config: missing required "brand"');
+  });
+
+  // A vault with no config file runs on engine defaults, so its "missing
+  // brand" is not a problem to report.
+  it('skips config checks entirely when there is no config file', () => {
+    expect(validateConfig({}, { ...ok, hasConfigFile: false }))
+      .toEqual({ problems: [], warnings: [] });
+  });
+
+  it('still checks the engine range without a config file', () => {
+    const { warnings } = validateConfig(
+      { engine: '^99.0.0' },
+      { ...ok, hasConfigFile: false, version: '1.5.0' },
+    );
+    expect(warnings).toEqual(['engine range ^99.0.0 excludes running engine 1.5.0']);
+  });
+
+  it('warns on unknown top-level, hero and slides keys', () => {
+    const { warnings } = validateConfig(
+      { brand: 'x', nope: 1, hero: { title: 't', bogus: 1 }, slides: { weird: 1 } },
+      ok,
+    );
+    expect(warnings).toEqual([
+      'config: unknown key "nope"',
+      'config: unknown hero key "bogus"',
+      'config: unknown slides key "weird"',
+    ]);
+  });
+
+  it('requires a hero title when hero is present', () => {
+    expect(validateConfig({ brand: 'x', hero: { eyebrow: 'hi' } }, ok).problems)
+      .toContain('config: hero is present but missing "title"');
+  });
+
+  it('validates links entries', () => {
+    const { problems, warnings } = validateConfig(
+      { brand: 'x', links: [{ url: 'ftp://x' }, { label: 'a', url: '/ok', extra: 1 }] },
+      ok,
+    );
+    expect(problems).toContain('config: links[0] missing required "label"');
+    expect(warnings).toContain('config: links[0] url "ftp://x" doesn\'t look like a URL');
+    expect(warnings).toContain('config: unknown link key "extra" (links[1])');
+  });
+
+  it('rejects a non-array links', () => {
+    expect(validateConfig({ brand: 'x', links: {} }, ok).problems)
+      .toContain('config: "links" must be an array');
+  });
+
+  it('validates smartLinks services and hostnames', () => {
+    const { problems, warnings } = validateConfig(
+      { brand: 'x', smartLinks: { gitlab: ['git.example.com'], nope: [], jira: 'no' } },
+      ok,
+    );
+    expect(warnings).toContain('config: unknown smartLinks service "nope"');
+    expect(problems).toContain('config: smartLinks.jira must be an array of hostnames');
+  });
+
+  it('warns on theme tokens the stylesheet does not define', () => {
+    const { warnings } = validateConfig({ brand: 'x', theme: { '--nope': 'red' } }, ok);
+    expect(warnings).toEqual(['theme: unknown token "--nope"']);
+  });
+
+  it('accepts a theme token written without the leading dashes', () => {
+    expect(validateConfig({ brand: 'x', theme: { primary: 'red' } }, ok).warnings).toEqual([]);
+  });
+});
+
+describe('lintContent', () => {
+  let vault;
+  beforeEach(() => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-lint-'));
+  });
+  afterEach(() => rmSync(vault, { recursive: true, force: true }));
+
+  const write = (rel, body) => {
+    const path = join(vault, rel);
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, body);
+  };
+
+  it('reports nothing for an empty vault', async () => {
+    expect(await lintContent(vault)).toEqual({ problems: [], warnings: [] });
+  });
+
+  it('requires a date on every daily', async () => {
+    write('dailies/2026-05-04.md', '# no frontmatter\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toContain('dailies: 2026-05-04.md needs a "date" in frontmatter');
+  });
+
+  it('requires a date and a valid status on every decision', async () => {
+    write('decisions/adr-0001.md', '---\nstatus: sideways\n---\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toContain('decisions: adr-0001.md needs a "date" in frontmatter');
+    expect(problems).toContain('decisions: adr-0001.md has invalid status "sideways"');
+  });
+
+  it('warns when ADR lineage points at a missing record', async () => {
+    write('decisions/adr-0001.md', '---\ndate: 2026-01-01\nstatus: accepted\nsupersededBy: 9\n---\n');
+    const { warnings } = await lintContent(vault);
+    expect(warnings).toContain('decisions: adr-0001.md supersededBy points at missing ADR-9');
+  });
+
+  it('requires a SUMMARY.md in every guide directory', async () => {
+    write('guides/rust/intro.md', '# intro\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toContain('guides: rust/ has no SUMMARY.md (chapter index)');
+  });
+
+  it('warns on a wiki-link with no matching note', async () => {
+    write('notes/a.md', 'see [[Missing Note]]\n');
+    const { warnings } = await lintContent(vault);
+    expect(warnings).toContain('notes: a.md links to missing [[Missing Note]]');
+  });
+
+  it('resolves a wiki-link to a note whose filename has spaces', async () => {
+    write('notes/Missing Note.md', '# x\n');
+    write('notes/a.md', 'see [[Missing Note]]\n');
+    expect((await lintContent(vault)).warnings).toEqual([]);
+  });
+
+  it('checks wiki-links in references too', async () => {
+    write('references/r.md', 'see [[Nope]]\n');
+    const { warnings } = await lintContent(vault);
+    expect(warnings).toContain('references: r.md links to missing [[Nope]]');
   });
 });
