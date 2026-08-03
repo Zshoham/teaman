@@ -10,15 +10,16 @@
 // a classic <script> forces the UMD browser branch, which installs the engine
 // on `globalThis.Viz` the way @plantuml/core expects.
 import vizUrl from '@plantuml/core/viz-global.js?url';
+import {
+  collectDiagramBlocks,
+  isDarkTheme,
+  observeThemeChanges,
+} from './themed-diagrams';
 
 // Safety net: if a render neither succeeds nor calls onError (e.g. the engine
 // throws inside its async worker), fall back to the error notice instead of
 // leaving the block hidden forever.
 const RENDER_TIMEOUT_MS = 15000;
-
-function isDark(): boolean {
-  return document.documentElement.dataset.theme === 'dark';
-}
 
 /** Loads viz-global.js (the Graphviz layout engine) as a classic script so its
  *  UMD wrapper installs `globalThis.Viz`. Memoised: at most one script tag. */
@@ -44,16 +45,8 @@ function loadViz(): Promise<void> {
 /** Renders the page's plantuml blocks. Returns the theme-watching observer (or
  *  `undefined` when the page has no diagrams) so callers can dispose it. */
 export async function initPlantuml(): Promise<MutationObserver | undefined> {
-  const nodes = Array.from(
-    document.querySelectorAll<HTMLElement>('pre.plantuml'),
-  );
+  const nodes = collectDiagramBlocks('pre.plantuml');
   if (nodes.length === 0) return;
-
-  // Stash each diagram's source before we replace the text with SVG, so a later
-  // theme switch can restore it and re-render from scratch.
-  for (const node of nodes) {
-    if (node.dataset.src === undefined) node.dataset.src = node.textContent ?? '';
-  }
 
   // A diagram we can't render gets a readable notice so a malformed definition
   // (or a load failure) fails visibly, not silently.
@@ -103,7 +96,7 @@ export async function initPlantuml(): Promise<MutationObserver | undefined> {
     });
 
   const render = async () => {
-    const dark = isDark();
+    const dark = isDarkTheme();
     for (const node of nodes) {
       const svg = await renderOne(node.dataset.src ?? '', dark);
       if (svg) {
@@ -117,18 +110,5 @@ export async function initPlantuml(): Promise<MutationObserver | undefined> {
   };
 
   await render();
-
-  let last = isDark();
-  const observer = new MutationObserver(() => {
-    const dark = isDark();
-    if (dark !== last) {
-      last = dark;
-      void render();
-    }
-  });
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['data-theme'],
-  });
-  return observer;
+  return observeThemeChanges(render);
 }
