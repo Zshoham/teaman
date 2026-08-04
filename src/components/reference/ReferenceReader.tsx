@@ -315,6 +315,11 @@ function RailContents({
             'min-h-0 pr-3 [&_[data-slot=scroll-area-viewport]]:overscroll-contain',
             fullHeight ? 'flex-1' : 'h-[min(60dvh,34rem)]',
           )}
+          // A deeply indented entry is wider than the rail, which otherwise
+          // makes the whole list scroll sideways and carries every collapse
+          // trigger off the right-hand edge — with no horizontal scrollbar to
+          // bring it back. Entries wrap instead.
+          wrapContent
           data-reference-toc-scroll
         >
           {searching ? (
