@@ -99,5 +99,13 @@ const themeCss = SITE_CONFIG.theme
     import { initPlantuml } from '../scripts/plantuml';
     initPlantuml();
   </script>
+
+  <script>
+    // Adds clipboard behavior to the static toolbars emitted around Shiki
+    // blocks. The language label and button remain visible without JavaScript;
+    // only the copy action itself is progressively enhanced.
+    import { initCodeBlocks } from '../scripts/code-blocks';
+    initCodeBlocks();
+  </script>
 </body>
 </html>

@@ -13,6 +13,7 @@ import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
 import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
 import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
 import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
+import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
 import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import {
@@ -87,6 +88,10 @@ export default defineConfig({
       ],
       rehypePlugins: [
         rehypeFlexibleCallouts,
+        // Astro's Shiki pass has already attached the normalized fence
+        // language, so the static toolbar can label and copy exactly what was
+        // highlighted. Diagram fences bypass Shiki and remain untouched.
+        rehypeCodeBlocks,
         rehypeSlug,
         [rehypeAutolinkHeadings, {
           behavior: 'append',

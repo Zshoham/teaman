@@ -68,6 +68,28 @@ describe('rehypeReferenceSections', () => {
     expect(long).toBeGreaterThan(40 * 20);
   });
 
+  it('counts decorated code once plus its toolbar', () => {
+    const source = Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n');
+    const plainTree = run([
+      heading('h2', 'plain'),
+      element('pre', [text(source)]),
+      heading('h2', 'next'),
+    ]);
+    const decoratedTree = run([
+      heading('h2', 'decorated'),
+      element('div', [
+        element('div', [element('span', [text('rust')]), element('button', [text('Copy')])]),
+        element('pre', [text(source)]),
+      ], { className: ['code-block'] }),
+      heading('h2', 'next'),
+    ]);
+
+    const plain = intrinsic(plainTree.children[0]);
+    const decorated = intrinsic(decoratedTree.children[0]);
+    expect(decorated).toBeGreaterThan(plain);
+    expect(decorated - plain).toBeLessThan(80);
+  });
+
   it('ignores documents outside the references root', () => {
     const children = [heading('h2', 'a'), paragraph('x'), heading('h2', 'b')];
     const tree = run(children, join('/vault', 'notes', 'a-note.md'));
