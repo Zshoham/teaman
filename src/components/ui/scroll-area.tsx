@@ -3,11 +3,26 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
 
+interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
+  /**
+   * Let the content wrap to the viewport width instead of scrolling sideways.
+   *
+   * The primitive puts an inline `min-width: fit-content` on its Content, so a
+   * child wider than the viewport (a long line, a deeply indented row) makes
+   * the area scroll horizontally. That is what a row of chips wants and what a
+   * column of text does not — and since only a vertical scrollbar is rendered
+   * here, an overflowing text list just pushes its right-hand edge out of
+   * reach. Overriding an inline style needs `!`.
+   */
+  wrapContent?: boolean
+}
+
 function ScrollArea({
   className,
   children,
+  wrapContent = false,
   ...props
-}: ScrollAreaPrimitive.Root.Props) {
+}: ScrollAreaProps) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -18,7 +33,10 @@ function ScrollArea({
         data-slot="scroll-area-viewport"
         className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
       >
-        <ScrollAreaPrimitive.Content data-slot="scroll-area-content">
+        <ScrollAreaPrimitive.Content
+          data-slot="scroll-area-content"
+          className={cn(wrapContent && "min-w-0!")}
+        >
           {children}
         </ScrollAreaPrimitive.Content>
       </ScrollAreaPrimitive.Viewport>

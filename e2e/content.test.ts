@@ -189,13 +189,50 @@ test.describe('reference page', () => {
     await expect(child).toBeVisible();
   });
 
+  // Regression: base-ui's ScrollArea.Content carries an inline
+  // `min-width: fit-content`, so the deeply indented entries of a book-sized
+  // TOC made the rail scroll sideways — carrying every collapse trigger past
+  // its right-hand edge, with no horizontal scrollbar to bring it back. The
+  // triggers were in the DOM and "visible" to computed style, but unreachable
+  // until the reader collapsed everything and the list narrowed again.
+  test('keeps the collapse triggers inside the rail, not off its right edge', async ({ page }) => {
+    await page.goto(LONG_REFERENCE);
+    const rail = page.locator('aside');
+    const trigger = rail.getByRole('button', { name: /^Collapse subsections of / }).first();
+    await expect(trigger).toBeVisible();
+
+    const viewport = rail
+      .locator('[data-reference-toc-scroll] [data-slot="scroll-area-viewport"]')
+      .first();
+    const edges = await viewport.evaluate(element => ({
+      right: element.getBoundingClientRect().right,
+      overflowsHorizontally: element.scrollWidth > element.clientWidth,
+    }));
+    const box = await trigger.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(edges.right);
+
+    // And it actually responds to a real click at its own coordinates.
+    await trigger.click();
+    await expect(
+      rail.getByRole('button', { name: /^Expand subsections of / }).first(),
+    ).toBeVisible();
+  });
+
   test('lets the reader collapse the branch they are currently reading', async ({ page }) => {
     await page.goto(LONG_REFERENCE);
     const rail = page.locator('aside');
     const child = rail.getByRole('link', { name: 'Input format', exact: true });
     const target = await child.getAttribute('href');
 
-    await page.locator(target ?? '').evaluate(element => element.scrollIntoView());
+    // Navigate the way a reader does — click the entry — rather than calling
+    // scrollIntoView() on the heading. Chapters carry `content-visibility`, so
+    // their real heights only exist once laid out: a raw scrollIntoView lands
+    // hundreds of pixels short when the chapters below it reflow afterwards,
+    // and the section being read is then legitimately an earlier one. Fragment
+    // navigation is re-resolved after that layout, so it lands where the
+    // heading's scroll-margin says it should.
+    await child.click();
     await expect.poll(async () => (
       rail.locator('a[aria-current="location"]').getAttribute('href')
     )).toBe(target);
