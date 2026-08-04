@@ -85,6 +85,16 @@ function estimateBlockHeight(node) {
     );
     return items.reduce((total, item) => total + wrappedHeight(textOf(item)), 0) + BLOCK_MARGIN;
   }
+  if (hasClass(node, 'code-block')) {
+    // rehype-code-blocks wraps Shiki's `<pre>` with a 32px toolbar. Estimate
+    // the source once and account for that chrome explicitly; recursively
+    // pricing the language label, button and pre as prose blocks materially
+    // overstates code-heavy chapters such as the bundled Rust Reference.
+    const pre = (node.children ?? []).find(
+      child => child.type === 'element' && child.tagName === 'pre',
+    );
+    return pre ? estimateBlockHeight(pre) + 44 : wrappedHeight(text) + BLOCK_MARGIN;
+  }
   if (tag === 'blockquote' || tag === 'figure' || tag === 'div') {
     const inner = (node.children ?? []).reduce(
       (total, child) => total + estimateBlockHeight(child),
