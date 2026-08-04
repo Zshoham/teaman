@@ -226,6 +226,7 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
 
 /**
  * Newest first — the order every list in the site is built and paginated in.
+ * Returns a new array; the caller's list is left alone.
  *
  * Dates here are day-resolution, so ties are common (every daily written in a
  * batch, a deck and a guide touched the same day). `id` breaks them: without an
@@ -233,7 +234,7 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
  * happened to be concatenated in, and the feed reshuffles when that changes.
  */
 export function byUpdatedDesc(entries: Entry[]): Entry[] {
-  return entries.sort((a, b) => b.updated.localeCompare(a.updated) || a.id.localeCompare(b.id));
+  return entries.toSorted((a, b) => b.updated.localeCompare(a.updated) || a.id.localeCompare(b.id));
 }
 
 /** One loader per content type, keyed the same way `Entry.type` is. */
