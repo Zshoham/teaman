@@ -1,0 +1,13 @@
+*
+!bin
+!docker
+!src
+!scripts
+!resources
+!slidev-theme-teaman
+!astro.config.mjs
+!components.json
+!tsconfig.json
+!package.json
+!package-lock.json
+!README.md

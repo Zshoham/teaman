@@ -60,6 +60,16 @@ Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n
 To test exactly as a consumer receives it: `npm pack` then
 `npx ./zshoham-teaman-<version>.tgz build ./example`.
 
+The `Dockerfile` packages that same consumer path as an image: stage one runs
+`npm pack`, stage two installs the tarball (runtime deps only) into
+`/opt/teaman`, world-writable so the container can run as an arbitrary
+`--user`. The image is deliberately build-only. `docker/entrypoint.mjs` imports
+`parseArgs`/`validateOutPath`/`commitBuild` from `bin/teaman.mjs` and stages the
+build on the container filesystem because Astro renames prerendered assets out
+of its cache into the out dir and that rename is EXDEV across a bind mount. It
+then atomically copies the completed site into the mounted output directory.
+See the Docker section of the README for usage.
+
 ## Architecture
 
 ### The env seam (most important thing to understand)
@@ -271,7 +281,7 @@ prefer extending those helpers over duplicating logic in pages.
   for component filenames, kebab-case lowercase for routed content slugs.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
-- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with four jobs.
+- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with five jobs.
   The `test` job runs `npm run typecheck` + `npm test` + `npm run build:all`, the `integration` job
   runs `npm run test:integration` (the packaged consumer path), and the `e2e`
   job installs the Playwright browser and runs `npm run test:e2e` (the
@@ -285,3 +295,9 @@ prefer extending those helpers over duplicating logic in pages.
   derived in CI — never hand-bump for dev builds. Auth is npm trusted publishing
   (OIDC, `id-token: write`) — no token; the publisher is configured in the npm
   package settings and publishes carry build provenance.
+- The `image` job shares those `needs` and that main/tag gate: it builds the
+  Dockerfile and pushes `linux/amd64` to `ghcr.io/zshoham/teaman` — `:dev` +
+  `:X.Y.Z-dev.g<sha>` from main, `:latest` + `:X.Y.Z` from a version tag —
+  authenticating with the workflow's `GITHUB_TOKEN` (`packages: write`), no
+  stored secret. It does not exercise the image; `docker build -t teaman . &&
+  docker run --rm -v "$PWD/example:/vault" teaman build` is the local check.

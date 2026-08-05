@@ -130,6 +130,56 @@ markup into that macro instead. ` ```tikz `/` ```typst ` fences compile to
 svg during the sync (sharing the site build's diagram cache) and then sync
 the same way; a fence that fails to compile syncs as a labeled source block.
 
+## Docker
+
+A self-contained image carrying the engine and its whole toolchain (Typst,
+Slidev, Pagefind), so a machine with Docker needs no Node, no `npm install`, and
+no `npx`. CI publishes it to GHCR on the same two channels as npm — `:latest`
+for a released version, `:dev` for the tip of main:
+
+```sh
+docker pull ghcr.io/zshoham/teaman:latest     # or :1.5.2, :dev, :1.5.2-dev.g<sha>
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" ghcr.io/zshoham/teaman build
+```
+
+Pinning a version tag is the container equivalent of pinning `engine` in your
+config. To build it yourself:
+
+```sh
+docker build -t teaman .                      # or: docker build -t teaman https://github.com/Zshoham/teaman.git
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman build
+```
+
+The image is deliberately build-only. It is built from `npm pack`, so it holds
+exactly the published package plus its runtime dependencies — no repo source or
+dev dependencies. Pass normal build options after the `build` command:
+
+```sh
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
+  ghcr.io/zshoham/teaman build --base /my-site/
+```
+
+Notes:
+
+- **Published for `linux/amd64`.** On another architecture, build it locally —
+  the Dockerfile is arch-agnostic.
+- **Run as yourself** (`-u "$(id -u):$(id -g)"`) so `dist/` is owned by you and
+  not by root. The image keeps its engine dir world-writable for exactly this.
+- **`build` stages into the container filesystem** and copies the finished site
+  into your mount at the end, because Astro renames files out of its cache into
+  the output dir and that rename cannot cross the bind-mount boundary. The
+  swap into `dist/` is still atomic, and a failed build leaves the old one.
+- **Caches die with the container.** Diagram renders and reference PDFs are
+  cached in the engine dir, so a `--rm` run recompiles them every time (tens of
+  seconds for a book-sized reference). Keep them in named volumes:
+
+  ```sh
+  docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
+    -v teaman-diagrams:/opt/teaman/node_modules/@zshoham/teaman/.diagram-cache \
+    -v teaman-pdfs:/opt/teaman/node_modules/@zshoham/teaman/.reference-cache \
+    teaman build
+  ```
+
 ## Config — `teaman.config.js`
 
 Pure data, default-exported (the CLI serializes it). All fields are optional
