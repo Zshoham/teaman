@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# teaman as a build container. Mount a vault at /vault and generate its site.
+# teaman in a box: the CLI and its whole toolchain, nothing else. Mount a vault
+# at /vault and run any teaman command against it.
 #
 #   docker build -t teaman .
-#   docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman build
+#   docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build
+#   docker run --rm -it -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman   # a shell
 #
 # The image is built from `npm pack`, so it contains exactly the published
 # package (the `files` list in package.json) plus its runtime dependencies —
@@ -40,12 +42,13 @@ RUN npm install --prefix /opt/teaman --omit=dev --no-audit --no-fund --loglevel=
                 /opt/teaman/node_modules/@zshoham/teaman/.reference-cache \
     && chmod -R a+rwX /opt/teaman
 
-# Astro cannot rename cached files directly into a bind mount. This small shim
-# builds on the container filesystem and atomically copies the result to /vault.
-COPY docker/entrypoint.mjs /opt/teaman/entrypoint.mjs
+# `teaman dev` / `teaman preview`, given `--host`, serve on this port.
+EXPOSE 4321
 
-# Default vault mount point: `teaman build` with no path builds the cwd.
+# Default vault mount point: a bare `teaman build` builds the cwd.
 WORKDIR /vault
 
-ENTRYPOINT ["node", "/opt/teaman/entrypoint.mjs"]
-CMD ["build"]
+# No entrypoint wrapper: the image is a machine with teaman installed. The
+# default command is a shell, so `docker run -it` drops you in with the CLI on
+# PATH, and any command after the image name runs instead.
+CMD ["bash"]

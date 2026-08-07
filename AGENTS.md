@@ -56,18 +56,21 @@ node bin/teaman.mjs build ./example      # → example/dist
 node bin/teaman.mjs dev ./example        # CLI equivalent of `npm run dev`
 node bin/teaman.mjs doctor ./example     # validate config + lint content, no build
 ```
-Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n>`.
+Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n>`,
+`--host [addr]` (dev/preview, for serving outside the machine — e.g. a container).
 To test exactly as a consumer receives it: `npm pack` then
 `npx ./zshoham-teaman-<version>.tgz build ./example`.
 
 The `Dockerfile` packages that same consumer path as an image: stage one runs
 `npm pack`, stage two installs the tarball (runtime deps only) into
 `/opt/teaman`, world-writable so the container can run as an arbitrary
-`--user`. The image is deliberately build-only. `docker/entrypoint.mjs` imports
-`parseArgs`/`validateOutPath`/`commitBuild` from `bin/teaman.mjs` and stages the
-build on the container filesystem because Astro renames prerendered assets out
-of its cache into the out dir and that rename is EXDEV across a bind mount. It
-then atomically copies the completed site into the mounted output directory.
+`--user`, and symlinks the bin onto `PATH`. There is no entrypoint wrapper and
+no build-only mode — the image is a machine with `teaman` installed, `WORKDIR
+/vault`, `CMD ["bash"]`, so `docker run <image> teaman <command>` runs any
+command and a bare `docker run -it <image>` is a shell. (`teaman dev`/`preview`
+need `--host` to be reachable from outside the container.) Keep it that way:
+container-shaped behaviour belongs in the CLI, where every consumer gets it —
+see `moveStagedBuild` for the cross-filesystem case that used to need a shim.
 See the Docker section of the README for usage.
 
 ## Architecture
@@ -180,7 +183,14 @@ name not vault — otherwise a second vault reuses the first vault's cached entr
 
 ### Build pipeline (`build:all`)
 
-Four sequential stages, all reading the env seam:
+Four sequential stages, all reading the env seam. `cmdBuild` points `outDir` at
+a `.teaman-out-*` staging dir it makes **inside the engine**, never at the final
+`--out`: Astro emits prerendered assets into `<cwd>/.astro/` (cwd is always the
+engine) and *renames* them into `outDir`, so an out dir on another filesystem —
+a Docker bind mount, a separate disk — fails with EXDEV. Only the finished site
+crosses over, via `moveStagedBuild` (rename, falling back to copy on EXDEV) into
+a hidden sibling of `out`, then `commitBuild`'s atomic swap. Keep the four
+stages writing to that one staged dir.
 1. `astro build` → HTML into `outDir`.
 2. `scripts/build-references.mjs` → converts publishable Markdown under
    `<vault>/references/` to Typst, applies `resources/reference-template.typ`,
@@ -300,4 +310,6 @@ prefer extending those helpers over duplicating logic in pages.
   `:X.Y.Z-dev.g<sha>` from main, `:latest` + `:X.Y.Z` from a version tag —
   authenticating with the workflow's `GITHUB_TOKEN` (`packages: write`), no
   stored secret. It does not exercise the image; `docker build -t teaman . &&
-  docker run --rm -v "$PWD/example:/vault" teaman build` is the local check.
+  docker run --rm -v "$PWD/example:/vault" teaman teaman build` is the local
+  check (the vault is a bind mount, so it also covers the cross-filesystem
+  build path).

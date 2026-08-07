@@ -2,9 +2,9 @@
 // entrypoint check, so importing it here runs no commands — only parseArgs and
 // satisfies are exercised.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, validateConfig, lintContent } from '../teaman.mjs';
+import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, lintContent } from '../teaman.mjs';
 import { resolve, join } from 'node:path';
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 describe('parseArgs', () => {
@@ -158,6 +158,91 @@ describe('sweepStagedDirs', () => {
 
   it('is a no-op when the parent directory does not exist', () => {
     expect(() => sweepStagedDirs(join(dir, 'missing', 'dist'))).not.toThrow();
+  });
+});
+
+describe('sweepEngineStaging', () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-engine-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('removes leaked build staging dirs, leaving the engine alone', () => {
+    for (const name of ['.teaman-out-abc123', '.teaman-out-def456', '.astro', 'src', 'package.json']) {
+      if (name.includes('.json')) writeFileSync(join(dir, name), '{}');
+      else mkdirSync(join(dir, name));
+    }
+    sweepEngineStaging(dir);
+    expect(readdirSync(dir).sort()).toEqual(['.astro', 'package.json', 'src']);
+  });
+
+  it('is a no-op when the directory does not exist', () => {
+    expect(() => sweepEngineStaging(join(dir, 'missing'))).not.toThrow();
+  });
+});
+
+// The build stages the site next to Astro's cache (inside the engine) and moves
+// it out at the end, so this move is what has to survive a destination on a
+// different filesystem — a Docker bind mount, a separate disk.
+describe('moveStagedBuild', () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-move-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  function staged(name, marker) {
+    const p = join(dir, name);
+    mkdirSync(p, { recursive: true });
+    writeFileSync(join(p, 'index.html'), marker);
+    return p;
+  }
+
+  it('renames within one filesystem, consuming the source', () => {
+    const from = staged('staging/dist', 'site');
+    const to = join(dir, '.dist.teaman-1-2');
+    moveStagedBuild(from, to);
+    expect(existsSync(from)).toBe(false);
+    expect(readFileSync(join(to, 'index.html'), 'utf8')).toBe('site');
+  });
+
+  it('propagates a failure that is not a cross-device rename', () => {
+    expect(() => moveStagedBuild(join(dir, 'does-not-exist'), join(dir, 'dest'))).toThrow();
+  });
+
+  // A real second filesystem, where the plain rename raises EXDEV. /dev/shm is
+  // tmpfs on Linux; elsewhere there is nothing portable to point at, so skip.
+  const otherFs = ['/dev/shm'].find(p => {
+    try { return statSync(p).dev !== statSync(tmpdir()).dev; } catch { return false; }
+  });
+
+  it.skipIf(!otherFs)('copies when the destination is on another filesystem', () => {
+    const from = staged('staging/dist', 'site');
+    const dest = mkdtempSync(join(otherFs, 'teaman-move-'));
+    const to = join(dest, '.dist.teaman-1-2');
+    try {
+      moveStagedBuild(from, to);
+      expect(existsSync(from)).toBe(false);
+      expect(readFileSync(join(to, 'index.html'), 'utf8')).toBe('site');
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('serverArgs', () => {
+  it('is empty without options', () => {
+    expect(serverArgs({})).toEqual([]);
+    expect(serverArgs()).toEqual([]);
+  });
+
+  it('passes --port through as a string', () => {
+    expect(serverArgs({ port: 3001 })).toEqual(['--port', '3001']);
+  });
+
+  it('passes a bare --host as a bare flag (every interface)', () => {
+    expect(serverArgs({ host: true })).toEqual(['--host']);
+  });
+
+  it('passes --host <addr> through', () => {
+    expect(serverArgs({ port: '4321', host: '0.0.0.0' })).toEqual(['--port', '4321', '--host', '0.0.0.0']);
   });
 });
 

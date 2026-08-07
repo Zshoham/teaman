@@ -172,6 +172,36 @@ export function sweepStagedDirs(out) {
   }
 }
 
+// Astro builds a static site by emitting the prerendered pages into a server
+// output dir and *renaming* their assets into the out dir. That server dir is
+// the out dir when the out dir is under the cwd, and `<cwd>/.astro/` when it is
+// not — and the cwd here is always the engine dir. So an out dir on another
+// filesystem than the engine (a Docker bind mount, a separate disk, a network
+// share) makes Astro's rename cross a device boundary and fail with EXDEV.
+// Building into a staging dir inside the engine keeps that rename local, and
+// only the finished site crosses over — by rename when it can, by copy when it
+// cannot.
+const STAGED_OUT_PREFIX = '.teaman-out-';
+
+// sweepStagedDirs' counterpart for that staging dir: a killed build leaks one
+// inside the engine.
+export function sweepEngineStaging(dir = engineDir) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith(STAGED_OUT_PREFIX)) rmSync(join(dir, name), { recursive: true, force: true });
+  }
+}
+
+export function moveStagedBuild(staged, dest) {
+  try {
+    renameSync(staged, dest);
+  } catch (error) {
+    if (error.code !== 'EXDEV') throw error;
+    cpSync(staged, dest, { recursive: true, verbatimSymlinks: true });
+    rmSync(staged, { recursive: true, force: true });
+  }
+}
+
 export function commitBuild(stagedOut, out) {
   const backup = `${out}.teaman-backup-${process.pid}-${Date.now()}`;
   let movedExisting = false;
@@ -236,6 +266,7 @@ async function cmdBuild(vaultArg, opts) {
     fail(error.message);
   }
   sweepStagedDirs(out);
+  sweepEngineStaging();
   mkdirSync(dirname(out), { recursive: true });
   const workDir = mkdtempSync(join(tmpdir(), 'teaman-build-'));
   // Slidev, run from the temp work dir, walks up to find its deps, so the work
@@ -246,12 +277,15 @@ async function cmdBuild(vaultArg, opts) {
   // junction target as a normal dir symlink.
   const dependencyRoot = dirname(dirname(dirname(require.resolve('@slidev/cli/package.json'))));
   symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
-  const stagedOut = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
+  const stagedRoot = mkdtempSync(join(engineDir, STAGED_OUT_PREFIX));
+  const stagedOut = join(stagedRoot, 'dist');
   const publicDir = stageStatic(vault, config, join(workDir, 'public'));
   const env = {
     ...envFor(vault, config, { out: stagedOut, base, publicDir }),
     TEAMAN_SLIDES_WORK: join(workDir, 'slides'),
   };
+
+  const pending = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
 
   info(`building ${c.bold(vault)} → ${c.bold(out)} ${c.dim(`(engine ${VERSION})`)}`);
   // The content collections resolve their roots from TEAMAN_VAULT at build
@@ -265,12 +299,30 @@ async function cmdBuild(vaultArg, opts) {
     await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], env);
     await run(node, [join(engineDir, 'scripts', 'build-slides.mjs')], env);
     await run(node, [join(engineDir, 'scripts', 'build-search.mjs')], env);
-    commitBuild(stagedOut, out);
+    // Land the finished site next to `out` first, so the swap into place stays
+    // a rename within one directory: atomic, and a failure leaves the previous
+    // build untouched.
+    moveStagedBuild(stagedOut, pending);
+    commitBuild(pending, out);
     info(c.green('done.'));
   } finally {
-    rmSync(stagedOut, { recursive: true, force: true });
+    rmSync(stagedRoot, { recursive: true, force: true });
+    rmSync(pending, { recursive: true, force: true });
     rmSync(workDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Astro flags shared by `dev` and `preview`. `--host` is what makes either
+ * usable from outside the machine running it — a container, a VM, a phone on
+ * the same network; bare `--host` means every interface, `--host <addr>` one.
+ */
+export function serverArgs(opts = {}) {
+  const args = [];
+  if (opts.port) args.push('--port', String(opts.port));
+  if (opts.host === true) args.push('--host');
+  else if (opts.host) args.push('--host', String(opts.host));
+  return args;
 }
 
 async function cmdDev(vaultArg, opts) {
@@ -287,7 +339,7 @@ async function cmdDev(vaultArg, opts) {
       ...env,
       TEAMAN_OUT: publicDir,
     });
-    await run(node, [astroBin, 'dev', ...(opts.port ? ['--port', String(opts.port)] : [])], env);
+    await run(node, [astroBin, 'dev', ...serverArgs(opts)], env);
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
@@ -297,7 +349,7 @@ async function cmdPreview(vaultArg, opts) {
   const { vault, config, base } = await openVault(vaultArg, opts, { check: false });
   const out = resolve(opts.out ?? join(vault, 'dist'));
   const env = envFor(vault, config, { out, base });
-  await run(node, [astroBin, 'preview'], env);
+  await run(node, [astroBin, 'preview', ...serverArgs(opts)], env);
 }
 
 const STARTER_CONFIG = `// teaman vault config. Pure data — no functions (it is serialized to the
@@ -581,7 +633,9 @@ Commands:
 Options:
   --out <dir>      Output directory (build/preview)
   --base <path>    Base URL path (e.g. /my-site/)
-  --port <n>       Dev server port
+  --port <n>       Dev/preview server port
+  --host [addr]    Bind the dev/preview server to a network address
+                   (bare --host is 0.0.0.0 — e.g. inside a container)
   -v, --version    Print engine version
   -h, --help       Show this help
 

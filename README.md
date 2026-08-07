@@ -117,7 +117,9 @@ build instead of failing it.
 | `teaman sync-confluence` | Publish vault markdown to Confluence Server/Data Center. Dry-run by default; pass `--apply` to write. |
 
 Options: `--out <dir>`, `--base <path>` (e.g. `/my-site/` for sub-path hosting),
-`--port <n>` (dev). `[vault]` defaults to the current directory.
+`--port <n>` and `--host [addr]` (dev/preview — bare `--host` serves on every
+interface, which is what makes the server reachable from outside a container or
+VM). `[vault]` defaults to the current directory.
 
 `sync-confluence` takes its own flags (run `teaman sync-confluence --help`);
 the essentials are `--content-dir <vault>`, `--base-url`, credentials
@@ -138,8 +140,8 @@ no `npx`. CI publishes it to GHCR on the same two channels as npm — `:latest`
 for a released version, `:dev` for the tip of main:
 
 ```sh
-docker pull ghcr.io/zshoham/teaman:latest     # or :1.5.2, :dev, :1.5.2-dev.g<sha>
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" ghcr.io/zshoham/teaman build
+docker pull ghcr.io/zshoham/teaman:latest     # or :1.5.3, :dev, :1.5.3-dev.g<sha>
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" ghcr.io/zshoham/teaman teaman build
 ```
 
 Pinning a version tag is the container equivalent of pinning `engine` in your
@@ -147,16 +149,31 @@ config. To build it yourself:
 
 ```sh
 docker build -t teaman .                      # or: docker build -t teaman https://github.com/Zshoham/teaman.git
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman build
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build
 ```
 
-The image is deliberately build-only. It is built from `npm pack`, so it holds
-exactly the published package plus its runtime dependencies — no repo source or
-dev dependencies. Pass normal build options after the `build` command:
+There is no entrypoint wrapper and no special mode: the image is a machine with
+`teaman` on its `PATH`, working in `/vault`. Anything you write after the image
+name is the command, so every CLI command works, with its normal flags —
 
 ```sh
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
-  ghcr.io/zshoham/teaman build --base /my-site/
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman doctor
+docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build --base /my-site/
+```
+
+— and with no command you get a shell with the whole toolchain in it:
+
+```sh
+docker run --rm -it -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman
+```
+
+The dev and preview servers work too, given a published port and a `--host`
+(without it they bind loopback *inside* the container, where nothing can reach
+them):
+
+```sh
+docker run --rm -it -p 4321:4321 -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
+  teaman teaman dev --host
 ```
 
 Notes:
@@ -165,10 +182,9 @@ Notes:
   the Dockerfile is arch-agnostic.
 - **Run as yourself** (`-u "$(id -u):$(id -g)"`) so `dist/` is owned by you and
   not by root. The image keeps its engine dir world-writable for exactly this.
-- **`build` stages into the container filesystem** and copies the finished site
-  into your mount at the end, because Astro renames files out of its cache into
-  the output dir and that rename cannot cross the bind-mount boundary. The
-  swap into `dist/` is still atomic, and a failed build leaves the old one.
+- **It holds only the published package.** The image is built from `npm pack`,
+  so it carries exactly what npm ships plus runtime dependencies — no repo
+  source, no dev dependencies, no test tooling.
 - **Caches die with the container.** Diagram renders and reference PDFs are
   cached in the engine dir, so a `--rm` run recompiles them every time (tens of
   seconds for a book-sized reference). Keep them in named volumes:
@@ -177,7 +193,7 @@ Notes:
   docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
     -v teaman-diagrams:/opt/teaman/node_modules/@zshoham/teaman/.diagram-cache \
     -v teaman-pdfs:/opt/teaman/node_modules/@zshoham/teaman/.reference-cache \
-    teaman build
+    teaman teaman build
   ```
 
 ## Config — `teaman.config.js`

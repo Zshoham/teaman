@@ -10,6 +10,9 @@ node_modules/
 # Astro build cache
 .astro/
 
+# where `teaman build` stages a site before moving it to --out (disposable)
+.teaman-out-*/
+
 # Slidev workaround dir (see slidevjs/slidev#1975)
 .slides-build/
 
