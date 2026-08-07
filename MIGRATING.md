@@ -23,6 +23,34 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **The Docker image is a plain teaman machine** (minor for vaults; a changed
+  invocation for anyone scripting the image). The image no longer has a custom
+  entrypoint that only accepted `build`. `teaman` is on `PATH` with `/vault` as
+  the working directory, and the command is whatever follows the image name, so
+  prepend `teaman` to what you ran before:
+
+  ```sh
+  docker run --rm -v "$PWD:/vault" teaman build          # before
+  docker run --rm -v "$PWD:/vault" teaman teaman build   # now
+  ```
+
+  In exchange every command works in the container — `doctor`, `init`,
+  `sync-confluence`, `dev`/`preview` (with `--host`) — and a bare
+  `docker run -it` gives you a shell. Vault content, config, and output are
+  unchanged.
+
+- **`--host [addr]` for `dev` and `preview`** (minor, additive). Serves on
+  every interface (bare `--host`) or one address, which is what makes the
+  server reachable from outside a container or VM. Omitted, both keep binding
+  loopback exactly as before. `--port` now applies to `preview` as well as
+  `dev`.
+
+  Its value being optional makes `teaman dev --host <token>` ambiguous, so the
+  token is read as an address only when it looks like one (an IP, a dotted
+  name, `localhost`) and isn't a directory that exists; otherwise it stays the
+  vault path. A single-label hostname is therefore written `--host=vault` —
+  flags now also accept that attached `--key=value` form generally.
+
 - **Long-form references** (minor, additive). Markdown files under the new
   `references/` content root render at `/references/<slug>/` with a dedicated
   reading surface: sticky heading navigation, active-section + reading-progress
