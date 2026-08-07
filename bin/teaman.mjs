@@ -38,6 +38,19 @@ const warn = m => console.warn(`${c.yellow('teaman warn')} ${m}`);
 const fail = m => { console.error(`${c.red('teaman error')} ${m}`); process.exit(1); };
 
 // ── arg parsing ──────────────────────────────────────────────────────────
+
+// `--host` is the one flag whose value is optional (bare = every interface),
+// which the "next token that isn't a flag is the value" rule below cannot see:
+// in `teaman dev --host ./vault` the next token is the vault, not an address.
+// Take it as the value only when it reads as one — a host has no path
+// separator, and does not name a directory sitting in front of us.
+function looksLikeHost(token) {
+  if (!/^[\w.:-]+$/.test(token)) return false;
+  try { return !statSync(token).isDirectory(); } catch { return true; }
+}
+
+const OPTIONAL_VALUE_FLAGS = { host: looksLikeHost };
+
 export function parseArgs(argv) {
   const positional = [];
   const opts = {};
@@ -48,7 +61,9 @@ export function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith('--')) { opts[key] = next; i++; }
+      const takesNext = next && !next.startsWith('--')
+        && (OPTIONAL_VALUE_FLAGS[key]?.(next) ?? true);
+      if (takesNext) { opts[key] = next; i++; }
       else opts[key] = true;
     } else {
       positional.push(a);
@@ -180,15 +195,36 @@ export function sweepStagedDirs(out) {
 // share) makes Astro's rename cross a device boundary and fail with EXDEV.
 // Building into a staging dir inside the engine keeps that rename local, and
 // only the finished site crosses over — by rename when it can, by copy when it
-// cannot.
+// cannot. Those dirs are named `.teaman-out-<pid>-<random>`, for the reason
+// sweepEngineStaging explains.
 const STAGED_OUT_PREFIX = '.teaman-out-';
+const stagedOutPrefixFor = pid => `${STAGED_OUT_PREFIX}${pid}-`;
+
+// Is a process still around? EPERM means it exists but belongs to someone else.
+function isRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === 'EPERM';
+  }
+}
 
 // sweepStagedDirs' counterpart for that staging dir: a killed build leaks one
-// inside the engine.
+// inside the engine. Unlike the staged siblings of `out`, these are shared
+// ground — every vault built by this engine stages here — so a sweep must not
+// touch a dir another build is filling right now. Hence the pid in the name:
+// only leftovers whose owner is gone are swept. (A recycled pid at worst skips
+// a stale dir, which the next sweep gets.) Concurrent builds from one engine
+// are still not safe for other reasons — they share the `.astro` cache this
+// drops on every build — but that is an older, documented constraint.
 export function sweepEngineStaging(dir = engineDir) {
   if (!existsSync(dir)) return;
   for (const name of readdirSync(dir)) {
-    if (name.startsWith(STAGED_OUT_PREFIX)) rmSync(join(dir, name), { recursive: true, force: true });
+    if (!name.startsWith(STAGED_OUT_PREFIX)) continue;
+    const pid = Number.parseInt(name.slice(STAGED_OUT_PREFIX.length), 10);
+    if (Number.isInteger(pid) && isRunning(pid)) continue;
+    rmSync(join(dir, name), { recursive: true, force: true });
   }
 }
 
@@ -277,7 +313,7 @@ async function cmdBuild(vaultArg, opts) {
   // junction target as a normal dir symlink.
   const dependencyRoot = dirname(dirname(dirname(require.resolve('@slidev/cli/package.json'))));
   symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
-  const stagedRoot = mkdtempSync(join(engineDir, STAGED_OUT_PREFIX));
+  const stagedRoot = mkdtempSync(join(engineDir, stagedOutPrefixFor(process.pid)));
   const stagedOut = join(stagedRoot, 'dist');
   const publicDir = stageStatic(vault, config, join(workDir, 'public'));
   const env = {

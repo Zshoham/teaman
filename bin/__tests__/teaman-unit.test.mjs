@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, lintContent } from '../teaman.mjs';
 import { resolve, join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
 describe('parseArgs', () => {
@@ -44,6 +45,51 @@ describe('parseArgs', () => {
 
   it('returns undefined command for empty argv', () => {
     expect(parseArgs([])).toEqual({ command: undefined, vaultArg: undefined, opts: {} });
+  });
+
+  // --host is the one flag whose value is optional, so the generic
+  // "next token is the value" rule would eat the vault positional.
+  describe('--host', () => {
+    it('takes an address that follows it', () => {
+      expect(parseArgs(['dev', '--host', '0.0.0.0'])).toEqual({
+        command: 'dev', vaultArg: undefined, opts: { host: '0.0.0.0' },
+      });
+      expect(parseArgs(['dev', '--host', '::1']).opts).toEqual({ host: '::1' });
+      expect(parseArgs(['dev', '--host', 'my.box.local']).opts).toEqual({ host: 'my.box.local' });
+    });
+
+    it('is boolean at the end of the line', () => {
+      expect(parseArgs(['dev', './vault', '--host']).opts).toEqual({ host: true });
+    });
+
+    it('does not swallow a vault path that follows it', () => {
+      expect(parseArgs(['dev', '--host', './vault'])).toEqual({
+        command: 'dev', vaultArg: './vault', opts: { host: true },
+      });
+      expect(parseArgs(['preview', '--host', '/srv/vault'])).toEqual({
+        command: 'preview', vaultArg: '/srv/vault', opts: { host: true },
+      });
+    });
+
+    it('does not swallow a bare directory name that exists', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'teaman-host-'));
+      const cwd = process.cwd();
+      mkdirSync(join(dir, 'example'));
+      process.chdir(dir);
+      try {
+        expect(parseArgs(['dev', '--host', 'example'])).toEqual({
+          command: 'dev', vaultArg: 'example', opts: { host: true },
+        });
+      } finally {
+        process.chdir(cwd);
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('still takes the value alongside other options', () => {
+      expect(parseArgs(['dev', './vault', '--host', '0.0.0.0', '--port', '3001']).opts)
+        .toEqual({ host: '0.0.0.0', port: '3001' });
+    });
   });
 });
 
@@ -166,13 +212,34 @@ describe('sweepEngineStaging', () => {
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-engine-')); });
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
+  // A pid that is certainly not running: allocate one and reap it.
+  const deadPid = (() => {
+    const p = spawnSync(process.execPath, ['-e', '0']);
+    return p.pid;
+  })();
+
   it('removes leaked build staging dirs, leaving the engine alone', () => {
-    for (const name of ['.teaman-out-abc123', '.teaman-out-def456', '.astro', 'src', 'package.json']) {
+    for (const name of [`.teaman-out-${deadPid}-abc123`, `.teaman-out-${deadPid}-def456`, '.astro', 'src', 'package.json']) {
       if (name.includes('.json')) writeFileSync(join(dir, name), '{}');
       else mkdirSync(join(dir, name));
     }
     sweepEngineStaging(dir);
     expect(readdirSync(dir).sort()).toEqual(['.astro', 'package.json', 'src']);
+  });
+
+  // The staging dirs are shared ground: every vault built by this engine gets
+  // one, so a second build must not delete the dir a running build is filling.
+  it('leaves a staging dir whose owning process is still alive', () => {
+    mkdirSync(join(dir, `.teaman-out-${process.pid}-live0`));
+    mkdirSync(join(dir, `.teaman-out-${deadPid}-stale0`));
+    sweepEngineStaging(dir);
+    expect(readdirSync(dir)).toEqual([`.teaman-out-${process.pid}-live0`]);
+  });
+
+  it('removes a staging dir with no parseable pid', () => {
+    mkdirSync(join(dir, '.teaman-out-legacy'));
+    sweepEngineStaging(dir);
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   it('is a no-op when the directory does not exist', () => {
