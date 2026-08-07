@@ -47,6 +47,11 @@ describe('parseArgs', () => {
     expect(parseArgs([])).toEqual({ command: undefined, vaultArg: undefined, opts: {} });
   });
 
+  it('parses the attached --key=value form', () => {
+    expect(parseArgs(['build', './vault', '--out=dist', '--base=/x/']).opts)
+      .toEqual({ out: 'dist', base: '/x/' });
+  });
+
   // --host is the one flag whose value is optional, so the generic
   // "next token is the value" rule would eat the vault positional.
   describe('--host', () => {
@@ -55,6 +60,8 @@ describe('parseArgs', () => {
         command: 'dev', vaultArg: undefined, opts: { host: '0.0.0.0' },
       });
       expect(parseArgs(['dev', '--host', '::1']).opts).toEqual({ host: '::1' });
+      expect(parseArgs(['dev', '--host', 'fe80::1']).opts).toEqual({ host: 'fe80::1' });
+      expect(parseArgs(['dev', '--host', 'localhost']).opts).toEqual({ host: 'localhost' });
       expect(parseArgs(['dev', '--host', 'my.box.local']).opts).toEqual({ host: 'my.box.local' });
     });
 
@@ -71,19 +78,35 @@ describe('parseArgs', () => {
       });
     });
 
-    it('does not swallow a bare directory name that exists', () => {
+    // Nothing on disk says whether a bare `vault` is a directory or a host, so
+    // it stays the positional: a missing vault stops the CLI with a path error,
+    // where the other guess would quietly serve the cwd instead.
+    it('leaves a bare single-label token as the vault, present or not', () => {
+      expect(parseArgs(['dev', '--host', 'vault'])).toEqual({
+        command: 'dev', vaultArg: 'vault', opts: { host: true },
+      });
+      expect(parseArgs(['dev', '--host', 'my-vault']).vaultArg).toBe('my-vault');
+    });
+
+    it('does not swallow a dotted name that is a directory here', () => {
       const dir = mkdtempSync(join(tmpdir(), 'teaman-host-'));
       const cwd = process.cwd();
-      mkdirSync(join(dir, 'example'));
+      mkdirSync(join(dir, 'my.vault'));
       process.chdir(dir);
       try {
-        expect(parseArgs(['dev', '--host', 'example'])).toEqual({
-          command: 'dev', vaultArg: 'example', opts: { host: true },
+        expect(parseArgs(['dev', '--host', 'my.vault'])).toEqual({
+          command: 'dev', vaultArg: 'my.vault', opts: { host: true },
         });
       } finally {
         process.chdir(cwd);
         rmSync(dir, { recursive: true, force: true });
       }
+    });
+
+    it('takes any host from the attached form', () => {
+      expect(parseArgs(['dev', '--host=vault', './v'])).toEqual({
+        command: 'dev', vaultArg: './v', opts: { host: 'vault' },
+      });
     });
 
     it('still takes the value alongside other options', () => {

@@ -42,10 +42,17 @@ const fail = m => { console.error(`${c.red('teaman error')} ${m}`); process.exit
 // `--host` is the one flag whose value is optional (bare = every interface),
 // which the "next token that isn't a flag is the value" rule below cannot see:
 // in `teaman dev --host ./vault` the next token is the vault, not an address.
-// Take it as the value only when it reads as one — a host has no path
-// separator, and does not name a directory sitting in front of us.
+//
+// The two ways to guess wrong are not equally cheap. Read a vault as a host and
+// the CLI silently serves the *current* directory and hands Astro a path to
+// bind; read a host as a vault and it stops on a plain "vault path is not a
+// directory". So the next token is the address only when it can hardly be
+// anything else — an IP, a dotted name, `localhost` — and never when it names a
+// directory sitting right here. A bare `--host vault` stays the vault; a host
+// that really is a single label says so with `--host=vault`.
 function looksLikeHost(token) {
-  if (!/^[\w.:-]+$/.test(token)) return false;
+  const address = /^(localhost|[\w-]+(\.[\w-]+)+|[\da-fA-F:]*:[\da-fA-F:]*)$/.test(token);
+  if (!address) return false;
   try { return !statSync(token).isDirectory(); } catch { return true; }
 }
 
@@ -59,6 +66,10 @@ export function parseArgs(argv) {
     if (a === '--version' || a === '-v') return { command: '--version' };
     if (a === '--help' || a === '-h') return { command: 'help' };
     if (a.startsWith('--')) {
+      // `--key=value` attaches the value to the flag, which is the way to say
+      // one the guesswork below would hand to the positional (`--host=vault`).
+      const eq = a.indexOf('=');
+      if (eq !== -1) { opts[a.slice(2, eq)] = a.slice(eq + 1); continue; }
       const key = a.slice(2);
       const next = argv[i + 1];
       const takesNext = next && !next.startsWith('--')
@@ -671,7 +682,8 @@ Options:
   --base <path>    Base URL path (e.g. /my-site/)
   --port <n>       Dev/preview server port
   --host [addr]    Bind the dev/preview server to a network address
-                   (bare --host is 0.0.0.0 — e.g. inside a container)
+                   (bare --host is 0.0.0.0 — e.g. inside a container;
+                   a single-label host needs --host=<name>)
   -v, --version    Print engine version
   -h, --help       Show this help
 
