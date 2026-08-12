@@ -336,6 +336,31 @@ test.describe('smart links', () => {
     await expect(chip.locator('.tm-tail')).toHaveCount(0);
   });
 
+  test('ellipsises a bare ref that is wider than the content column', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(NOTE);
+    const chip = page
+      .locator('.tm-link.tm-bare[data-tm-kind="issue"][data-tm-service="gitlab"]')
+      .first();
+    const ref = chip.locator('.tm-ref');
+    await ref.evaluate((element) => {
+      element.textContent = `${'deeply-nested-project/'.repeat(20)}api#77`;
+    });
+
+    const fit = await chip.evaluate((element) => {
+      const ref = element.querySelector('.tm-ref') as HTMLElement;
+      const column = element.closest('.prose') as HTMLElement;
+      return {
+        refIsTruncated: ref.scrollWidth > ref.clientWidth + 1,
+        chipFitsColumn: element.getBoundingClientRect().right <=
+          column.getBoundingClientRect().right + 1,
+      };
+    });
+    expect(fit.refIsTruncated).toBe(true);
+    expect(fit.chipFitsColumn).toBe(true);
+    await expect(ref).toHaveCSS('text-overflow', 'ellipsis');
+  });
+
   test('recovers a tail from the confluence page slug', async ({ page }) => {
     await page.goto(NOTE);
     const chip = page.locator('.tm-link[data-tm-service="confluence"]').first();
@@ -361,7 +386,12 @@ test.describe('smart links', () => {
     await page.goto(NOTE);
     const chip = page.locator('.tm-link[data-tm-service="jira"]').first();
     await expect(chip).toHaveAttribute('href', /atlassian\.net\/browse\/PLAT-412$/);
-    await expect(chip).toHaveAttribute('title', 'PLAT-412 · acme.atlassian.net');
+    // The label leads, because it is the part the chip truncates when it runs
+    // out of column; the ref and host follow it.
+    await expect(chip).toHaveAttribute(
+      'title',
+      'Trial a one-week loop · PLAT-412 · acme.atlassian.net',
+    );
   });
 });
 

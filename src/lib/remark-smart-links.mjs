@@ -53,8 +53,13 @@ function render(parsed, label, url) {
   const bare = !label;
   const ref = bare ? parsed.fullRef : parsed.ref;
   // Hover affordance: the ref in full, plus the host it lives on — useful when
-  // a vault links to more than one instance of the same service.
-  const tooltip = `${parsed.fullRef} · ${parsed.host}`;
+  // a vault links to more than one instance of the same service. The label
+  // leads when there is one, because the label is the part the chip truncates
+  // when it runs out of column (see `.tm-tail` in global.css) — hovering is
+  // then the only way to read it out.
+  const tooltip = bare
+    ? `${parsed.fullRef} · ${parsed.host}`
+    : `${label} · ${parsed.fullRef} · ${parsed.host}`;
 
   const classes = bare ? 'tm-link tm-bare' : 'tm-link';
   const stub =

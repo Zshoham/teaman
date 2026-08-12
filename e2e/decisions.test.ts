@@ -112,4 +112,67 @@ test.describe('architecture decisions', () => {
     await expect(scrollArea.getByRole('heading').first()).toBeVisible();
     await expect(dialog.locator('[data-slot="scroll-area-scrollbar"]')).toBeAttached();
   });
+
+  test('keeps the detail dialog body inside the card instead of scrolling sideways', async ({
+    page,
+  }) => {
+    // ADR-0019 exists to carry the shapes that overflow this dialog: a code
+    // block whose longest line beats the column, a bare URL with no break
+    // opportunity, and a smart-link chip whose label outruns the measure.
+    // Pinned by number rather than `.first()` so a new decision in the example
+    // vault can't silently change what this asserts.
+    await page.locator('[data-adr-card="0019"]').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    const content = dialog.locator('[data-slot="scroll-area-content"]');
+    // The primitive's inline `min-width: fit-content` is what lets the body be
+    // laid out wider than the card, once anything in it has a min-content width
+    // past the column — a `pre`'s longest line does not shrink for `overflow-x`.
+    // The dialog renders no horizontal scrollbar, so that overflow is
+    // unreachable; `wrapContent` overrides the inline style.
+    await expect(content).toHaveCSS('min-width', '0px');
+
+    const viewport = dialog.locator('[data-slot="scroll-area-viewport"]');
+    const box = await viewport.evaluate((element) => {
+      // A scrollable x-axis is draggable while selecting text even with no
+      // scrollbar drawn, which reads as the dialog drifting sideways.
+      element.scrollLeft = 9999;
+      const drift = element.scrollLeft;
+      element.scrollLeft = 0;
+      return {
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        drift,
+      };
+    });
+    expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+    expect(box.drift).toBe(0);
+  });
+
+  test('truncates an over-long smart-link chip and keeps the full label on hover', async ({
+    page,
+  }) => {
+    await page.locator('[data-adr-card="0019"]').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    const chip = dialog.locator('.tm-link').first();
+    await expect(chip).toBeVisible();
+    // The label is longer than the column, so the tail ellipsises rather than
+    // pushing the chip through the card's padding — and the title carries the
+    // whole label, since hovering is then the only way to read it.
+    await expect(chip).toHaveAttribute('title', /postmortem and remediation plan/);
+
+    const fit = await chip.evaluate((element) => {
+      const tail = element.querySelector('.tm-tail') as HTMLElement;
+      const card = element.closest('[role=dialog]')!.getBoundingClientRect();
+      return {
+        truncated: tail.scrollWidth > tail.clientWidth + 1,
+        gapToCardEdge: Math.round(card.right - element.getBoundingClientRect().right),
+      };
+    });
+    expect(fit.truncated).toBe(true);
+    expect(fit.gapToCardEdge).toBeGreaterThan(8);
+  });
 });
