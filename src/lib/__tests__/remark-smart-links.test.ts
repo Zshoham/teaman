@@ -40,8 +40,15 @@ describe('remarkSmartLinks — labelled links', () => {
     expect(out).not.toContain('platform/api#77</span>');
   });
 
-  it('carries the full ref and the host in the title attribute', () => {
+  it('leads the title attribute with the label, then the full ref and host', () => {
+    // The label is the part the chip truncates when it runs out of column, so
+    // the tooltip has to carry it — hovering is the only way to read it back.
     const out = html('https://gitlab.com/platform/api/-/issues/77', 'Backfill stale keys');
+    expect(out).toContain('title="Backfill stale keys · platform/api#77 · gitlab.com"');
+  });
+
+  it('carries the full ref and the host alone when the chip is bare', () => {
+    const out = html('https://gitlab.com/platform/api/-/issues/77');
     expect(out).toContain('title="platform/api#77 · gitlab.com"');
   });
 
@@ -113,7 +120,7 @@ describe('remarkSmartLinks — configuration & escaping', () => {
       hosts: { gitlab: ['gitlab.acme.io'] },
     });
     expect(out).toContain('data-tm-service="gitlab"');
-    expect(out).toContain('title="platform/api#77 · gitlab.acme.io"');
+    expect(out).toContain('title="Backfill · platform/api#77 · gitlab.acme.io"');
   });
 
   it('still recognises the built-in hosts when overrides are configured', () => {

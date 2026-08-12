@@ -378,8 +378,12 @@ body {
   line-height: 1.7;
   max-width: none;
 }
-/* Let the browser pull a word down to avoid orphans/short last lines. */
-.prose :where(p, li) { text-wrap: pretty; }
+/* Let the browser pull a word down to avoid orphans/short last lines.
+   `break-word` is the floor under that: a token with no break opportunity — a
+   bare URL, a long path, an identifier — otherwise runs past the measure, and
+   in a fixed-width surface like the ADR dialog it runs clean out of the card.
+   Only a last resort; ordinary words still break at their own opportunities. */
+.prose :where(p, li) { text-wrap: pretty; overflow-wrap: break-word; }
 .prose code { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; }
 .prose pre  { font-family: var(--font-mono); font-feature-settings: 'liga' 0, 'calt' 0; border: 0.5px solid var(--border); }
 .prose :where(code):not(:where(pre code))::before,
@@ -833,11 +837,19 @@ body {
    height to the line box, so the usual chip line-height (1.5+) would make the
    chip taller than the surrounding leading and push the lines above and below
    apart. line-height 1.2 plus hairline padding keeps the box at ~1.15em inside
-   the prose's 1.86em line box, so it sits *within* its line. */
+   the prose's 1.86em line box, so it sits *within* its line.
+
+   The chip is `nowrap`, so a long label would otherwise be an unbreakable inline
+   box: it pushes past the measure and, inside the ADR dialog, out through the
+   card's padding with no horizontal scrollbar to bring it back. Capped at the
+   column instead — labelled chips preserve the stub and truncate the tail;
+   bare chips truncate their qualified ref. The chip's `title` preserves the
+   full value in either case. */
 .tm-link {
   --sv: var(--faint);
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
+  max-width: 100%;
   vertical-align: baseline;
   font-family: var(--font-mono);
   font-size: 0.78em;
@@ -855,6 +867,10 @@ body {
 .tm-stub {
   display: inline-flex;
   align-items: center;
+  /* The chip centres its parts; the stub alone spans the full height so its
+     tint and the divider still read as one block against the tail. */
+  align-self: stretch;
+  flex: none;
   gap: 0.35em;
   padding: 0.04em 0.42em;
   background: color-mix(in oklab, var(--sv) 13%, transparent);
@@ -864,12 +880,28 @@ body {
   border-right: 1px solid color-mix(in oklab, var(--sv) 38%, transparent);
   transition: background var(--motion-fast, 120ms);
 }
-/* Stub-only chips (no label) have nothing to divide. */
-.tm-link.tm-bare .tm-stub { border-right: 0; }
+/* Stub-only chips have no tail to absorb overflow. Let their stub and ref
+   shrink so the qualified ref ellipsises instead of being clipped by the
+   chip's overflow boundary. */
+.tm-link.tm-bare .tm-stub {
+  min-width: 0;
+  flex-shrink: 1;
+  border-right: 0;
+}
+.tm-link.tm-bare .tm-ref {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
+/* A block container, not a flex one: `text-overflow` only ellipsises the text
+   of a block container, and a flex item's automatic minimum size has to be
+   released with min-width before it can shrink at all. */
 .tm-tail {
-  display: inline-flex;
-  align-items: center;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 0.04em 0.5em;
   font-family: var(--font-serif);
   font-size: 1.08em;

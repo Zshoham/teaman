@@ -29,7 +29,18 @@ export function AdrDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[min(90vh,760px)]">
         {shown && (
-          <ScrollArea className="min-h-0 flex-1">
+          <ScrollArea
+            className="min-h-0 flex-1"
+            // The dialog is a column of prose, never a sideways surface: the
+            // primitive's `min-width: fit-content` lets the body be laid out
+            // wider than the viewport (older Chrome resolves it against an
+            // indefinite width and lands on max-content; any engine does it
+            // for a wide `pre` or table, whose min-content is its longest
+            // line), and only a vertical scrollbar is rendered here, so the
+            // overflowing right-hand edge is unreachable. Wrap instead —
+            // wide code and tables carry their own `overflow-x`.
+            wrapContent
+          >
             <div className="relative shrink-0 border-b border-border px-9 pt-[30px] pb-[22px] max-[760px]:px-[22px]">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="font-mono text-meta tabular-nums text-primary">
