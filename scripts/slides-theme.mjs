@@ -100,8 +100,8 @@ html.dark {
 
 /**
  * Render logo.config.ts for the staged theme: the resolved logo filename and
- * whether the footer strip should render. global-bottom.vue shows the strip only
- * when `showFooter` is true AND there's a logo to sit on it.
+ * whether the footer logo should render. global-bottom.vue shows the logo only
+ * when `showFooter` is true AND a logo is configured.
  * @param {string|null} filename
  * @param {{ footer?: boolean }} [opts]  footer defaults to true
  */

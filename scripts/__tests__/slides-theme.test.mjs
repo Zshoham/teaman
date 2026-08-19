@@ -60,6 +60,15 @@ describe('renderLogoConfig', () => {
   });
 });
 
+describe('slide footer', () => {
+  it('positions the logo without rendering a coloured bar', () => {
+    const component = readFileSync(join(themeDir, 'global-bottom.vue'), 'utf8');
+    expect(component).toContain('class="teaman-slide-logo"');
+    expect(component).not.toContain('class="teaman-slide-footer"');
+    expect(component).not.toContain('background: var(--slidev-theme-secondary)');
+  });
+});
+
 describe('slidevBuildArgs', () => {
   const args = slidevBuildArgs('/tmp/deck.md', { out: '/out', theme: '/theme' });
 

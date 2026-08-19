@@ -127,18 +127,18 @@ export interface SiteConfig {
    */
   slides?: {
     /**
-     * Logo shown on the footer strip of every slide. Path resolved like `logo`
-     * (vault `public/`, then the vault root). Omit/`null` for no logo. Only
-     * renders when `footer` is enabled.
+     * Logo shown in the bottom-right corner of every slide. Path resolved like
+     * `logo` (vault `public/`, then the vault root). Omit/`null` for no logo.
+     * Only renders when `footer` is enabled.
      */
     logo?: string | null;
     /** Primary accent (headings rule, links, list markers). Any CSS color. */
     primary?: string;
-    /** Secondary accent (blockquote rule + the footer strip). Any CSS color. */
+    /** Secondary accent (blockquote rule). Any CSS color. */
     secondary?: string;
     /**
-     * Show the footer strip (secondary-coloured band carrying the `logo`) on
-     * every slide. Defaults to `true`; set `false` to hide it (and its logo).
+     * Show the footer logo on every slide. Defaults to `true`; set `false` to
+     * hide it.
      */
     footer?: boolean;
   };
