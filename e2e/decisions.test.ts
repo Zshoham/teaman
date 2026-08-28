@@ -113,6 +113,26 @@ test.describe('architecture decisions', () => {
     await expect(dialog.locator('[data-slot="scroll-area-scrollbar"]')).toBeAttached();
   });
 
+  test('enlarges the ADR detail dialog for long reads and restores it', async ({ page }) => {
+    await page.locator('[data-adr-card="0019"]').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    const compact = await dialog.evaluate((el) => el.getBoundingClientRect().width);
+
+    await dialog.getByRole('button', { name: 'Enlarge dialog' }).click();
+    await expect(dialog.getByRole('button', { name: 'Restore size' })).toBeVisible();
+    await expect
+      .poll(() => dialog.evaluate((el) => el.getBoundingClientRect().width))
+      .toBeGreaterThan(compact + 100);
+
+    await dialog.getByRole('button', { name: 'Restore size' }).click();
+    await expect(dialog.getByRole('button', { name: 'Enlarge dialog' })).toBeVisible();
+    await expect
+      .poll(() => dialog.evaluate((el) => el.getBoundingClientRect().width))
+      .toBeLessThanOrEqual(compact + 1);
+  });
+
   test('keeps the detail dialog body inside the card instead of scrolling sideways', async ({
     page,
   }) => {
