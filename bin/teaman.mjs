@@ -388,7 +388,7 @@ async function cmdDev(vaultArg, opts) {
     // the local dev loop as well as in a production build.
     await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], {
       ...env,
-      TEAMAN_OUT: publicDir,
+      TEAMAN_OUT: staged.publicDir,
     });
     await run(node, [astroBin, 'dev', ...serverArgs(opts)], env);
   } finally {
