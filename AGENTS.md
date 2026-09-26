@@ -138,8 +138,18 @@ Adding a content type means: an entry in the registry, a schema in
 pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
 
 `src/content.config.ts` defines seven Astro collections — `notes`, `references`,
-`guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — each a `glob` loader rooted at the matching
-`*Root` from `content-paths.ts`. Notes about the model:
+`guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — rooted at the matching
+`*Root` from `content-paths.ts`. Most are `glob` loaders; `references` and
+`slides` are catalog-fed loaders built on `vault-loader.mjs` (store sync, digest
+skipping, dev watching), fed by `discoverReferenceDocuments` and the deck
+catalog `discoverDecks`. Notes about the model:
+- `discoverDecks` (`discover-decks.mjs`) is the one deck catalog: membership
+  (`_` paths and `draft: true` excluded), id, title, tags, slide count, and
+  visible text, parsed once with `@slidev/parser`. The slides collection,
+  `build-slides`, search, and the vault index all read it.
+- ADRs: statuses, the standalone `ADR-n · title`, and search text live in
+  `decision-records.mjs` (client-safe); `discoverDecisions` reads every ADR
+  for search, `doctor`, and the vault index; the site reads the collection.
 - `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (its own
   `guideSummaries` collection, excluded from `guides`), and the other `.md` files are
   chapters.
@@ -156,6 +166,11 @@ pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
   build scripts; the same module owns every URL shape (`entryHref`,
   `dailyHref`, `guideChapterHref`, `adrHref`). Never rebuild a source path from
   an id — use the entry's `filePath`.
+- The Obsidian dialect (wiki-links, embeds, callouts, diagram fences) has two
+  parsers: the site's remark pipeline, and `obsidian-markdown.mjs` — a
+  markdown-it plugin plus `compileDiagramFences`/`wikiLinks` — shared by the
+  reference PDF, Confluence sync, and `doctor`. `__tests__/obsidian-dialect.test.mjs`
+  runs one case table through both; add a case there when the dialect changes.
 - Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
   `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
   every page the site renders, matched Obsidian-style (bare name or trailing
@@ -218,9 +233,9 @@ stages writing to that one staged dir.
    referenced by path rather than inlined) — a book-sized reference takes tens
    of seconds to compile, and `teaman dev` runs this stage on every start.
 3. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`.
-   Decks are discovered recursively by the shared `src/lib/discover-decks.mjs`
-   (also used by `build-search.mjs`, so the built decks and the search index
-   always agree): it walks subdirectories, skips any path with a segment
+   Decks come from the deck catalog `src/lib/discover-decks.mjs` (also the
+   source of the slides collection and the search records, so the cards, the
+   built decks, and the index always agree): it walks subdirectories, skips any path with a segment
    starting with `_`, and skips decks with `draft: true` frontmatter; nested
    decks (e.g. `nested/deck`) build to `<out>/slides/nested/deck/`. Decks are
    copied into the work dir first — the CLI-provided `TEAMAN_SLIDES_WORK` temp
@@ -245,8 +260,8 @@ stages writing to that one staged dir.
    `<work dir>/vite.config.mts` (`renderViteConfig`) that mutes Rolldown's
    harmless INVALID_ANNOTATION noise.
 4. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
-   SPAs, whose bodies are JS-rendered) plus custom records for each deck via
-   `parse-deck.mjs`.
+   SPAs, whose bodies are JS-rendered) plus custom records for each deck (the
+   catalog's `text`) and each ADR (`adrSearchText`).
 
 ### Frontend
 
