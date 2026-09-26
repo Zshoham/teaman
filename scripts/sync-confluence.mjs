@@ -8,6 +8,14 @@ import MarkdownIt from 'markdown-it';
 
 import { fenceLanguages, renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
+import {
+  compileDiagramFences,
+  diagramKey,
+  fenceLanguage,
+  fenceSource,
+  isImageEmbed,
+  obsidianDialect,
+} from '../src/lib/obsidian-markdown.mjs';
 
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const defaultContentDir = join(engineDir, 'example');
@@ -326,16 +334,13 @@ function calloutMacroName(type) {
   return CALLOUT_MACROS[type.toLowerCase()] ?? 'note';
 }
 
-// `> [!type] Title` / `> [!type]+ Title` / `> [!type]- Title`. The +/-
-// (expanded/collapsed) marker is accepted but not reproduced: Confluence's
-// admonition macros aren't collapsible, so every callout syncs expanded.
-const CALLOUT_MARKER_RE = /^\[!([a-zA-Z][\w-]*)\]([+-])?\s*(.*)$/;
-
+// The Obsidian dialect (wiki-links, embeds, callouts) is shared with the
+// reference PDF; see obsidian-markdown.mjs.
 const markdownRenderer = new MarkdownIt({
   html: false,
   xhtmlOut: true,
   linkify: true,
-});
+}).use(obsidianDialect);
 
 markdownRenderer.renderer.rules.fence = renderCodeToken;
 markdownRenderer.renderer.rules.code_block = renderCodeToken;
@@ -348,12 +353,13 @@ markdownRenderer.renderer.rules.tbody_close = () => '</tbody>\n';
 // matching the 'Mermaid diagram (source)' style.
 const FENCE_LABELS = { tikz: 'TikZ', typst: 'Typst' };
 
-const fenceKey = (lang, source) => `${lang}\0${source}`;
-
 function renderCodeToken(tokens, idx, options, env) {
   const token = tokens[idx];
-  const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
-  const source = token.content.replace(/\n$/, '');
+  const lang = fenceLanguage(token);
+  // The code macro takes the author's language as written (`c#`, `c++`);
+  // the normalized one only decides whether this is a diagram fence.
+  const rawLang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
+  const source = fenceSource(token);
 
   if (lang === 'mermaid' && env.mermaidMacro) return diagramMacro(env.mermaidMacro, source);
   if (lang === 'plantuml' && env.plantumlMacro) return diagramMacro(env.plantumlMacro, source);
@@ -365,7 +371,8 @@ function renderCodeToken(tokens, idx, options, env) {
   // .svg images. No compiled entry (compile failed, or the caller skipped the
   // pre-pass, as unit tests do) syncs the source, labeled like mermaid above.
   if (fenceLanguages.includes(lang)) {
-    const compiled = env.fenceSvgs?.get(fenceKey(lang, source));
+    const found = env.fenceSvgs?.get(diagramKey(token));
+    const compiled = found && !found.error ? found : null;
     if (compiled && env.svgMacro) return `${diagramMacro(env.svgMacro, compiled.svg)}\n`;
     if (compiled) {
       const filename = queueImage(compiled.path, env);
@@ -374,45 +381,14 @@ function renderCodeToken(tokens, idx, options, env) {
     return `${codeMacro(source.split('\n'), { language: 'none', title: `${FENCE_LABELS[lang] ?? segmentTitle(lang)} diagram (source)` })}\n`;
   }
 
-  return `${codeMacro(source.split('\n'), { language: confluenceLanguage(lang) })}\n`;
+  return `${codeMacro(source.split('\n'), { language: confluenceLanguage(rawLang) })}\n`;
 }
 
-// Obsidian wiki-links: `[[target]]` / `[[target|alias]]`, and embeds
-// (`![[image.png]]`). Registered ahead of the standard `link` rule so `[[`
-// is never mistaken for the start of a normal markdown link; the embed form
-// must be matched here too, or the leading `!` falls through as literal text.
-function wikiLinkRule(state, silent) {
-  const start = state.pos;
-  let pos = start;
-  const embed = state.src.charCodeAt(pos) === 0x21; /* ! */
-  if (embed) pos += 1;
-  if (state.src.charCodeAt(pos) !== 0x5b || state.src.charCodeAt(pos + 1) !== 0x5b) return false;
-
-  const end = state.src.indexOf(']]', pos + 2);
-  if (end === -1) return false;
-
-  const inner = state.src.slice(pos + 2, end);
-  if (!inner || inner.includes('\n')) return false;
-
-  const pipeIdx = inner.indexOf('|');
-  const target = (pipeIdx === -1 ? inner : inner.slice(0, pipeIdx)).trim();
-  const alias = (pipeIdx === -1 ? inner : inner.slice(pipeIdx + 1)).trim();
-  if (!target) return false;
-
-  if (!silent) {
-    const token = state.push('wiki_link', '', 0);
-    token.meta = { target, alias: alias || target, embed };
-  }
-  state.pos = end + 2;
-  return true;
-}
-
-const WIKI_IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|bmp|avif)$/i;
-
-markdownRenderer.inline.ruler.before('link', 'wiki_link', wikiLinkRule);
+// Obsidian wiki-links (`[[target|label]]`) and embeds (`![[image.png]]`),
+// tokenized by the shared dialect.
 markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
-  const { target, alias, embed } = tokens[idx].meta;
-  if (embed && WIKI_IMAGE_RE.test(target)) {
+  const { target, label: alias, embed } = tokens[idx].meta;
+  if (embed && isImageEmbed(target)) {
     return renderImageRef(target, markdownRenderer.utils.escapeHtml(alias), env);
   }
 
@@ -521,51 +497,6 @@ function queueImage(absolutePath, env) {
   return filename;
 }
 
-// Obsidian callouts (`> [!type] Title`) render as plain blockquotes by
-// default; rewrite them into Confluence info/tip/note/warning macros. Runs
-// after inline tokenization (core.ruler default order ends with 'inline') so
-// each blockquote's first paragraph already has its inline children built.
-markdownRenderer.core.ruler.push('obsidian_callouts', state => {
-  const tokens = state.tokens;
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].type !== 'blockquote_open') continue;
-
-    const paraOpen = tokens[i + 1];
-    const inline = tokens[i + 2];
-    if (paraOpen?.type !== 'paragraph_open' || inline?.type !== 'inline') continue;
-
-    // Match against the raw first line: a title with inline markup tokenizes
-    // into several children, so the first text child alone would truncate it.
-    const newlineIdx = inline.content.indexOf('\n');
-    const firstLine = newlineIdx === -1 ? inline.content : inline.content.slice(0, newlineIdx);
-    const match = CALLOUT_MARKER_RE.exec(firstLine);
-    if (!match) continue;
-
-    const level = tokens[i].level;
-    let closeIdx = -1;
-    for (let j = i + 1; j < tokens.length; j++) {
-      if (tokens[j].type === 'blockquote_close' && tokens[j].level === level) {
-        closeIdx = j;
-        break;
-      }
-    }
-    if (closeIdx === -1) continue;
-
-    const macro = calloutMacroName(match[1]);
-    const rawTitle = match[3].trim();
-    const title = rawTitle
-      ? inlineText(rawTitle, state.env)
-      : markdownRenderer.utils.escapeHtml(segmentTitle(match[1].toLowerCase()));
-
-    inline.content = newlineIdx === -1 ? '' : inline.content.slice(newlineIdx + 1);
-    inline.children = [];
-    if (inline.content) state.md.inline.parse(inline.content, state.md, state.env, inline.children);
-
-    tokens[i].meta = { macro, title };
-    tokens[closeIdx].meta = { macro, title };
-  }
-});
-
 // Renders inline markdown down to what Confluence macro parameters accept:
 // plain text, HTML-escaped (tags stripped, CDATA wrappers unwrapped).
 function inlineText(markdown, env) {
@@ -575,14 +506,20 @@ function inlineText(markdown, env) {
     .replace(/<[^>]*>/g, '');
 }
 
+// Obsidian callouts (`> [!type] Title`, marked by the shared dialect) become
+// Confluence info/tip/note/warning macros. The +/- fold marker is not
+// reproduced: Confluence's admonition macros aren't collapsible, so every
+// callout syncs expanded.
 markdownRenderer.renderer.rules.blockquote_open = (tokens, idx, options, env, self) => {
-  const meta = tokens[idx].meta;
-  if (!meta) return self.renderToken(tokens, idx, options);
-  return `<ac:structured-macro ac:name="${meta.macro}"><ac:parameter ac:name="title">${meta.title}</ac:parameter><ac:rich-text-body>\n`;
+  const callout = tokens[idx].meta?.callout;
+  if (!callout) return self.renderToken(tokens, idx, options);
+  const title = callout.title
+    ? inlineText(callout.title, env)
+    : markdownRenderer.utils.escapeHtml(segmentTitle(callout.type));
+  return `<ac:structured-macro ac:name="${calloutMacroName(callout.type)}"><ac:parameter ac:name="title">${title}</ac:parameter><ac:rich-text-body>\n`;
 };
 markdownRenderer.renderer.rules.blockquote_close = (tokens, idx, options, env, self) => {
-  const meta = tokens[idx].meta;
-  if (!meta) return self.renderToken(tokens, idx, options);
+  if (!tokens[idx].meta?.callout) return self.renderToken(tokens, idx, options);
   return '</ac:rich-text-body></ac:structured-macro>\n';
 };
 
@@ -653,29 +590,18 @@ markdownRenderer.renderer.rules.task_item_open = (tokens, idx, options, env) => 
 markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:task>\n';
 
 // markdown-it rendering is synchronous but the tikz/typst compilers are not,
-// so fences compile in this pre-pass and renderCodeToken looks the results up
-// by (lang, source). Renders come from the site build's content-hash cache
-// when available; a fence that fails to compile maps to null (renderCodeToken
-// then falls back to the labeled source block) with a console warning, like
-// the site build's visible notice.
+// so fences compile in this pre-pass (the shared dialect's) and
+// renderCodeToken looks the results up by diagramKey. Renders come from the
+// site build's content-hash cache when available; a fence that fails to
+// compile maps to `{ error }` (renderCodeToken then falls back to the labeled
+// source block) with a console warning, like the site build's visible notice.
 async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compilers } = {}) {
-  const fenceSvgs = new Map();
-  for (const token of markdownRenderer.parse(matter(markdown).content, {})) {
-    if (token.type !== 'fence') continue;
-    const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
-    if (!fenceLanguages.includes(lang)) continue;
-    const source = token.content.replace(/\n$/, '');
-    const key = fenceKey(lang, source);
-    if (fenceSvgs.has(key)) continue;
-    try {
-      fenceSvgs.set(key, await renderFenceSvg(lang, source, { cacheDir, compilers }));
-    } catch (error) {
-      const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
-      console.warn(`Warning: ${lang} fence failed to compile, syncing its source instead: ${reason}`);
-      fenceSvgs.set(key, null);
-    }
-  }
-  return fenceSvgs;
+  return compileDiagramFences(markdownRenderer.parse(matter(markdown).content, {}), {
+    languages: fenceLanguages,
+    cacheDir,
+    compilers,
+    onError: (lang, reason) => console.warn(`Warning: ${lang} fence failed to compile, syncing its source instead: ${reason}`),
+  });
 }
 
 // context: { filePath, contentDir, linkTitle, mermaidMacro, plantumlMacro,

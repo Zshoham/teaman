@@ -542,6 +542,11 @@ describe('lintContent', () => {
     ]);
   });
 
+  it('lints note embeds but not image embeds or links in code', async () => {
+    write('notes/a.md', '![[Gone]] ![[pic.png]] `[[in code]]`\n\n```\n[[fenced]]\n```\n');
+    expect((await lintContent(vault)).warnings).toEqual(['notes: a.md links to missing ![[Gone]]']);
+  });
+
   it('warns that slug has no effect where the path carries meaning', async () => {
     write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nslug: x\n---\n');
     write('notes/n.md', '---\nslug: fine\n---\n');

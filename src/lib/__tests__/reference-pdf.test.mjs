@@ -7,11 +7,11 @@ import { fileURLToPath } from 'url';
 import {
   compileReferenceDiagrams,
   markdownToTypst,
-  referenceDiagramKey,
   referencePdfCacheKey,
   renderReferenceTypst,
   resolveReferenceImage,
 } from '../reference-pdf.mjs';
+import { diagramKey } from '../obsidian-markdown.mjs';
 import { createReferenceCompiler } from '../typst-packages.mjs';
 
 const template = readFileSync(
@@ -194,14 +194,43 @@ describe('reference PDF rendering', () => {
     expect(typst).not.toContain('[!warning]');
   });
 
+  it('leaves wiki-link syntax inside code alone', () => {
+    const typst = markdownToTypst('Use `[[no_unique_address]]`.\n\n```c\nint a[[x]];\n```');
+    expect(typst).toContain('#raw("[[no_unique_address]]")');
+    expect(typst).toContain('int a[[x]];');
+  });
+
+  it('links wiki-links into this document and marks the rest unlinked', () => {
+    const typst = markdownToTypst('## Here\n\nSee [[here|this section]], [[elsewhere]], and [[nowhere]].', {
+      resolveWikiLink: target => ({ here: 'here', elsewhere: 'not-in-this-pdf' })[target] ?? null,
+    });
+    expect(typst).toMatch(/#link\(<teaman-[0-9a-f]+>\)\[#text\("this section"\)\]/);
+    expect(typst).toContain('#teaman-wiki-unlinked[#text("elsewhere")]');
+    expect(typst).toContain('#teaman-wiki-unlinked[#text("nowhere")]');
+  });
+
+  it('compiles both wiki-link styles through the bundled template', () => {
+    const source = renderReferenceTypst({
+      template,
+      title: 'Links',
+      body: '## Target\n\nSee [[target]] and [[missing]].',
+      sourcePath: '/tmp/vault/references/links.md',
+      vaultDir: '/tmp/vault',
+      resolveWikiLink: target => (target === 'target' ? 'target' : null),
+    });
+    expect(source).toContain('#teaman-wiki-unlinked');
+    const pdf = createReferenceCompiler().pdf({ mainFileContent: source });
+    expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
+  }, 30_000);
+
   it('embeds compiled diagram SVGs and keeps a visible source fallback on failure', () => {
     const mermaid = 'flowchart LR\nA-->B\n';
     const plantuml = '@startuml\nA -> B\n@enduml\n';
     const diagrams = new Map([
-      [referenceDiagramKey('mermaid', mermaid), {
+      [diagramKey({ info: 'mermaid', content: mermaid }), {
         svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>',
       }],
-      [referenceDiagramKey('plantuml', plantuml), { error: 'bad diagram' }],
+      [diagramKey({ info: 'plantuml', content: plantuml }), { error: 'bad diagram' }],
     ]);
     const typst = markdownToTypst([
       '```mermaid',

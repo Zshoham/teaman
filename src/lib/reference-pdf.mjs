@@ -3,7 +3,13 @@ import { createHash } from 'crypto';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
 import GithubSlugger from 'github-slugger';
 import MarkdownIt from 'markdown-it';
-import { renderFenceSvg } from './remark-fence-svg.mjs';
+import {
+  compileDiagramFences,
+  diagramKey,
+  fenceLanguage,
+  isImageEmbed,
+  obsidianDialect,
+} from './obsidian-markdown.mjs';
 import {
   prepareReferenceChapter,
   referenceChapterAnchor,
@@ -20,53 +26,12 @@ const markdown = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: true,
-});
+}).use(obsidianDialect);
 markdown.enable(['strikethrough', 'table']);
 
-const CALLOUT_MARKER_RE = /^\[!([a-zA-Z][\w-]*)\]([+-])?\s*(.*)$/;
 const DIAGRAM_LANGUAGES = new Set(['mermaid', 'plantuml', 'tikz', 'typst']);
 const DIAGRAM_LABELS = { mermaid: 'Mermaid', plantuml: 'PlantUML', tikz: 'TikZ', typst: 'Typst' };
-const WIKI_IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|bmp|avif)$/i;
 const HTML_ID_RE = /\sid\s*=\s*(["'])([^"']+)\1/gi;
-
-// Mark Obsidian callout blockquotes after markdown-it has tokenized their
-// inline content. The renderer can then style the block while the remaining
-// body continues through the normal Markdown conversion path.
-markdown.core.ruler.push('obsidian_callouts', state => {
-  const tokens = state.tokens;
-  for (let index = 0; index < tokens.length; index++) {
-    if (tokens[index].type !== 'blockquote_open') continue;
-
-    const paragraph = tokens[index + 1];
-    const inline = tokens[index + 2];
-    if (paragraph?.type !== 'paragraph_open' || inline?.type !== 'inline') continue;
-
-    const newline = inline.content.indexOf('\n');
-    const firstLine = newline === -1 ? inline.content : inline.content.slice(0, newline);
-    const match = CALLOUT_MARKER_RE.exec(firstLine);
-    if (!match) continue;
-
-    const level = tokens[index].level;
-    let close = -1;
-    for (let candidate = index + 1; candidate < tokens.length; candidate++) {
-      if (tokens[candidate].type === 'blockquote_close' && tokens[candidate].level === level) {
-        close = candidate;
-        break;
-      }
-    }
-    if (close === -1) continue;
-
-    const meta = {
-      type: match[1].toLowerCase(),
-      title: match[3].trim(),
-    };
-    tokens[index].meta = meta;
-    tokens[close].meta = meta;
-    inline.content = newline === -1 ? '' : inline.content.slice(newline + 1);
-    inline.children = [];
-    if (inline.content) state.md.inline.parse(inline.content, state.md, state.env, inline.children);
-  }
-});
 
 const asTypstString = value => JSON.stringify(String(value ?? ''));
 const asText = value => value ? `#text(${asTypstString(value)})` : '';
@@ -75,28 +40,10 @@ function stripHtml(value) {
   return value.replace(/<[^>]*>/g, '');
 }
 
-function preprocessObsidian(markdownSource) {
-  return markdownSource
-    .replace(/!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, target, alias) => {
-      if (!WIKI_IMAGE_RE.test(target.split(/[?#]/, 1)[0])) return match.slice(1);
-      const alt = String(alias ?? target).replace(/\\/g, '\\\\').replace(/\]/g, '\\]');
-      const url = encodeURI(target).replace(/\(/g, '%28').replace(/\)/g, '%29');
-      return `![${alt}](${url})`;
-    })
-    .replace(
-      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-      (_match, page, alias) => alias ?? page,
-    );
-}
-
 function humanize(value) {
   return value
     .replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, character => character.toUpperCase());
-}
-
-function fenceLanguage(token) {
-  return token.info?.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9_+.-]/g, '') ?? '';
 }
 
 function sourceWithoutLeadingTitle(source) {
@@ -106,7 +53,7 @@ function sourceWithoutLeadingTitle(source) {
 function headingText(tokens) {
   return (tokens ?? [])
     .filter(token => token.type !== 'html_inline' && token.type !== 'image')
-    .map(token => token.content ?? '')
+    .map(token => (token.type === 'wiki_link' ? token.meta.label : token.content ?? ''))
     .join('');
 }
 
@@ -175,7 +122,7 @@ function analyzeReferenceTokens(tokens, chapterPath, assignedChapterAnchor) {
 
 function parseReference(source, chapterPath, chapterAnchor) {
   const value = sourceWithoutLeadingTitle(source);
-  const tokens = markdown.parse(preprocessObsidian(value), {});
+  const tokens = markdown.parse(value, {});
   return { tokens, ...analyzeReferenceTokens(tokens, chapterPath, chapterAnchor) };
 }
 
@@ -187,12 +134,10 @@ function firstReferenceHeadingSlug(source) {
     : referenceBookHeadingSlug(headingText(tokens[index + 1]?.children)) || 'section';
 }
 
-export const referenceDiagramKey = (language, source) => `${language}\0${source}`;
-
 /**
  * Compile every PDF-capable diagram fence to a cached SVG. Failures are kept
- * in the returned map so the converter can render a visible fallback without
- * aborting the rest of the reference document.
+ * in the returned map (`{ error }`) so the converter can render a visible
+ * fallback without aborting the rest of the reference document.
  */
 export async function compileReferenceDiagrams(source, {
   cacheDir,
@@ -200,34 +145,12 @@ export async function compileReferenceDiagrams(source, {
   warn = message => console.warn(message),
 } = {}) {
   if (!cacheDir) throw new Error('compileReferenceDiagrams requires cacheDir');
-
-  const tokens = markdown.parse(preprocessObsidian(source), {});
-  const diagrams = new Map();
-  const allCompilers = {
-    mermaid: renderMermaidSvg,
-    plantuml: renderPlantumlSvg,
-    ...compilers,
-  };
-
-  for (const token of tokens) {
-    if (token.type !== 'fence') continue;
-    const language = fenceLanguage(token);
-    if (!DIAGRAM_LANGUAGES.has(language)) continue;
-    const key = referenceDiagramKey(language, token.content);
-    if (diagrams.has(key)) continue;
-
-    try {
-      diagrams.set(key, await renderFenceSvg(language, token.content, {
-        cacheDir,
-        compilers: allCompilers,
-      }));
-    } catch (error) {
-      const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
-      warn(`[teaman] ${language} reference diagram failed to compile: ${reason}`);
-      diagrams.set(key, { error: reason });
-    }
-  }
-  return diagrams;
+  return compileDiagramFences(markdown.parse(source, {}), {
+    languages: DIAGRAM_LANGUAGES,
+    cacheDir,
+    compilers: { mermaid: renderMermaidSvg, plantuml: renderPlantumlSvg, ...compilers },
+    onError: (language, reason) => warn(`[teaman] ${language} reference diagram failed to compile: ${reason}`),
+  });
 }
 
 function embeddedSvg(svg) {
@@ -293,13 +216,22 @@ function renderInline(tokens, context) {
         break;
       }
       case 'link_close': out += ']'; break;
-      case 'image': {
-        const source = token.attrGet('src') ?? '';
-        const alt = token.content || token.attrGet('alt') || 'Image';
-        const path = context.resolveImage?.(source);
-        out += path
-          ? `#image(${asTypstString(path)}, width: 100%, alt: ${asTypstString(alt)})`
-          : `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Image: ${alt}`)}]`;
+      case 'image':
+        out += renderImage(token.attrGet('src') ?? '', token.content || token.attrGet('alt') || 'Image', context);
+        break;
+      case 'wiki_link': {
+        const { target, label, embed } = token.meta;
+        if (embed && isImageEmbed(target)) {
+          out += renderImage(target, label, context);
+          break;
+        }
+        // A wiki-link to a section of this PDF jumps there; one to anywhere
+        // else (another page of the site, or nothing) keeps its text, styled
+        // by the template as a link the PDF cannot follow.
+        const anchor = context.resolveWikiLink?.(target);
+        out += anchor && context.internalTargets.has(anchor)
+          ? `#link(<${typstInternalLabel(anchor)}>)[${asText(label)}]`
+          : `#teaman-wiki-unlinked[${asText(label)}]`;
         break;
       }
       case 'html_inline':
@@ -310,6 +242,13 @@ function renderInline(tokens, context) {
     }
   }
   return out;
+}
+
+function renderImage(source, alt, context) {
+  const path = context.resolveImage?.(source);
+  return path
+    ? `#image(${asTypstString(path)}, width: 100%, alt: ${asTypstString(alt)})`
+    : `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Image: ${alt}`)}]`;
 }
 
 function renderTable(tokens, start, context) {
@@ -356,6 +295,7 @@ function renderTable(tokens, start, context) {
 /** Convert the Markdown subset used by reference documents into Typst markup. */
 export function markdownToTypst(source, {
   resolveImage,
+  resolveWikiLink,
   diagrams = new Map(),
   chapterPath,
   chapterAnchor,
@@ -368,6 +308,7 @@ export function markdownToTypst(source, {
   const { tokens, headingTargets } = parsed;
   const context = {
     resolveImage,
+    resolveWikiLink,
     chapterPath,
     chapterAnchor,
     chapterAnchors,
@@ -411,17 +352,15 @@ export function markdownToTypst(source, {
         if (!out.endsWith('\n')) out += '\n';
         break;
       case 'blockquote_open':
-        out += token.meta
-          ? renderCalloutOpen(token.meta, context)
+        out += token.meta?.callout
+          ? renderCalloutOpen(token.meta.callout, context)
           : '#quote(block: true)[\n';
         break;
       case 'blockquote_close': out += ']\n\n'; break;
       case 'fence':
       case 'code_block': {
         const lang = fenceLanguage(token);
-        const diagram = DIAGRAM_LANGUAGES.has(lang)
-          ? diagrams.get(referenceDiagramKey(lang, token.content))
-          : null;
+        const diagram = DIAGRAM_LANGUAGES.has(lang) ? diagrams.get(diagramKey(token)) : null;
         if (diagram?.svg) {
           out += embeddedSvg(diagram.svg);
         } else if (DIAGRAM_LANGUAGES.has(lang) && diagram?.error) {
@@ -521,6 +460,7 @@ export function renderReferenceTypst({
   sourcePath,
   vaultDir,
   diagrams,
+  resolveWikiLink,
 }) {
   // Parse book chapters independently so repeated reference-style link names
   // stay chapter-local and relative images resolve from the chapter that owns
@@ -551,6 +491,7 @@ export function renderReferenceTypst({
           sourcePath: chapter.sourcePath,
           vaultDir,
         }),
+        resolveWikiLink: target => resolveWikiLink?.(target, chapter.sourcePath) ?? null,
         diagrams,
         chapterPath: chapter.path,
         chapterAnchor: chapterAnchors.get(chapter.path),
@@ -561,6 +502,7 @@ export function renderReferenceTypst({
       })).join('\n\n')
     : markdownToTypst(body, {
         resolveImage: source => resolveReferenceImage(source, { sourcePath, vaultDir }),
+        resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
         diagrams,
       });
   const updated = date instanceof Date && !Number.isNaN(date.valueOf())

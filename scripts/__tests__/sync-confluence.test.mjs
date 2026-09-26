@@ -384,7 +384,7 @@ describe('sync-confluence tikz/typst fences', () => {
     expect(images).toEqual([]);
   });
 
-  it('compiles each unique fence once and maps failures to null', async () => {
+  it('compiles each unique fence once and records failures', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const tikz = vi.fn(async () => '<svg><path d="M0 0"/></svg>');
     const typst = vi.fn(async () => {
@@ -396,7 +396,7 @@ describe('sync-confluence tikz/typst fences', () => {
 
     expect(tikz).toHaveBeenCalledTimes(1);
     expect(fenceSvgs.get('tikz\0a').svg).toContain('content-svg tikz-svg');
-    expect(fenceSvgs.get('typst\0b')).toBeNull();
+    expect(fenceSvgs.get('typst\0b')).toEqual({ error: 'expected expression, found <eof>' });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('typst fence failed to compile'));
   });
 

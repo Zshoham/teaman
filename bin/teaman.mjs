@@ -22,6 +22,7 @@ import { SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
 import { ADR_STATUSES } from '../src/lib/decision-records.mjs';
 import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
+import { isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
@@ -448,23 +449,6 @@ function knownThemeTokens() {
   } catch { return null; }
 }
 
-function markdownWikiLinks(source) {
-  const links = [];
-  let fence = null;
-  for (const line of source.split(/\r?\n/)) {
-    const match = line.match(/^\s*(?:>\s*)*(`{3,}|~{3,})/);
-    if (match) {
-      if (!fence) fence = match[1];
-      else if (match[1][0] === fence[0] && match[1].length >= fence.length) fence = null;
-      continue;
-    }
-    if (fence) continue;
-    const prose = line.replace(/`[^`]*`/g, '');
-    links.push(...prose.matchAll(/(?<!!)\[\[([^\]|]+)/g));
-  }
-  return links;
-}
-
 /**
  * Validate a loaded vault config. Pure: takes the config and whether a config
  * file was actually found (a vault with none runs on engine defaults, so its
@@ -633,9 +617,11 @@ export async function lintContent(vault) {
       if (matter && !SLUG_OVERRIDE_TYPES.has(type) && matter(source).data.slug) {
         warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
       }
-      for (const m of markdownWikiLinks(source)) {
-        const target = m[1].trim();
-        const link = `[[${target}]]`;
+      // Parsed with the dialect the PDF and Confluence render with, so code
+      // is never linted. Image embeds are files, not pages.
+      for (const { target, embed } of wikiLinks(source)) {
+        if (embed && isImageEmbed(target)) continue;
+        const link = `${embed ? '!' : ''}[[${target}]]`;
         const resolution = index.resolve(target, file);
         if (!resolution) {
           warnings.push(`${where} links to missing ${link}`);

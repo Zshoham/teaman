@@ -17,6 +17,8 @@ import {
 } from '../src/lib/reference-pdf.mjs';
 import { createReferenceCompiler } from '../src/lib/typst-packages.mjs';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
+import { entryHref } from '../src/lib/entry-identity.mjs';
+import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { DEFAULT_BRAND } from '../src/lib/config-defaults.mjs';
 import { engineDir, outDir, teamanConfig, vaultDir } from '../src/lib/build-env.mjs';
 
@@ -46,6 +48,7 @@ if (!existsSync(referencesDir)) {
   console.log('No reference documents to render.');
 } else {
   const compiler = createReferenceCompiler(vaultDir);
+  const vaultIndex = createVaultIndex(vaultDir);
   let count = 0;
   for (const document of discoverReferenceDocuments(referencesDir)) {
     if (document.error) throw new Error(document.error);
@@ -58,6 +61,14 @@ if (!existsSync(referencesDir)) {
     }
 
     const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir });
+    // A wiki-link the site resolves to a section of this reference becomes a
+    // jump within the PDF; the vault index returns that section as an anchor
+    // on this reference's own URL.
+    const ownHref = entryHref('/', 'reference', document.id);
+    const resolveWikiLink = (target, fromPath) => {
+      const href = vaultIndex.resolve(target, fromPath)?.href ?? '';
+      return href.startsWith(`${ownHref}#`) ? href.slice(ownHref.length + 1) : null;
+    };
     const typst = renderReferenceTypst({
       template,
       title: document.title,
@@ -70,6 +81,7 @@ if (!existsSync(referencesDir)) {
       sourcePath: document.sourcePath,
       vaultDir,
       diagrams,
+      resolveWikiLink,
     });
     const targetDir = join(outDir, 'references', ...document.id.split('/'));
     mkdirSync(targetDir, { recursive: true });

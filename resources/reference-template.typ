@@ -24,6 +24,15 @@
 #let teaman-accent-deep = rgb("#9a512c")
 #let teaman-rule = rgb("#ddd8d0")
 
+// A wiki-link whose target is not in this PDF (another page of the site, or
+// no page at all). It still reads as a link — dotted rule, muted ink — so the
+// reader knows it points somewhere, but it is visibly not one the PDF can
+// follow; a wiki-link into this document is an ordinary link instead.
+#let teaman-wiki-unlinked(body) = text(
+  fill: teaman-muted,
+  underline(offset: 1.8pt, stroke: (paint: teaman-faint, thickness: 0.5pt, dash: "dotted"), body),
+)
+
 #let teaman-callout(type: "note", title: none, body) = {
   let accent = if type in ("danger", "error", "failure", "fail", "missing", "bug") {
     rgb("#b33a32")
