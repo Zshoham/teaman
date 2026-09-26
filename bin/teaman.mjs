@@ -281,11 +281,25 @@ function envFor(vault, config, { out, base, publicDir } = {}) {
   };
 }
 
+// Signals sent to the CLI alone — `kill`, a closed terminal, a process manager
+// stopping it — are passed on to the stage it is running, which would
+// otherwise outlive it (an orphaned dev server still holding its port). The
+// CLI then ends when the stage does, so a build still cleans up after itself.
+// Ctrl-C needs no forwarding: it reaches the whole foreground process group.
+const FORWARDED_SIGNALS = ['SIGTERM', 'SIGHUP'];
+
 function run(cmd, args, env) {
   return new Promise((res, rej) => {
     const child = spawn(cmd, args, { cwd: engineDir, env, stdio: 'inherit' });
-    child.on('error', rej);
-    child.on('exit', code => code === 0 ? res() : rej(new Error(`${basename(cmd)} exited with code ${code}`)));
+    const forward = signal => child.kill(signal);
+    for (const signal of FORWARDED_SIGNALS) process.on(signal, forward);
+    const done = () => { for (const signal of FORWARDED_SIGNALS) process.off(signal, forward); };
+    child.on('error', error => { done(); rej(error); });
+    child.on('exit', (code, signal) => {
+      done();
+      if (code === 0) res();
+      else rej(new Error(signal ? `${basename(cmd)} stopped by ${signal}` : `${basename(cmd)} exited with code ${code}`));
+    });
   });
 }
 
