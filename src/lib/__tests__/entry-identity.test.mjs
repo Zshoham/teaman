@@ -76,6 +76,7 @@ describe('decision identity', () => {
   it('addresses an ADR by the number in its id', () => {
     expect(adrNum('adr-0007')).toBe('0007');
     expect(adrNum('nested/adr-0012-title')).toBe('0012');
+    expect(adrNum('2026/adr-0012')).toBe('0012');
     expect(adrHref('/', '0007')).toBe('/decisions/?adr=0007');
   });
 });

@@ -14,18 +14,11 @@ const adrs = await loadAdrs();
 // drop it straight into the modal (.prose) — no client-side markdown parsing.
 const container = await AstroContainer.create();
 const views: AdrView[] = await Promise.all(
-  adrs.map(async (a) => {
-    const { Content } = await render(a.entry);
+  adrs.map(async ({ entry, id: _id, ...adr }) => {
+    const { Content } = await render(entry);
     return {
-      num: a.num,
-      title: a.title,
-      date: a.date,
-      dateLabel: fmtDate(a.date),
-      status: a.status,
-      tags: a.tags,
-      summary: a.summary,
-      supersedes: a.supersedes,
-      supersededBy: a.supersededBy,
+      ...adr,
+      dateLabel: fmtDate(adr.date),
       bodyHtml: await container.renderToString(Content),
     };
   }),

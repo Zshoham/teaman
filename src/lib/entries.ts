@@ -3,7 +3,7 @@ import { stat } from 'fs/promises';
 import { resolve } from 'path';
 import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
 import { guideSlugFromSummaryId, listGuides } from './guides';
-import { loadAdrs } from './adr';
+import { adrDisplayTitle, loadAdrs } from './adr';
 import { isPublishableDeckId } from './discover-decks.mjs';
 import { engineDir } from './build-env.mjs';
 import { adrHref, dailyHref, entryHref, guideHref } from './entry-identity.mjs';
@@ -214,7 +214,7 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
     return {
       id: `decision-${a.num}`,
       type: 'decision' as const,
-      title: `ADR-${a.num} · ${a.title}`,
+      title: adrDisplayTitle(a.num, a.title),
       excerpt: a.summary,
       tags: a.tags,
       updated: a.date,

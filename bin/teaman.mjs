@@ -19,6 +19,8 @@ import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { COLLECTIONS, CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
+import { ADR_STATUSES } from '../src/lib/decision-records.mjs';
+import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
@@ -575,24 +577,17 @@ export async function lintContent(vault) {
 
     // The decisions collection requires `date` + a valid `status`; lineage
     // pointers should resolve to an ADR that actually exists in the vault.
-    const decisionsDir = join(vault, 'decisions');
-    if (existsSync(decisionsDir)) {
-      const STATUSES = new Set(['accepted', 'proposed', 'superseded']);
-      const files = walkMarkdown(decisionsDir);
-      const nums = new Set(
-        files.map(f => (basename(f, '.md').match(/(\d+)/) ?? [])[1]).filter(Boolean),
-      );
-      for (const file of files) {
-        const { data } = matter(readFileSync(file, 'utf8'));
-        const name = basename(file);
-        if (!data.date) problems.push(`decisions: ${name} needs a "date" in frontmatter`);
-        if (!data.status) problems.push(`decisions: ${name} needs a "status" (accepted | proposed | superseded)`);
-        else if (!STATUSES.has(data.status)) problems.push(`decisions: ${name} has invalid status "${data.status}"`);
-        for (const key of ['supersedes', 'supersededBy']) {
-          const ref = data[key];
-          if (ref && !nums.has(String(ref))) {
-            warnings.push(`decisions: ${name} ${key} points at missing ADR-${ref}`);
-          }
+    const records = discoverDecisions(join(vault, 'decisions'));
+    const nums = new Set(records.map(record => record.num));
+    for (const { sourcePath, data } of records) {
+      const name = basename(sourcePath);
+      if (!data.date) problems.push(`decisions: ${name} needs a "date" in frontmatter`);
+      if (!data.status) problems.push(`decisions: ${name} needs a "status" (${ADR_STATUSES.join(' | ')})`);
+      else if (!ADR_STATUSES.includes(data.status)) problems.push(`decisions: ${name} has invalid status "${data.status}"`);
+      for (const key of ['supersedes', 'supersededBy']) {
+        const ref = data[key];
+        if (ref && !nums.has(String(ref))) {
+          warnings.push(`decisions: ${name} ${key} points at missing ADR-${ref}`);
         }
       }
     }

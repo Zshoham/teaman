@@ -3,10 +3,10 @@ import { basename, dirname, join, relative, resolve } from 'path';
 import matter from 'gray-matter';
 import { slug as githubSlug } from 'github-slugger';
 import { collectionFor } from './collections.mjs';
+import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
 import {
   adrHref,
-  adrNum,
   dailyHref,
   dailyIsoDate,
   entryHref,
@@ -131,11 +131,11 @@ function dailyEntries(vaultDir, base) {
 
 function decisionEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('decision').dir);
-  return walkMarkdown(root).map(sourcePath => ({
+  return discoverDecisions(root).map(record => ({
     type: 'decision',
-    sourcePath,
+    sourcePath: record.sourcePath,
     kind: 'file',
-    href: adrHref(base, adrNum(entryId('decision', relative(root, sourcePath)))),
+    href: adrHref(base, record.num),
   }));
 }
 

@@ -1,16 +1,8 @@
-import type { AdrStatus } from "@/lib/adr-shared";
+import type { Adr } from "@/lib/adr";
 
 /** The serializable slice of an ADR the island renders (no Astro entry). */
-export interface AdrView {
-  num: string;
-  title: string;
-  date: string;
+export type AdrView = Omit<Adr, "id" | "entry"> & {
   dateLabel: string;
-  status: AdrStatus;
-  tags: string[];
-  summary: string;
-  supersedes?: string;
-  supersededBy?: string;
   /** Pre-rendered markdown body HTML for the modal. */
   bodyHtml: string;
-}
+};

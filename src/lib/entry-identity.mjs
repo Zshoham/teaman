@@ -178,13 +178,16 @@ export function guideChapterHref(base, guideSlug, chapterSlugs, chapterSlug) {
 // by the number in its filename.
 
 /**
- * The ADR number in an entry id (`adr-0007` → `0007`), or the id itself.
+ * The ADR number in an entry id's file name (`2026/adr-0007` → `0007`), or the
+ * file name itself. Only the last segment counts: a folder like `2026/` is not
+ * the number.
  *
  * @param {string} id
  */
 export function adrNum(id) {
-  const m = id.match(/(\d+)/);
-  return m ? m[1] : id;
+  const name = id.split('/').at(-1) ?? id;
+  const m = name.match(/(\d+)/);
+  return m ? m[1] : name;
 }
 
 /**

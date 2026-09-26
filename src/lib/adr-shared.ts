@@ -7,8 +7,9 @@
  */
 
 import { matchesFilterRules, type FilterRule } from './filter-rules';
+import { ADR_STATUSES, type AdrStatus } from './decision-records.mjs';
 
-export type AdrStatus = 'accepted' | 'proposed' | 'superseded';
+export { adrDisplayTitle, type AdrStatus } from './decision-records.mjs';
 
 /** Display labels for each status, in canonical render order. */
 export const STATUS_LABEL: Record<AdrStatus, string> = {
@@ -17,7 +18,7 @@ export const STATUS_LABEL: Record<AdrStatus, string> = {
   superseded: 'Superseded',
 };
 
-export const STATUS_ORDER: AdrStatus[] = ['accepted', 'proposed', 'superseded'];
+export const STATUS_ORDER: readonly AdrStatus[] = ADR_STATUSES;
 
 /** Status → the global CSS custom property holding its (theme-reactive) colour. */
 export const STATUS_VAR: Record<AdrStatus, string> = {
@@ -108,7 +109,7 @@ export function groupByYear<T extends { date: string }>(
 
 /** Counts records per status (always includes every status, zero-filled). */
 export function statusCounts(list: Array<{ status: AdrStatus }>): Record<AdrStatus, number> {
-  const counts: Record<AdrStatus, number> = { accepted: 0, proposed: 0, superseded: 0 };
+  const counts = Object.fromEntries(ADR_STATUSES.map(status => [status, 0])) as Record<AdrStatus, number>;
   for (const a of list) counts[a.status]++;
   return counts;
 }
@@ -116,24 +117,8 @@ export function statusCounts(list: Array<{ status: AdrStatus }>): Record<AdrStat
 // Tag counting is not ADR-specific — the collection indexes count the same way.
 export { tagCounts, type Topic } from './tags';
 
-/** Active filter selection for the timeline. */
-export interface AdrFilter {
-  statuses: Set<string>;
-  tags: Set<string>;
-}
-
 /** UI-neutral shape shared with ReUI's controlled `Filter` records. */
 export type AdrFilterRule = FilterRule;
-
-/**
- * A record shows when its status is selected AND, if any tags are selected, it
- * carries at least one of them. Pure — shared by the component and its tests.
- */
-export function adrMatches(card: { status: string; tags: string[] }, active: AdrFilter): boolean {
-  if (!active.statuses.has(card.status)) return false;
-  if (active.tags.size > 0 && !card.tags.some((t) => active.tags.has(t))) return false;
-  return true;
-}
 
 /** Applies ReUI filter rules to one ADR without coupling this domain helper to React. */
 export function adrMatchesRules(

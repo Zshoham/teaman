@@ -2,6 +2,7 @@ import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { referenceLoader } from './lib/reference-loader.mjs';
 import { globEntryId } from './lib/entry-identity.mjs';
+import { ADR_STATUSES } from './lib/decision-records.mjs';
 import {
   dailiesRoot,
   decisionsRoot,
@@ -89,7 +90,7 @@ const decisions = defineCollection({
   schema: z.object({
     title: z.string(),
     date: z.coerce.date(),
-    status: z.enum(['accepted', 'proposed', 'superseded']),
+    status: z.enum(ADR_STATUSES),
     tags: tagList,
     summary: z.string().optional(),
     supersedes: z.string().optional(),

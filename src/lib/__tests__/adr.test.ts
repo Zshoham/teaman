@@ -8,7 +8,6 @@ import { getCollection } from 'astro:content';
 import {
   adrRelations,
   adrNum,
-  adrMatches,
   adrMatchesRules,
   byNum,
   groupByYear,
@@ -27,23 +26,6 @@ describe('adrNum', () => {
   });
   it('falls back to the whole id when there are no digits', () => {
     expect(adrNum('intro')).toBe('intro');
-  });
-});
-
-describe('adrMatches', () => {
-  const card = { status: 'accepted', tags: ['api', 'data'] };
-
-  it('matches when the status is selected and no tags are filtered', () => {
-    expect(adrMatches(card, { statuses: new Set(['accepted']), tags: new Set() })).toBe(true);
-  });
-  it('rejects when the status is not selected', () => {
-    expect(adrMatches(card, { statuses: new Set(['proposed']), tags: new Set() })).toBe(false);
-  });
-  it('matches when the card carries at least one active tag', () => {
-    expect(adrMatches(card, { statuses: new Set(['accepted']), tags: new Set(['data']) })).toBe(true);
-  });
-  it('rejects when no card tag is active', () => {
-    expect(adrMatches(card, { statuses: new Set(['accepted']), tags: new Set(['auth']) })).toBe(false);
   });
 });
 
