@@ -11,6 +11,7 @@ import { remarkMermaid, remarkPlantuml } from './src/lib/remark-fence-pre.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
 import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
 import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
+import { remarkWikiLinks } from './src/lib/remark-wiki-links.mjs';
 import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
 import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
 import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
@@ -77,13 +78,12 @@ export default defineConfig({
         // in the engine dir (like .slides-build/.teaman-public — gitignored,
         // disposable) so unchanged diagrams never pay the compiler again.
         [remarkFenceSvg, { cacheDir: join(engineDir, '.diagram-cache') }],
-        [remarkWikiLink, {
-          pageResolver: (name) => [name.replace(/ /g, '-').toLowerCase()],
-          hrefTemplate: (permalink) => `${base}notes/${permalink}/`,
-          aliasDivider: '|',
-        }],
-        // After wiki-link so it sees every link node; in-site hrefs never match
-        // a service host, so the two don't interact.
+        // remark-wiki-link only parses `[[target|alias]]`; remarkWikiLinks
+        // then resolves each link against the vault, Obsidian-style.
+        [remarkWikiLink, { aliasDivider: '|' }],
+        [remarkWikiLinks, { vaultDir, base }],
+        // After the wiki-link passes so it sees every link node; in-site hrefs
+        // never match a service host, so the two don't interact.
         [remarkSmartLinks, { hosts: smartLinkHosts }],
       ],
       rehypePlugins: [

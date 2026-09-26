@@ -829,6 +829,16 @@ body {
   text-decoration-color: var(--primary);
 }
 
+/* A [[wiki-link]] to nothing the site renders (remark-wiki-links): readable
+   text, visibly not a link. */
+.prose .wiki-link-missing {
+  color: var(--muted-foreground);
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
+
 /* ── Smart links (remark-smart-links) ─────────────────────────────
    Jira / Confluence / GitLab links render as a chip: a tinted stub carrying the
    ref parsed out of the URL, a hairline divider, then the link's own text.
