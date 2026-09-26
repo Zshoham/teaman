@@ -36,6 +36,27 @@ describe('discoverDecks', () => {
   });
 });
 
+describe('deck catalog fields', () => {
+  it('parses each deck with Slidev: title, tags, slide count, and visible text', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-decks-'));
+    writeFileSync(join(root, 'talk.md'), [
+      '---', 'title: The Talk', 'tags: a, b', '---',
+      '# One', '', 'hello', '', '<!-- presenter only -->', '',
+      '---', 'layout: center', '---', '', '# Two', '',
+    ].join('\n'));
+    writeFileSync(join(root, 'untitled-deck.md'), '# Only\n');
+
+    const [talk, untitled] = discoverDecks(root);
+    expect(talk).toMatchObject({ title: 'The Talk', tags: ['a', 'b'], slideCount: 2 });
+    expect(talk.text).toBe('# One\n\nhello\n\n# Two');
+    expect(untitled).toMatchObject({ title: 'untitled deck', tags: [], slideCount: 1 });
+  });
+
+  it('yields nothing for a vault without slides', () => {
+    expect(discoverDecks(join(tmpdir(), 'teaman-no-such-slides'))).toEqual([]);
+  });
+});
+
 describe('isPublishableDeckId', () => {
   it('publishes ids with no underscore-prefixed segment', () => {
     expect(isPublishableDeckId('live')).toBe(true);

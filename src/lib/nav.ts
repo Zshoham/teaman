@@ -1,7 +1,6 @@
 import { getCollection } from 'astro:content';
 import { COLLECTIONS, type EntryType } from './collections.mjs';
 import { loadDailyWeeks, weekHref } from './dailies';
-import { isPublishableDeckId } from './discover-decks.mjs';
 import { listGuides } from './guides';
 
 export interface NavSection {
@@ -23,8 +22,8 @@ const base = import.meta.env.BASE_URL;
  * dead link in the nav — same rule the home page's type tabs already follow.
  *
  * "Has content" is the one genuinely per-type bit: a draft note doesn't count,
- * a deck under an `_`-prefixed path isn't published, and a guide is a directory
- * rather than a file. Label, href, grouping and order come from the registry.
+ * and a guide is a directory rather than a file. (The slides collection only
+ * holds published decks.) Label, href, grouping and order come from the registry.
  */
 export async function loadNavSections(): Promise<NavSection[]> {
   const [notes, references, slides, guides, weeks, decisions] = await Promise.all([
@@ -40,7 +39,7 @@ export async function loadNavSections(): Promise<NavSection[]> {
     note: notes.some(note => !note.data.draft),
     reference: references.some(reference => !reference.data.draft),
     guide: guides.length > 0,
-    slides: slides.some(deck => !deck.data.draft && isPublishableDeckId(deck.id)),
+    slides: slides.length > 0,
     daily: weeks.length > 0,
     decision: decisions.length > 0,
   };

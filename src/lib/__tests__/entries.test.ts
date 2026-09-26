@@ -253,7 +253,7 @@ describe('loadSlideEntries', () => {
     const birthtime = new Date('2026-01-05T00:00:00Z');
     vi.mocked(stat).mockResolvedValue({ mtime, birthtime } as any);
     vi.mocked(getCollection).mockResolvedValue([
-      { id: 'intro', data: { title: 'Intro Deck', tags: ['demo'] }, body: 'slide 1\n---\nslide 2' },
+      { id: 'intro', data: { title: 'Intro Deck', tags: ['demo'], slideCount: 2 }, body: 'slide 1\n\nslide 2' },
     ] as any);
 
     const entries = await loadSlideEntries();
@@ -272,7 +272,7 @@ describe('loadSlideEntries', () => {
     const err = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
     vi.mocked(stat).mockRejectedValue(err);
     vi.mocked(getCollection).mockResolvedValue([
-      { id: 'missing', data: { title: 'Missing' }, body: 'content' },
+      { id: 'missing', data: { title: 'Missing', tags: [], slideCount: 1 }, body: 'content' },
     ] as any);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -288,7 +288,7 @@ describe('loadSlideEntries', () => {
     const err = Object.assign(new Error('EACCES'), { code: 'EACCES' });
     vi.mocked(stat).mockRejectedValue(err);
     vi.mocked(getCollection).mockResolvedValue([
-      { id: 'denied', data: { title: 'Denied' }, body: 'content' },
+      { id: 'denied', data: { title: 'Denied', tags: [], slideCount: 1 }, body: 'content' },
     ] as any);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -297,32 +297,6 @@ describe('loadSlideEntries', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('EACCES'));
 
     warnSpy.mockRestore();
-  });
-
-  it('filters out drafts and underscore-prefixed slides', async () => {
-    vi.mocked(stat).mockResolvedValue({ mtime: new Date(), birthtime: new Date() } as any);
-    vi.mocked(getCollection).mockResolvedValue([
-      { id: '_internal', data: { title: 'Internal' }, body: 'x' },
-      { id: 'public', data: { draft: false, title: 'Public' }, body: 'x' },
-      { id: 'wip', data: { draft: true, title: 'WIP' }, body: 'x' },
-    ] as any);
-
-    const entries = await loadSlideEntries();
-    expect(entries).toHaveLength(1);
-    expect(entries[0].id).toBe('slides-public');
-  });
-
-  it('excludes nested decks whose path has an underscore-prefixed segment', async () => {
-    vi.mocked(stat).mockResolvedValue({ mtime: new Date(), birthtime: new Date() } as any);
-    vi.mocked(getCollection).mockResolvedValue([
-      { id: 'foo/_wip', data: { title: 'Nested WIP' }, body: 'x' },
-      { id: '_foo/bar', data: { title: 'Hidden dir' }, body: 'x' },
-      { id: 'foo/live', data: { draft: false, title: 'Nested Live' }, body: 'x' },
-    ] as any);
-
-    const entries = await loadSlideEntries();
-    expect(entries).toHaveLength(1);
-    expect(entries[0].id).toBe('slides-foo/live');
   });
 });
 

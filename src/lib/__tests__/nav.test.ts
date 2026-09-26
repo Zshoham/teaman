@@ -97,17 +97,8 @@ describe('loadNavSections', () => {
     stubCollections({
       notes: [{ id: 'a', draft: true }],
       references: [{ id: 'system', draft: true }],
-      slides: [{ id: 'deck', draft: true }],
     });
     expect(ids(await loadNavSections())).toEqual([]);
-  });
-
-  it('ignores underscore-prefixed decks, which never publish', async () => {
-    stubCollections({ slides: [{ id: '_wip/deck' }] });
-    expect(ids(await loadNavSections())).toEqual([]);
-
-    stubCollections({ slides: [{ id: 'nested/deck' }] });
-    expect(ids(await loadNavSections())).toEqual(['slides']);
   });
 
   it('groups only the content sections into the mobile menu', async () => {

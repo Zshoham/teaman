@@ -1,6 +1,7 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { referenceLoader } from './lib/reference-loader.mjs';
+import { slidesLoader } from './lib/slides-loader.mjs';
 import { globEntryId } from './lib/entry-identity.mjs';
 import { ADR_STATUSES } from './lib/decision-records.mjs';
 import {
@@ -68,10 +69,13 @@ const guideSummaries = defineCollection({
 });
 
 const slides = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: slidesRoot, generateId: globEntryId('slides') }),
+  // The deck catalog decides membership (no drafts, no `_` paths) and parses
+  // each deck with Slidev's parser; see discover-decks.mjs.
+  loader: slidesLoader({ base: slidesRoot }),
   schema: z.object({
-    title: z.string().optional(),
-    tags: tagList,
+    title: z.string(),
+    tags: z.array(z.string()),
+    slideCount: z.number().int().positive(),
     draft: z.boolean().optional(),
   }).passthrough(),
 });

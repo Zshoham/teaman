@@ -1,12 +1,13 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import matter from 'gray-matter';
+import { parseSync } from '@slidev/parser/core';
 import { entryId } from './entry-identity.mjs';
 
 /**
  * Whether a deck id / relative path is publishable: false when any path segment
- * starts with `_`. Accepts `/`-separated ids (Astro collection ids) as well as
- * platform-separated relative paths.
+ * starts with `_`. Accepts `/`-separated ids as well as platform-separated
+ * relative paths.
  */
 export function isPublishableDeckId(id) {
   return !id
@@ -14,9 +15,25 @@ export function isPublishableDeckId(id) {
     .some(segment => segment.startsWith('_'));
 }
 
-/** Discover publishable Slidev decks using the same policy for build and search. */
+/** `tags: a, b` and `tags: [a, b]` both mean two tags, as in the collection schema. */
+function tagList(value) {
+  if (typeof value === 'string') return value.split(',').map(tag => tag.trim()).filter(Boolean);
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+/**
+ * The deck catalog: every publishable Slidev deck under `slidesRoot`, parsed
+ * once with Slidev's own parser. The slides collection, the deck build, search,
+ * and the wiki-link index all read decks here, so they agree on which decks
+ * exist, what each is called, and where it is served.
+ *
+ * Publishable means no `_`-prefixed path segment and no `draft: true`.
+ *
+ * @param {string} slidesRoot
+ */
 export function discoverDecks(slidesRoot) {
   const decks = [];
+  if (!existsSync(slidesRoot)) return decks;
 
   function walk(dir) {
     const entries = readdirSync(dir, { withFileTypes: true })
@@ -34,13 +51,21 @@ export function discoverDecks(slidesRoot) {
       const markdown = readFileSync(path, 'utf8');
       const { data } = matter(markdown);
       if (data.draft === true) continue;
+      const id = entryId('slides', rel, data);
+      const { slides } = parseSync(markdown, path);
       decks.push({
         // The site's name for the deck — its URL and build directory.
-        id: entryId('slides', rel, data),
+        id,
         path,
         relativePath: rel,
         markdown,
         data,
+        title: typeof data.title === 'string' && data.title ? data.title : id.replace(/-/g, ' '),
+        tags: tagList(data.tags),
+        slideCount: Math.max(1, slides.length),
+        // What a reader sees: every slide's content, without per-slide
+        // frontmatter, separators, or presenter notes.
+        text: slides.map(slide => slide.content).filter(Boolean).join('\n\n'),
       });
     }
   }

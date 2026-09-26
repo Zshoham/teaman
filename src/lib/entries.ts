@@ -4,7 +4,6 @@ import { resolve } from 'path';
 import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { adrDisplayTitle, loadAdrs } from './adr';
-import { isPublishableDeckId } from './discover-decks.mjs';
 import { engineDir } from './build-env.mjs';
 import { adrHref, dailyHref, entryHref, guideHref } from './entry-identity.mjs';
 import {
@@ -103,20 +102,18 @@ export function loadReferenceEntries(): Promise<Entry[]> {
 export async function loadSlideEntries(): Promise<Entry[]> {
   const slides = await getCollection('slides');
   const entries = slides
-    .filter(s => !s.data.draft && isPublishableDeckId(s.id))
     .map(async s => {
       const body = (s.body ?? '') as string;
-      const slideCount = body.split(/^---\s*$/m).filter(part => part.trim()).length || 1;
       const dates = await safeFileDates(sourcePath(s));
       return {
         id: `slides-${s.id}`,
         type: 'slides' as const,
-        title: s.data.title ?? s.id.replace(/-/g, ' '),
+        title: s.data.title,
         excerpt: extractExcerpt(body),
-        tags: s.data.tags ?? [],
+        tags: s.data.tags,
         updated: isoDate(dates.updated),
         created: isoDate(dates.created),
-        meta: plural(slideCount, 'slide'),
+        meta: plural(s.data.slideCount, 'slide'),
         href: entryHref(base, 'slides', s.id),
       };
     });

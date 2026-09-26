@@ -1,7 +1,6 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
 import * as pagefind from 'pagefind';
-import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
 import { pagefindGlob } from '../src/lib/collections.mjs';
@@ -38,12 +37,11 @@ if (existsSync(slidesSrcDir)) {
   const decks = discoverDecks(slidesSrcDir);
   for (const deck of decks) {
     const name = deck.id;
-    const { title, content } = parseDeck(deck.markdown);
     const { errors: recordErrors } = await index.addCustomRecord({
       url: entryHref(siteBase, 'slides', name),
-      content,
+      content: deck.text,
       language: 'en',
-      meta: { title: title ?? name },
+      meta: { title: deck.title },
     });
     if (recordErrors.length) {
       console.error(`pagefind.addCustomRecord errors for ${name}:`, recordErrors);
