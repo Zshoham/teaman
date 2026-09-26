@@ -34,6 +34,41 @@ export function WeekStrip({ weeks, currentId }: Props) {
     strip.scrollTo({ left: Math.max(0, target), behavior: "instant" as ScrollBehavior });
   }, []);
 
+  // The strip scrolls sideways with no scrollbar: an edge fades out only
+  // while there are more weeks past it, and a plain mouse wheel scrolls the
+  // strip (a trackpad's own horizontal swipe is left alone).
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+
+    const syncEdges = () => {
+      const max = strip.scrollWidth - strip.clientWidth;
+      strip.dataset.moreBefore = String(strip.scrollLeft > 1);
+      strip.dataset.moreAfter = String(strip.scrollLeft < max - 1);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      const delta = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? e.deltaY * 16 : e.deltaY;
+      const max = strip.scrollWidth - strip.clientWidth;
+      // At the end the strip is heading toward, let the page scroll instead.
+      if ((delta < 0 && strip.scrollLeft <= 0) || (delta > 0 && strip.scrollLeft >= max - 1)) return;
+      e.preventDefault();
+      strip.scrollBy({ left: delta, behavior: "instant" as ScrollBehavior });
+    };
+
+    syncEdges();
+    const resize = new ResizeObserver(syncEdges);
+    resize.observe(strip);
+    strip.addEventListener("scroll", syncEdges, { passive: true });
+    strip.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      resize.disconnect();
+      strip.removeEventListener("scroll", syncEdges);
+      strip.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
   const navCls =
     "inline-flex h-auto min-w-[38px] items-center justify-center rounded-md border border-border bg-transparent px-3 text-foreground no-underline transition-colors hover:border-foreground hover:bg-muted md:px-3.5";
 

@@ -68,4 +68,32 @@ test.describe('daily notes', () => {
     await expect(page).not.toHaveURL(startUrl);
     await expect(page.locator('[data-strip-chips] [data-current="true"]')).toHaveCount(1);
   });
+
+  test('week strip scrolls with the mouse wheel and fades only the overflowing edges', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 720 });
+    await gotoLatestWeek(page);
+    const strip = page.locator('[data-strip-chips]');
+    const metrics = () =>
+      strip.evaluate((el) => ({
+        left: el.scrollLeft,
+        max: el.scrollWidth - el.clientWidth,
+        before: el.dataset.moreBefore,
+        after: el.dataset.moreAfter,
+        scrollbar: getComputedStyle(el).scrollbarWidth,
+      }));
+
+    const start = await metrics();
+    test.skip(start.max <= 0, 'example vault has too few weeks to overflow the strip');
+    expect(start.scrollbar).toBe('none');
+
+    // The newest week is active, so the strip opens scrolled to its end.
+    expect(start.before).toBe('true');
+    expect(start.after).toBe('false');
+
+    await strip.hover();
+    await page.mouse.wheel(0, -400);
+    await expect.poll(async () => (await metrics()).left).toBeLessThan(start.left);
+    await expect.poll(async () => (await metrics()).after).toBe('true');
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
 });

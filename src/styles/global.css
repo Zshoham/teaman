@@ -440,7 +440,25 @@ body {
   scroll-margin-top: calc(var(--header-h) + 2rem);
 }
 
-.week-strip-chips { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+/* Week strip (src/components/daily/WeekStrip.tsx): scrolls sideways with no
+   scrollbar — a bar under a single row of chips is all chrome and no
+   information, and it grabs the pointer on the way to a chip. Instead each
+   edge fades out while there are more weeks past it (the component keeps
+   `data-more-before` / `data-more-after` in sync with the scroll position). */
+.week-strip-chips {
+  --strip-fade: 2.5rem;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--strip-fade-before, 0px),
+    #000 calc(100% - var(--strip-fade-after, 0px)),
+    transparent
+  );
+}
+.week-strip-chips::-webkit-scrollbar { display: none; }
+.week-strip-chips[data-more-before='true'] { --strip-fade-before: var(--strip-fade); }
+.week-strip-chips[data-more-after='true'] { --strip-fade-after: var(--strip-fade); }
 
 /* ── Home quick-links (src/components/home/QuickLinks.astro) ──────────
    Two treatments over one grid — `feature` (exactly one: the richest
