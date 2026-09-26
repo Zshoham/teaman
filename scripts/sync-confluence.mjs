@@ -7,6 +7,7 @@ import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
 import { fenceLanguages, renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
+import { createVaultIndex } from '../src/lib/vault-index.mjs';
 
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const defaultContentDir = join(engineDir, 'example');
@@ -206,34 +207,26 @@ function firstHeading(markdown) {
   return null;
 }
 
-// Builds a slug -> page title map for every note under <contentDir>/notes, so
-// wiki-links can resolve to a real Confluence page title regardless of which
-// folder(s) are actually being synced this run. Mirrors the slug rule
-// astro.config.mjs's remark-wiki-link pageResolver uses (name.replace(' ',
-// '-').toLowerCase()) against note filenames, which is the same convention
-// the built site relies on for [[wiki-link]] hrefs to resolve correctly.
-function buildNotesMap(contentDir) {
-  const notesDir = join(contentDir, 'notes');
-  const map = new Map();
-  let stats;
-  try {
-    stats = statSync(notesDir);
-  } catch {
-    return map;
-  }
-  if (!stats.isDirectory()) return map;
-
-  for (const filePath of walkMarkdown(notesDir)) {
-    const markdown = readFileSync(filePath, 'utf8');
-    const slug = basename(filePath, '.md').replace(/ /g, '-').toLowerCase();
-    const title = pageTitle(markdown, filePath);
-    const existing = map.get(slug);
-    if (existing !== undefined && existing !== title) {
-      console.warn(`Warning: multiple notes share the wiki-link slug "${slug}"; [[${slug}]] links will resolve to "${title}".`);
+// Resolves a wiki-link to the title of the Confluence page for the file it
+// names — Confluence addresses pages by title. Resolution is the site's own
+// (vault-index.mjs: any rendered type, Obsidian's tie-breaks), so a link lands
+// on the same document in both places, whichever folders this run syncs.
+function buildLinkTitles(contentDir) {
+  if (!existsSync(contentDir)) return () => null;
+  const index = createVaultIndex(contentDir);
+  const titles = new Map();
+  return (target, fromPath) => {
+    const resolution = index.resolve(target, fromPath ?? undefined);
+    if (!resolution) return null;
+    const { entry } = resolution;
+    if (!titles.has(entry.sourcePath)) {
+      // A guide folder syncs as a folder page, titled like ensureFolderPage does.
+      titles.set(entry.sourcePath, entry.kind === 'folder'
+        ? segmentTitle(basename(entry.sourcePath))
+        : pageTitle(readFileSync(entry.sourcePath, 'utf8'), entry.sourcePath));
     }
-    map.set(slug, title);
-  }
-  return map;
+    return titles.get(entry.sourcePath);
+  };
 }
 
 function storageBody(markdown, title, context = {}) {
@@ -424,15 +417,13 @@ markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
   }
 
   // `#section` / `#^block` anchors have no stable Confluence equivalent:
-  // strip them for the page lookup (keeping them would miss the notes map
-  // and link to a nonexistent title). A bare `[[#heading]]` degrades to
-  // plain text; non-image embeds (note transclusion) degrade to page links.
+  // links address pages. A bare `[[#heading]]` degrades to plain text;
+  // non-image embeds (note transclusion) degrade to page links.
   const hashIdx = target.indexOf('#');
   const page = (hashIdx === -1 ? target : target.slice(0, hashIdx)).trim();
   if (!page) return markdownRenderer.utils.escapeHtml(alias);
 
-  const slug = page.replace(/ /g, '-').toLowerCase();
-  const title = env.notesMap?.get(slug) ?? segmentTitle(slug);
+  const title = env.linkTitle?.(page, env.filePath) ?? segmentTitle(page);
   return `<ac:link><ri:page ri:content-title="${markdownRenderer.utils.escapeHtml(title)}" /><ac:plain-text-link-body><![CDATA[${escapeCdata(alias)}]]></ac:plain-text-link-body></ac:link>`;
 };
 
@@ -687,9 +678,9 @@ async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compiler
   return fenceSvgs;
 }
 
-// context: { filePath, contentDir, notesMap, mermaidMacro, plantumlMacro,
+// context: { filePath, contentDir, linkTitle, mermaidMacro, plantumlMacro,
 // svgMacro, fenceSvgs }, threaded through markdown-it's per-render `env` so
-// every custom rule sees it. filePath/contentDir/notesMap are needed to
+// every custom rule sees it. filePath/contentDir/linkTitle are needed to
 // resolve wiki-links and local image paths, fenceSvgs (from compileFenceSvgs)
 // to render tikz/typst fences; omit them (as the unit tests do) to render
 // markdown in isolation, with wiki-links falling back to a guessed title,
@@ -698,7 +689,7 @@ function markdownToStorage(markdown, context = {}) {
   const env = {
     filePath: context.filePath ?? null,
     contentDir: context.contentDir ?? null,
-    notesMap: context.notesMap ?? new Map(),
+    linkTitle: context.linkTitle ?? null,
     mermaidMacro: context.mermaidMacro ?? null,
     plantumlMacro: context.plantumlMacro ?? null,
     svgMacro: context.svgMacro ?? null,
@@ -991,7 +982,7 @@ async function syncFolder({ client, folder, rootId, args }) {
     const rendered = storageBody(markdown, title, {
       filePath,
       contentDir: args.contentDir,
-      notesMap: args.notesMap,
+      linkTitle: args.linkTitle,
       mermaidMacro: args.mermaidMacro,
       plantumlMacro: args.plantumlMacro,
       svgMacro: args.svgMacro,
@@ -1017,7 +1008,7 @@ async function main() {
     if (unknown.length > 0) throw new Error(`No root page configured for: ${unknown.join(', ')}`);
   }
 
-  args.notesMap = buildNotesMap(args.contentDir);
+  args.linkTitle = buildLinkTitles(args.contentDir);
 
   console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
   const client = new ConfluenceClient(args);
@@ -1033,4 +1024,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { buildNotesMap, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
+export { buildLinkTitles, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };

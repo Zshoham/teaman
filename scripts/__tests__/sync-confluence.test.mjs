@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, storageBody } from '../sync-confluence.mjs';
+import { buildLinkTitles, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, storageBody } from '../sync-confluence.mjs';
 
 const confluenceEnv = [
   'CONFLUENCE_BASE_URL',
@@ -109,21 +109,40 @@ describe('sync-confluence markdown rendering', () => {
   });
 
   it('resolves wiki-links to Confluence page links by title, and guesses a title otherwise', () => {
-    const notesMap = new Map([['shipping-cadence', 'Shipping Cadence']]);
-    const { html } = markdownToStorage('See [[shipping-cadence|the cadence guide]] and [[missing-note]].', { notesMap });
+    const linkTitle = target => (target === 'shipping-cadence' ? 'Shipping Cadence' : null);
+    const { html } = markdownToStorage('See [[shipping-cadence|the cadence guide]] and [[missing-note]].', { linkTitle });
 
     expect(html).toContain('<ac:link><ri:page ri:content-title="Shipping Cadence" /><ac:plain-text-link-body><![CDATA[the cadence guide]]></ac:plain-text-link-body></ac:link>');
     expect(html).toContain('<ac:link><ri:page ri:content-title="Missing Note" /><ac:plain-text-link-body><![CDATA[missing-note]]></ac:plain-text-link-body></ac:link>');
   });
 
   it('strips heading anchors from wiki-links before resolving the page', () => {
-    const notesMap = new Map([['shipping-cadence', 'Shipping Cadence']]);
-    const { html } = markdownToStorage('See [[shipping-cadence#History]] and [[#local heading]].', { notesMap });
+    const linkTitle = target => (target === 'shipping-cadence' ? 'Shipping Cadence' : null);
+    const { html } = markdownToStorage('See [[shipping-cadence#History]] and [[#local heading]].', { linkTitle });
 
     expect(html).toContain('<ri:page ri:content-title="Shipping Cadence" />');
     expect(html).toContain('<![CDATA[shipping-cadence#History]]>');
     expect(html).toContain('and #local heading.');
     expect(html).not.toContain('History" /');
+  });
+
+  it('titles wiki-link targets through the site\'s vault index', () => {
+    const vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-links-'));
+    try {
+      mkdirSync(join(vault, 'notes', 'sub'), { recursive: true });
+      mkdirSync(join(vault, 'guides', 'using-it'), { recursive: true });
+      writeFileSync(join(vault, 'notes', 'sub', 'deep.md'), '---\ntitle: Deep Dive\n---\n');
+      writeFileSync(join(vault, 'guides', 'using-it', 'SUMMARY.md'), '# Using\n\n- [Intro](intro.md)\n');
+      writeFileSync(join(vault, 'guides', 'using-it', 'intro.md'), '# Getting Started\n');
+      const linkTitle = buildLinkTitles(vault);
+
+      expect(linkTitle('deep')).toBe('Deep Dive');
+      expect(linkTitle('intro')).toBe('Getting Started');
+      expect(linkTitle('using-it')).toBe('Using It');
+      expect(linkTitle('nowhere')).toBeNull();
+    } finally {
+      rmSync(vault, { recursive: true, force: true });
+    }
   });
 
   it('uploads Obsidian image embeds as attachments instead of linking a bogus page', () => {

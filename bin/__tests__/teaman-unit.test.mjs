@@ -521,4 +521,31 @@ describe('lintContent', () => {
     const { warnings } = await lintContent(vault);
     expect(warnings).toContain('references: r.md links to missing [[Nope]]');
   });
+
+  it('resolves links across every rendered type and nested folders', async () => {
+    write('notes/sub/deep.md', '# deep\n');
+    write('decisions/adr-0002.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\n---\n');
+    write('dailies/2026-03-12.md', '---\ndate: 2026-03-12\n---\nsee [[deep]] and [[adr-0002]]\n');
+    expect((await lintContent(vault)).warnings).toEqual([]);
+  });
+
+  it('warns when a link needs the legacy slug match, a heading, or a tie-break', async () => {
+    write('notes/Shipping Cadence.md', '# x\n');
+    write('notes/a/intro.md', '# x\n');
+    write('notes/b/intro.md', '# x\n');
+    write('notes/c.md', 'see [[shipping-cadence]], [[Shipping Cadence#Why]], [[intro]]\n');
+    const { warnings } = await lintContent(vault);
+    expect(warnings).toEqual([
+      'notes: c.md [[shipping-cadence]] only matches notes/Shipping Cadence by slug; Obsidian will not resolve it',
+      'notes: c.md [[Shipping Cadence#Why]]: heading links are not supported; linking the page',
+      'notes: c.md [[intro]] matches 2 pages; linking notes/a/intro (qualify it as [[notes/a/intro]])',
+    ]);
+  });
+
+  it('warns that slug has no effect where the path carries meaning', async () => {
+    write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nslug: x\n---\n');
+    write('notes/n.md', '---\nslug: fine\n---\n');
+    const { warnings } = await lintContent(vault);
+    expect(warnings).toEqual(['decisions: adr-0001.md sets "slug", which has no effect on decisions']);
+  });
 });

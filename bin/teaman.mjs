@@ -12,12 +12,14 @@ import {
   mkdtempSync, renameSync, symlinkSync,
 } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'path';
+import { resolve, join, dirname, basename, isAbsolute, parse, relative, sep } from 'path';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
-import { CONTENT_DIRS } from '../src/lib/collections.mjs';
+import { COLLECTIONS, CONTENT_DIRS } from '../src/lib/collections.mjs';
+import { SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
+import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
@@ -456,7 +458,7 @@ function markdownWikiLinks(source) {
     }
     if (fence) continue;
     const prose = line.replace(/`[^`]*`/g, '');
-    links.push(...prose.matchAll(/(?<!!)\[\[([^\]|#]+)/g));
+    links.push(...prose.matchAll(/(?<!!)\[\[([^\]|]+)/g));
   }
   return links;
 }
@@ -625,16 +627,35 @@ export async function lintContent(vault) {
     }
   }
 
-  // Unresolved wiki-links in note-like documents. References use the same
-  // Obsidian wiki-link resolver and may point at regular notes.
-  const noteSlugs = new Set(
-    walkMarkdown(join(vault, 'notes')).map(f => basename(f, '.md').replace(/ /g, '-').toLowerCase()),
-  );
-  for (const kind of ['notes', 'references']) {
-    for (const file of walkMarkdown(join(vault, kind))) {
-      for (const m of markdownWikiLinks(readFileSync(file, 'utf8'))) {
-        const target = m[1].trim().replace(/ /g, '-').toLowerCase();
-        if (!noteSlugs.has(target)) warnings.push(`${kind}: ${basename(file)} links to missing [[${m[1].trim()}]]`);
+  // Wiki-links, resolved exactly as the site resolves them. Decks are Slidev,
+  // not the site's Markdown pipeline, so their links are never rendered.
+  const index = createVaultIndex(vault);
+  for (const { type, dir } of COLLECTIONS.filter(c => c.type !== 'slides')) {
+    const root = join(vault, dir);
+    for (const file of walkMarkdown(root)) {
+      const where = `${dir}: ${relative(root, file).split(sep).join('/')}`;
+      const source = readFileSync(file, 'utf8');
+      if (matter && !SLUG_OVERRIDE_TYPES.has(type) && matter(source).data.slug) {
+        warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
+      }
+      for (const m of markdownWikiLinks(source)) {
+        const target = m[1].trim();
+        const link = `[[${target}]]`;
+        const resolution = index.resolve(target, file);
+        if (!resolution) {
+          warnings.push(`${where} links to missing ${link}`);
+          continue;
+        }
+        const { entry, via, fragment, alternatives } = resolution;
+        if (fragment) {
+          warnings.push(`${where} ${link}: heading links are not supported; linking the page`);
+        }
+        if (via === 'slug') {
+          warnings.push(`${where} ${link} only matches ${entry.path} by slug; Obsidian will not resolve it`);
+        }
+        if (alternatives.length > 0) {
+          warnings.push(`${where} ${link} matches ${alternatives.length + 1} pages; linking ${entry.path} (qualify it as [[${entry.path}]])`);
+        }
       }
     }
   }
