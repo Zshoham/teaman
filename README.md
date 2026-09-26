@@ -42,6 +42,25 @@ carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), opti
 of a related ADR); the body holds the prose (Context / Decision / Consequences). They
 render as a filterable timeline at `/decisions/` and also appear in the home feed.
 
+**URLs and wiki-links.** A page's URL is its path under the content directory,
+slugged per segment: `notes/Team Rituals/Shipping Cadence.md` is served at
+`/notes/team-rituals/shipping-cadence/`. Notes, standalone references, and decks
+can set `slug:` in frontmatter to replace that (used verbatim); guides, dailies,
+and decisions ignore it, because their path or filename decides where they show.
+
+`[[name]]` and `[[name|label]]` link to any page the site renders, resolved the
+way Obsidian resolves them: by file name, case-insensitively, or by a trailing
+path (`[[decisions/adr-0002]]`) when a name is ambiguous. Ties go to the file in
+the linking note's folder, then the shortest path. A note, standalone
+reference, or deck links to its page; a reference-book chapter to its section of
+the book; a guide chapter to its chapter (`[[<guide folder>]]` to the guide); a
+daily (`[[2026-03-12]]`) to its day on the week page; an ADR (`[[adr-0002]]`)
+to its record. Heading fragments (`[[note#Heading]]`) are dropped — links
+address pages. An unresolved link renders as dimmed text rather than a dead
+link, and `teaman doctor` lists it, along with ambiguous links and links that
+only match by the older slug rule (`[[shipping-cadence]]` for
+`Shipping Cadence.md`).
+
 References can be authored in either of two additive forms:
 
 - `references/system.md` is one standalone document at `/references/system/`.

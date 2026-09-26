@@ -23,6 +23,15 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **One URL rule, and Obsidian wiki-links** (minor). Every entry's URL now
+  comes from one rule: its path, slugged per segment. References and decks
+  whose file or folder name is not already a slug move (`references/My Ref.md`:
+  `/references/My Ref/` → `/references/my-ref/`); a deck like that used to 404
+  from its card. `[[links]]` now resolve Obsidian-style to any rendered page,
+  not just top-level notes, and a missing link renders as text instead of a
+  dead href. Links that worked before still resolve; run `teaman doctor` to see
+  any that only match by the old slug rule or are ambiguous.
+
 - **The Docker image is a plain teaman machine** (minor for vaults; a changed
   invocation for anyone scripting the image). The image no longer has a custom
   entrypoint that only accepted `build`. `teaman` is on `PATH` with `/vault` as

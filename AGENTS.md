@@ -149,9 +149,18 @@ pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
   (`/references/<slug>/`) and build-time Typst PDF (`reference.pdf`). Their
   frontmatter mirrors notes and adds optional `summary`; `##`–`####` headings
   feed the in-page TOC and section search.
-- Wiki-links (`[[name]]`) are resolved by `remark-wiki-link` in `astro.config.mjs` to
-  `${base}notes/<slug>/`; slugs are `name.replace(/ /g,'-').toLowerCase()`. `doctor`
-  warns on links to missing notes using the same slug rule.
+- **Entry identity** lives in `src/lib/entry-identity.mjs` (client-safe): `entryId`
+  is the one id rule (github-slugger per path segment, `/index` dropped,
+  frontmatter `slug:` on notes/references/decks), handed to every `glob()`
+  loader as `generateId` and used by `referenceLoader`, `discoverDecks`, and the
+  build scripts; the same module owns every URL shape (`entryHref`,
+  `dailyHref`, `guideChapterHref`, `adrHref`). Never rebuild a source path from
+  an id — use the entry's `filePath`.
+- Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
+  `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
+  every page the site renders, matched Obsidian-style (bare name or trailing
+  path, case-insensitive, same folder then shortest path, legacy slug match as
+  a fallback). `doctor` and Confluence sync resolve through the same index.
 
 The Markdown pipeline (`astro.config.mjs`) also runs `remarkStripLeadingH1` (pages
 render the title themselves), `remarkMermaid` / `remarkPlantuml` (rewrite
