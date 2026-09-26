@@ -209,6 +209,23 @@ describe('reference PDF rendering', () => {
     expect(typst).toContain('#teaman-wiki-unlinked[#text("nowhere")]');
   });
 
+  it('fails on a note embed', () => {
+    expect(() => markdownToTypst('![[Some Note]]', { sourcePath: '/v/references/r.md' }))
+      .toThrow('/v/references/r.md: ![[Some Note]] embeds a note');
+  });
+
+  it('finds an embedded image anywhere in the vault', () => {
+    const source = renderReferenceTypst({
+      template,
+      title: 'Embeds',
+      body: '![[pic.png|A picture]]',
+      sourcePath: '/tmp/vault/references/embeds.md',
+      vaultDir: '/tmp/vault',
+      resolveAttachment: target => (target === 'pic.png' ? '/tmp/vault/attachments/pic.png' : null),
+    });
+    expect(source).toContain('#image("attachments/pic.png", width: 100%, alt: "A picture")');
+  });
+
   it('compiles both wiki-link styles through the bundled template', () => {
     const source = renderReferenceTypst({
       template,

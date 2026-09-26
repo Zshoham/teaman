@@ -145,13 +145,23 @@ describe('sync-confluence markdown rendering', () => {
     }
   });
 
-  it('uploads Obsidian image embeds as attachments instead of linking a bogus page', () => {
-    const { html, images } = markdownToStorage('![[diagram.png]] and ![[Some Note]]', { filePath: '/vault/notes/page.md' });
+  it('uploads Obsidian image embeds as attachments', () => {
+    const { html, images } = markdownToStorage('![[diagram.png]]', { filePath: '/vault/notes/page.md' });
 
     expect(html).toContain('<ac:image ac:alt="diagram.png"><ri:attachment ri:filename="diagram.png" /></ac:image>');
-    expect(html).toContain('<ri:page ri:content-title="Some Note" />');
     expect(html).not.toContain('!<ac:');
     expect(images).toEqual([{ absolutePath: '/vault/notes/diagram.png', filename: 'diagram.png' }]);
+  });
+
+  it('finds an embedded image anywhere in the vault through the index', () => {
+    const resolveAttachment = target => (target === 'diagram.png' ? '/vault/attachments/diagram.png' : null);
+    const { images } = markdownToStorage('![[diagram.png]]', { filePath: '/vault/notes/page.md', resolveAttachment });
+    expect(images).toEqual([{ absolutePath: '/vault/attachments/diagram.png', filename: 'diagram.png' }]);
+  });
+
+  it('refuses to sync a note embed', () => {
+    expect(() => markdownToStorage('![[Some Note]]', { filePath: '/vault/notes/page.md' }))
+      .toThrow('/vault/notes/page.md: ![[Some Note]] embeds a note');
   });
 
   it('converts Obsidian callouts into Confluence admonition macros', () => {

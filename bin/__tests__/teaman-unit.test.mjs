@@ -542,9 +542,15 @@ describe('lintContent', () => {
     ]);
   });
 
-  it('lints note embeds but not image embeds or links in code', async () => {
-    write('notes/a.md', '![[Gone]] ![[pic.png]] `[[in code]]`\n\n```\n[[fenced]]\n```\n');
-    expect((await lintContent(vault)).warnings).toEqual(['notes: a.md links to missing ![[Gone]]']);
+  it('fails note embeds and missing images, and ignores code', async () => {
+    write('attachments/pic.png', '');
+    write('notes/a.md', '![[Gone]] ![[pic.png]] ![[nope.png]] `![[in code]]`\n\n```\n[[fenced]]\n```\n');
+    const { problems, warnings } = await lintContent(vault);
+    expect(problems).toEqual([
+      'notes: a.md embeds ![[Gone]]: note embeds are not supported; link it with [[Gone]]',
+      'notes: a.md embeds missing image ![[nope.png]]',
+    ]);
+    expect(warnings).toEqual([]);
   });
 
   it('warns that slug has no effect where the path carries meaning', async () => {

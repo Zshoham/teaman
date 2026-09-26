@@ -221,8 +221,11 @@ function renderInline(tokens, context) {
         break;
       case 'wiki_link': {
         const { target, label, embed } = token.meta;
-        if (embed && isImageEmbed(target)) {
-          out += renderImage(target, label, context);
+        if (embed && !isImageEmbed(target)) {
+          throw new Error(`${context.sourcePath ?? 'reference'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
+        }
+        if (embed) {
+          out += renderImage(target, label === target ? target : label, context, context.resolveEmbed);
           break;
         }
         // A wiki-link to a section of this PDF jumps there; one to anywhere
@@ -244,8 +247,8 @@ function renderInline(tokens, context) {
   return out;
 }
 
-function renderImage(source, alt, context) {
-  const path = context.resolveImage?.(source);
+function renderImage(source, alt, context, resolve = context.resolveImage) {
+  const path = resolve?.(source);
   return path
     ? `#image(${asTypstString(path)}, width: 100%, alt: ${asTypstString(alt)})`
     : `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Image: ${alt}`)}]`;
@@ -294,7 +297,9 @@ function renderTable(tokens, start, context) {
 
 /** Convert the Markdown subset used by reference documents into Typst markup. */
 export function markdownToTypst(source, {
+  sourcePath,
   resolveImage,
+  resolveEmbed = resolveImage,
   resolveWikiLink,
   diagrams = new Map(),
   chapterPath,
@@ -307,7 +312,9 @@ export function markdownToTypst(source, {
   const parsed = parseReference(source, chapterPath, chapterAnchor);
   const { tokens, headingTargets } = parsed;
   const context = {
+    sourcePath,
     resolveImage,
+    resolveEmbed,
     resolveWikiLink,
     chapterPath,
     chapterAnchor,
@@ -461,7 +468,15 @@ export function renderReferenceTypst({
   vaultDir,
   diagrams,
   resolveWikiLink,
+  resolveAttachment,
 }) {
+  // `![[image.png]]` names an attachment anywhere in the vault, the way the
+  // site resolves it; a Markdown image path resolves relative to its file.
+  const embedResolver = from => target => {
+    const found = resolveAttachment?.(target, from);
+    if (found) return relative(vaultDir, found).replace(/\\/g, '/');
+    return resolveReferenceImage(target, { sourcePath: from, vaultDir });
+  };
   // Parse book chapters independently so repeated reference-style link names
   // stay chapter-local and relative images resolve from the chapter that owns
   // them. The resulting Typst fragments still form one continuous document.
@@ -487,6 +502,8 @@ export function renderReferenceTypst({
   const emittedTargets = new Set();
   const content = preparedChapters?.length
     ? preparedChapters.map(chapter => markdownToTypst(chapter.preparedBody, {
+        sourcePath: chapter.sourcePath,
+        resolveEmbed: embedResolver(chapter.sourcePath),
         resolveImage: source => resolveReferenceImage(source, {
           sourcePath: chapter.sourcePath,
           vaultDir,
@@ -501,6 +518,8 @@ export function renderReferenceTypst({
         emittedTargets,
       })).join('\n\n')
     : markdownToTypst(body, {
+        sourcePath,
+        resolveEmbed: embedResolver(sourcePath),
         resolveImage: source => resolveReferenceImage(source, { sourcePath, vaultDir }),
         resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
         diagrams,

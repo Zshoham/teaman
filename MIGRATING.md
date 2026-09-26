@@ -31,6 +31,10 @@ mismatch warning stays quiet and records what the vault now targets.
   not just top-level notes, and a missing link renders as text instead of a
   dead href. Links that worked before still resolve; run `teaman doctor` to see
   any that only match by the old slug rule or are ambiguous.
+- **Obsidian embeds** (minor). `![[image.png]]` now renders as an image on the
+  site (it used to show as literal text), found by name anywhere in the vault.
+  `![[Some Note]]` is now an error in `doctor` and the build — notes cannot be
+  embedded; replace it with `[[Some Note]]`.
 
 - **The Docker image is a plain teaman machine** (minor for vaults; a changed
   invocation for anyone scripting the image). The image no longer has a custom

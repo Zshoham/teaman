@@ -219,9 +219,8 @@ function firstHeading(markdown) {
 // names — Confluence addresses pages by title. Resolution is the site's own
 // (vault-index.mjs: any rendered type, Obsidian's tie-breaks), so a link lands
 // on the same document in both places, whichever folders this run syncs.
-function buildLinkTitles(contentDir) {
-  if (!existsSync(contentDir)) return () => null;
-  const index = createVaultIndex(contentDir);
+function buildLinkTitles(contentDir, index = existsSync(contentDir) ? createVaultIndex(contentDir) : null) {
+  if (!index) return () => null;
   const titles = new Map();
   return (target, fromPath) => {
     const resolution = index.resolve(target, fromPath ?? undefined);
@@ -388,13 +387,19 @@ function renderCodeToken(tokens, idx, options, env) {
 // tokenized by the shared dialect.
 markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
   const { target, label: alias, embed } = tokens[idx].meta;
-  if (embed && isImageEmbed(target)) {
-    return renderImageRef(target, markdownRenderer.utils.escapeHtml(alias), env);
+  if (embed && !isImageEmbed(target)) {
+    throw new Error(`${env.filePath ?? 'page'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
+  }
+  if (embed) {
+    // Obsidian finds an embedded attachment anywhere in the vault, as the
+    // site does; fall back to the note-relative rule without an index.
+    const found = env.resolveAttachment?.(target, env.filePath);
+    const alt = markdownRenderer.utils.escapeHtml(alias);
+    return found ? renderImageFile(found, alt, env) : renderImageRef(target, alt, env);
   }
 
   // `#section` / `#^block` anchors have no stable Confluence equivalent:
-  // links address pages. A bare `[[#heading]]` degrades to plain text;
-  // non-image embeds (note transclusion) degrade to page links.
+  // links address pages. A bare `[[#heading]]` degrades to plain text.
   const hashIdx = target.indexOf('#');
   const page = (hashIdx === -1 ? target : target.slice(0, hashIdx)).trim();
   if (!page) return markdownRenderer.utils.escapeHtml(alias);
@@ -464,7 +469,10 @@ function renderImageRef(path, alt, env) {
   if (!env.filePath) {
     return `<img src="${markdownRenderer.utils.escapeHtml(path)}" alt="${alt}" />`;
   }
-  const absolutePath = resolveImagePath(path, env);
+  return renderImageFile(resolveImagePath(path, env), alt, env);
+}
+
+function renderImageFile(absolutePath, alt, env) {
   if (env.svgMacro && absolutePath.toLowerCase().endsWith('.svg')) {
     const svg = svgSource(absolutePath);
     if (svg !== null) return diagramMacro(env.svgMacro, svg);
@@ -604,7 +612,7 @@ async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compiler
   });
 }
 
-// context: { filePath, contentDir, linkTitle, mermaidMacro, plantumlMacro,
+// context: { filePath, contentDir, linkTitle, resolveAttachment, mermaidMacro, plantumlMacro,
 // svgMacro, fenceSvgs }, threaded through markdown-it's per-render `env` so
 // every custom rule sees it. filePath/contentDir/linkTitle are needed to
 // resolve wiki-links and local image paths, fenceSvgs (from compileFenceSvgs)
@@ -616,6 +624,7 @@ function markdownToStorage(markdown, context = {}) {
     filePath: context.filePath ?? null,
     contentDir: context.contentDir ?? null,
     linkTitle: context.linkTitle ?? null,
+    resolveAttachment: context.resolveAttachment ?? null,
     mermaidMacro: context.mermaidMacro ?? null,
     plantumlMacro: context.plantumlMacro ?? null,
     svgMacro: context.svgMacro ?? null,
@@ -909,6 +918,7 @@ async function syncFolder({ client, folder, rootId, args }) {
       filePath,
       contentDir: args.contentDir,
       linkTitle: args.linkTitle,
+      resolveAttachment: args.vaultIndex?.resolveAttachment,
       mermaidMacro: args.mermaidMacro,
       plantumlMacro: args.plantumlMacro,
       svgMacro: args.svgMacro,
@@ -934,7 +944,8 @@ async function main() {
     if (unknown.length > 0) throw new Error(`No root page configured for: ${unknown.join(', ')}`);
   }
 
-  args.linkTitle = buildLinkTitles(args.contentDir);
+  args.vaultIndex = createVaultIndex(args.contentDir);
+  args.linkTitle = buildLinkTitles(args.contentDir, args.vaultIndex);
 
   console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
   const client = new ConfluenceClient(args);

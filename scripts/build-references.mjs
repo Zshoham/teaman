@@ -82,6 +82,7 @@ if (!existsSync(referencesDir)) {
       vaultDir,
       diagrams,
       resolveWikiLink,
+      resolveAttachment: (target, fromPath) => vaultIndex.resolveAttachment(target, fromPath),
     });
     const targetDir = join(outDir, 'references', ...document.id.split('/'));
     mkdirSync(targetDir, { recursive: true });

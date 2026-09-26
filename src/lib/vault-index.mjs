@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
 import matter from 'gray-matter';
 import { slug as githubSlug } from 'github-slugger';
@@ -139,6 +139,27 @@ function decisionEntries(vaultDir, base) {
   }));
 }
 
+// Directories that hold no vault attachments: tooling state and build output
+// (a vault built in place writes `dist/`, full of copies of its own images).
+const NOT_ATTACHMENTS = new Set(['node_modules', 'dist']);
+
+/** Every non-Markdown file in the vault, as `{ path, sourcePath }`. */
+function attachmentFiles(vaultDir) {
+  const files = [];
+  const walk = dir => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || NOT_ATTACHMENTS.has(entry.name)) continue;
+      const sourcePath = join(dir, entry.name);
+      if (entry.isDirectory()) walk(sourcePath);
+      else if (entry.isFile() && !/\.md$/i.test(entry.name)) {
+        files.push({ path: posix(relative(vaultDir, sourcePath)), sourcePath });
+      }
+    }
+  };
+  if (existsSync(vaultDir)) walk(vaultDir);
+  return files;
+}
+
 const DISCOVER = [noteEntries, referenceEntries, guideEntries, slideEntries, dailyEntries, decisionEntries];
 
 /** Split a link into its page part and whether it carried a `#` fragment. */
@@ -221,5 +242,47 @@ export function createVaultIndex(vaultDir, { base = '/' } = {}) {
     return { entry, href: entry.href, via, fragment, alternatives };
   }
 
-  return { entries, resolve: resolveLink };
+  let attachments = null;
+
+  /**
+   * Resolve an `![[embed]]` target to a file anywhere in the vault, the way
+   * Obsidian finds attachments: by file name (or a trailing path), case-
+   * insensitively, same folder first, then the shortest path.
+   *
+   * @param {string} target  e.g. `diagram.png`, `assets/diagram.png`
+   * @param {string} [fromPath]  the embedding file (absolute)
+   * @returns {string | null}  absolute path of the attachment
+   */
+  function resolveAttachment(target, fromPath) {
+    attachments ??= attachmentFiles(vaultDir);
+    const wanted = posix(target.split(/[?#]/, 1)[0].trim()).replace(/^(\.\/|\/)+/, '');
+    const candidates = matching(attachments, wanted, lower);
+    if (candidates.length === 0) return null;
+    const fromDir = fromPath ? dirname(posix(relative(vaultDir, fromPath))) : '';
+    return rank(candidates, fromDir)[0].sourcePath;
+  }
+
+  return { entries, resolve: resolveLink, resolveAttachment };
+}
+
+/**
+ * A `createVaultIndex` that is rebuilt once it is older than `maxAgeMs`. The
+ * Markdown pipeline asks per file: a build renders every file in a burst and a
+ * dev save re-renders one, so a short age keeps both cheap and still picks up
+ * files added while `teaman dev` runs.
+ *
+ * @param {string} vaultDir
+ * @param {{ base?: string, maxAgeMs?: number }} [options]
+ * @returns {() => ReturnType<typeof createVaultIndex>}
+ */
+export function cachedVaultIndex(vaultDir, { base = '/', maxAgeMs = 2000 } = {}) {
+  let index = null;
+  let builtAt = 0;
+  return () => {
+    if (!index || Date.now() - builtAt > maxAgeMs) {
+      index = createVaultIndex(vaultDir, { base });
+      builtAt = Date.now();
+    }
+    return index;
+  };
 }

@@ -61,6 +61,13 @@ link, and `teaman doctor` lists it, along with ambiguous links and links that
 only match by the older slug rule (`[[shipping-cadence]]` for
 `Shipping Cadence.md`).
 
+`![[diagram.png]]` embeds an image found the same way — by file name anywhere
+in the vault, same folder first — with `|alt text` or an Obsidian size
+(`|300`, `|300x200`) after the pipe; `.svg` embeds are inlined like any SVG
+image. Notes cannot be embedded: `![[Some Note]]` (and an embed naming an
+image the vault doesn't have) fails `teaman doctor` and the build — link the
+note with `[[Some Note]]` instead.
+
 References can be authored in either of two additive forms:
 
 - `references/system.md` is one standalone document at `/references/system/`.
@@ -95,9 +102,11 @@ quotes, Obsidian callouts, tables, code, and local images) to Typst and applies
 the engine's bundled `resources/reference-template.typ`; vaults do not carry a
 template or compiler. Mermaid and PlantUML fences render to print-friendly SVG
 with the same bundled engines used by the site, while TikZ and Typst fences
-reuse the build-time SVG pipeline. Local PDF images—including Markdown and
-Obsidian `![[diagram.svg]]` embeds—resolve note-relative, then from the vault
-root, then `public/`. A missing image or failed diagram becomes a visible
+reuse the build-time SVG pipeline. Local PDF images resolve note-relative,
+then from the vault root, then `public/`; Obsidian `![[diagram.svg]]` embeds
+resolve by name anywhere in the vault, as on the site. A wiki-link to a
+section of the same reference jumps there in the PDF; any other wiki-link
+keeps its text in a dotted, muted style. A missing image or failed diagram becomes a visible
 fallback instead of failing the whole PDF. Draft references produce neither a
 page nor a PDF.
 

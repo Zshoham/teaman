@@ -25,6 +25,14 @@ export interface WikiLinkResolution {
 export interface VaultIndex {
   entries: VaultEntry[];
   resolve(target: string, fromPath?: string): WikiLinkResolution | null;
+  /** Absolute path of the vault file an `![[embed]]` names, or null. */
+  resolveAttachment(target: string, fromPath?: string): string | null;
 }
 
 export function createVaultIndex(vaultDir: string, options?: { base?: string }): VaultIndex;
+
+/** A vault index rebuilt once it is older than `maxAgeMs`. */
+export function cachedVaultIndex(
+  vaultDir: string,
+  options?: { base?: string; maxAgeMs?: number },
+): () => VaultIndex;

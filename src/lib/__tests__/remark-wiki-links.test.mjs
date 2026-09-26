@@ -7,7 +7,7 @@ import remarkParse from 'remark-parse';
 import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import remarkWikiLink from 'remark-wiki-link';
-import { remarkWikiLinks } from '../remark-wiki-links.mjs';
+import { failOnEmbedErrors, remarkWikiEmbeds, remarkWikiLinks } from '../remark-wiki-links.mjs';
 
 let vault;
 afterEach(() => {
@@ -19,6 +19,7 @@ async function render(markdown, from) {
   const file = await unified()
     .use(remarkParse)
     .use(remarkWikiLink, { aliasDivider: '|' })
+    .use(remarkWikiEmbeds, { vaultDir: vault, base: '/' })
     .use(remarkWikiLinks, { vaultDir: vault, base: '/' })
     .use(remarkRehype)
     .use(rehypeStringify)
@@ -42,5 +43,36 @@ describe('remarkWikiLinks', () => {
     vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
     const html = await render('`[[no_unique_address]]`', 'notes/from.md');
     expect(html).toContain('<code>[[no_unique_address]]</code>');
+  });
+
+  it('embeds the image Obsidian would find, anywhere in the vault', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    mkdirSync(join(vault, 'attachments'), { recursive: true });
+    mkdirSync(join(vault, 'notes'), { recursive: true });
+    writeFileSync(join(vault, 'attachments', 'Pic One.png'), '');
+
+    const html = await render('Look: ![[pic one.png|The pic]] and ![[Pic One.png|300]].', 'notes/from.md');
+    expect(html).toContain('<img src="../attachments/Pic%20One.png" alt="The pic">');
+    expect(html).toContain('<img src="../attachments/Pic%20One.png" alt="" width="300">');
+    expect(html).toContain('Look: ');
+  });
+
+  it('fails on a note embed and on a missing image', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    await expect(render('![[Some Note]]', 'notes/from.md')).rejects.toThrow(/embeds a note/);
+    await expect(render('![[gone.png]]', 'notes/from.md')).rejects.toThrow(/no image named “gone.png”/);
+  });
+
+  it('leaves embed syntax in code alone', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    const html = await render('`![[Some Note]]`', 'notes/from.md');
+    expect(html).toContain('<code>![[Some Note]]</code>');
+  });
+
+  it('fails the build after content sync when any file had a bad embed', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    await render('![[Another Note]]', 'notes/bad.md').catch(() => {});
+    expect(() => failOnEmbedErrors().hooks['astro:build:start']())
+      .toThrow(/notes\/bad\.md: !\[\[Another Note\]\] embeds a note/);
   });
 });

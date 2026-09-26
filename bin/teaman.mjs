@@ -618,10 +618,18 @@ export async function lintContent(vault) {
         warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
       }
       // Parsed with the dialect the PDF and Confluence render with, so code
-      // is never linted. Image embeds are files, not pages.
+      // is never linted. An embed must be an image the vault has: every
+      // renderer fails the build on a note embed or a missing image.
       for (const { target, embed } of wikiLinks(source)) {
-        if (embed && isImageEmbed(target)) continue;
-        const link = `${embed ? '!' : ''}[[${target}]]`;
+        if (embed) {
+          if (!isImageEmbed(target)) {
+            problems.push(`${where} embeds ![[${target}]]: note embeds are not supported; link it with [[${target}]]`);
+          } else if (!index.resolveAttachment(target, file)) {
+            problems.push(`${where} embeds missing image ![[${target}]]`);
+          }
+          continue;
+        }
+        const link = `[[${target}]]`;
         const resolution = index.resolve(target, file);
         if (!resolution) {
           warnings.push(`${where} links to missing ${link}`);

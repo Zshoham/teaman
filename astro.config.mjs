@@ -11,7 +11,7 @@ import { remarkMermaid, remarkPlantuml } from './src/lib/remark-fence-pre.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
 import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
 import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
-import { remarkWikiLinks } from './src/lib/remark-wiki-links.mjs';
+import { failOnEmbedErrors, remarkWikiEmbeds, remarkWikiLinks } from './src/lib/remark-wiki-links.mjs';
 import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
 import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
 import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
@@ -51,7 +51,7 @@ export default defineConfig({
   base,
   outDir,
   publicDir,
-  integrations: [mdx(), react(), excalidrawAssets({ base })],
+  integrations: [mdx(), react(), excalidrawAssets({ base }), failOnEmbedErrors()],
   vite: {
     plugins: [tailwindcss()],
     server: {
@@ -73,6 +73,8 @@ export default defineConfig({
         remarkReferenceBooks,
         remarkMermaid,
         remarkPlantuml,
+        // `![[image.png]]` → an image node, before anything that handles images.
+        [remarkWikiEmbeds, { vaultDir, base }],
         [remarkInlineSvg, { roots: svgRoots }],
         // tikz/typst fences compile to svg at build time; renders are cached
         // in the engine dir (like .slides-build/.teaman-public — gitignored,

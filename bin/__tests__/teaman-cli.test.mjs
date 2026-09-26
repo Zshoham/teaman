@@ -212,6 +212,7 @@ describe('teaman doctor', () => {
   it('does not lint Obsidian image embeds as missing notes', () => {
     mkdirSync(join(dir, 'references'), { recursive: true });
     writeFileSync(join(dir, 'references', 'system.md'), '# System\n\n![[diagram.svg|System diagram]]\n');
+    writeFileSync(join(dir, 'references', 'diagram.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
 
     const { code, stderr } = cli(['doctor', dir]);
