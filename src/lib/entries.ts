@@ -1,11 +1,12 @@
 import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
-import { join } from 'path';
+import { resolve } from 'path';
 import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
 import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
-import { slidesRoot } from './content-paths';
 import { isPublishableDeckId } from './discover-decks.mjs';
+import { engineDir } from './build-env.mjs';
+import { entryHref } from './entry-identity.mjs';
 import {
   dailyDateId,
   dateFromIsoDate,
@@ -42,6 +43,15 @@ const base = import.meta.env.BASE_URL;
 
 export { isoDate } from './format';
 
+/**
+ * Absolute source path of a collection entry. Ids are slugs, not paths, so the
+ * file is found through Astro's `filePath` (relative to the project root, which
+ * is the engine) rather than rebuilt from the id.
+ */
+function sourcePath(entry: { filePath?: string }): string {
+  return resolve(engineDir, entry.filePath ?? '');
+}
+
 async function safeFileDates(path: string): Promise<{ updated: Date; created: Date }> {
   try {
     const fileStat = await stat(path);
@@ -65,7 +75,6 @@ async function loadDocumentEntries(
   collection: 'notes' | 'references',
   type: 'note' | 'reference',
 ): Promise<Entry[]> {
-  const { route } = collectionFor(type);
   const documents = await getCollection(collection);
   return documents
     .filter(document => !document.data.draft)
@@ -82,7 +91,7 @@ async function loadDocumentEntries(
         updated: isoDate(date),
         created: isoDate(date),
         meta: wordMeta(wordCount(body)),
-        href: `${base}${route}/${document.id}/`,
+        href: entryHref(base, type, document.id),
       };
     });
 }
@@ -102,8 +111,7 @@ export async function loadSlideEntries(): Promise<Entry[]> {
     .map(async s => {
       const body = (s.body ?? '') as string;
       const slideCount = body.split(/^---\s*$/m).filter(part => part.trim()).length || 1;
-      const path = join(slidesRoot, `${s.id}.md`);
-      const dates = await safeFileDates(path);
+      const dates = await safeFileDates(sourcePath(s));
       return {
         id: `slides-${s.id}`,
         type: 'slides' as const,
@@ -113,7 +121,7 @@ export async function loadSlideEntries(): Promise<Entry[]> {
         updated: isoDate(dates.updated),
         created: isoDate(dates.created),
         meta: plural(slideCount, 'slide'),
-        href: `${base}slides/${s.id}/`,
+        href: entryHref(base, 'slides', s.id),
       };
     });
   return Promise.all(entries);
@@ -129,15 +137,14 @@ export async function loadGuideEntries(): Promise<Entry[]> {
   const summariesBySlug = new Map(
     summaries.map(summary => [
       guideSlugFromSummaryId(summary.id),
-      { body: summary.body ?? '', tags: summary.data.tags ?? [] },
+      { body: summary.body ?? '', tags: summary.data.tags ?? [], path: sourcePath(summary) },
     ]),
   );
 
   const entries = guides.map(async g => {
-    const summaryPath = join(g.dir, 'SUMMARY.md');
     const summary = summariesBySlug.get(g.slug);
     const summaryBody = summary?.body ?? '';
-    const summaryDates = await safeFileDates(summaryPath);
+    const summaryDates = await safeFileDates(summary?.path ?? '');
     let excerpt = '';
     let words = 0;
     let updated = summaryDates.updated;
@@ -149,8 +156,7 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       const body = entry.body ?? '';
       if (!excerpt) excerpt = extractExcerpt(body);
       words += wordCount(body);
-      const chapterPath = join(g.dir, `${chapter.slug}.md`);
-      const chapterDates = await safeFileDates(chapterPath);
+      const chapterDates = await safeFileDates(sourcePath(entry));
       if (chapterDates.updated > updated) updated = chapterDates.updated;
       if (chapterDates.created < created) created = chapterDates.created;
     }

@@ -1,9 +1,9 @@
 import { getCollection } from 'astro:content';
-import { join } from 'path';
-import { guidesRoot } from './content-paths';
+import { entryId } from './entry-identity.mjs';
 import { parseReferenceSummary } from './reference-documents.mjs';
 
 export interface GuideChapter {
+  /** Entry id within the guide — the chapter's URL segment. */
   slug: string;
   title: string;
 }
@@ -12,7 +12,6 @@ export interface Guide {
   slug: string;
   title: string;
   chapters: GuideChapter[];
-  dir: string;
 }
 
 const base = import.meta.env.BASE_URL;
@@ -59,7 +58,7 @@ export function parseGuide(slug: string, summary: string): Guide {
   }
 
   const chapters: GuideChapter[] = parseReferenceSummary(summary, { rootRelative: true })
-    .map(chapter => ({ title: chapter.title, slug: chapter.path.replace(/\.md$/i, '') }));
+    .map(chapter => ({ title: chapter.title, slug: entryId('guide', chapter.path) }));
 
-  return { slug, title, dir: join(guidesRoot, slug), chapters };
+  return { slug, title, chapters };
 }

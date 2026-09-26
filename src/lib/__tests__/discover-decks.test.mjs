@@ -23,6 +23,17 @@ describe('discoverDecks', () => {
 
     expect(discoverDecks(root).map(deck => deck.id)).toEqual(['live', 'nested/deck']);
   });
+
+  it('names decks with the site entry id, not the raw path', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-decks-'));
+    mkdirSync(join(root, 'Team Talks'), { recursive: true });
+    writeFileSync(join(root, 'Team Talks', 'My Deck.md'), '# Deck');
+    writeFileSync(join(root, 'renamed.md'), '---\nslug: custom\n---\n# Renamed');
+
+    const decks = discoverDecks(root);
+    expect(decks.map(deck => deck.id)).toEqual(['custom', 'team-talks/my-deck']);
+    expect(decks[1].relativePath).toBe(join('Team Talks', 'My Deck.md'));
+  });
 });
 
 describe('isPublishableDeckId', () => {

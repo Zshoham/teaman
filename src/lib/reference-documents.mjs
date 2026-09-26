@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, relative, resolve, sep } from 'path';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
+import { entryId } from './entry-identity.mjs';
 import { isInside, walkMarkdown } from './fs-walk.mjs';
 
 const SUMMARY_NAME = 'summary.md';
@@ -287,7 +288,10 @@ function documentData(data, title) {
 
 function bookDocument(referencesRoot, summaryPath) {
   const dir = dirname(summaryPath);
-  const id = posix(relative(referencesRoot, dir));
+  const relDir = posix(relative(referencesRoot, dir));
+  // A book is named by its directory; `.md` stands in for the extension
+  // `entryId` strips, so a dotted directory name keeps its last segment.
+  const id = relDir && entryId('reference', `${relDir}.md`);
   if (!id) return {
     error: 'references/SUMMARY.md is ambiguous; put each multi-file reference in references/<slug>/SUMMARY.md',
     summaryPath,
@@ -348,7 +352,7 @@ function bookDocument(referencesRoot, summaryPath) {
 
 function standaloneDocument(referencesRoot, sourcePath) {
   const parsed = matter(readFileSync(sourcePath, 'utf8'));
-  const id = posix(relative(referencesRoot, sourcePath)).replace(/\.md$/i, '');
+  const id = entryId('reference', posix(relative(referencesRoot, sourcePath)), parsed.data);
   const fallback = basename(sourcePath, '.md').replace(/-/g, ' ');
   const title = parsed.data.title ?? markdownTitle(parsed.content, fallback);
   return {

@@ -1,6 +1,7 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { referenceLoader } from './lib/reference-loader.mjs';
+import { globEntryId } from './lib/entry-identity.mjs';
 import {
   dailiesRoot,
   decisionsRoot,
@@ -11,7 +12,7 @@ import {
 } from './lib/content-paths';
 
 const notes = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: notesRoot }),
+  loader: glob({ pattern: '**/*.md', base: notesRoot, generateId: globEntryId('note') }),
   schema: z.object({
     title: z.string().optional(),
     tags: z.array(z.string()).optional(),
@@ -44,6 +45,7 @@ const guides = defineCollection({
   loader: glob({
     pattern: ['**/*.md', '!**/SUMMARY.md'],
     base: guidesRoot,
+    generateId: globEntryId('guide'),
   }),
   schema: z.object({
     title: z.string().optional(),
@@ -54,6 +56,7 @@ const guideSummaries = defineCollection({
   loader: glob({
     pattern: '**/SUMMARY.md',
     base: guidesRoot,
+    generateId: globEntryId('guide'),
   }),
   schema: z.object({
     title: z.string().optional(),
@@ -64,7 +67,7 @@ const guideSummaries = defineCollection({
 });
 
 const slides = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: slidesRoot }),
+  loader: glob({ pattern: '**/*.md', base: slidesRoot, generateId: globEntryId('slides') }),
   schema: z.object({
     title: z.string().optional(),
     tags: tagList,
@@ -73,7 +76,7 @@ const slides = defineCollection({
 });
 
 const dailies = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: dailiesRoot }),
+  loader: glob({ pattern: '**/*.md', base: dailiesRoot, generateId: globEntryId('daily') }),
   schema: z.object({
     date: z.coerce.date(),
     tags: z.array(z.string()).optional(),
@@ -82,7 +85,7 @@ const dailies = defineCollection({
 });
 
 const decisions = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: decisionsRoot }),
+  loader: glob({ pattern: '**/*.md', base: decisionsRoot, generateId: globEntryId('decision') }),
   schema: z.object({
     title: z.string(),
     date: z.coerce.date(),

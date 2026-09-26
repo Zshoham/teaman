@@ -44,7 +44,6 @@ const sampleGuide: Guide = {
     { slug: 'intro', title: 'Introduction' },
     { slug: 'chapter-2', title: 'Chapter Two' },
   ],
-  dir: '/content/guides/my-guide',
 };
 
 describe('chapterHref', () => {
@@ -127,13 +126,13 @@ describe('parseGuide', () => {
 
   it('accepts an angle-bracket destination, spaces included', () => {
     expect(parseGuide('g', '# G\n- [A](<my chapter.md>)\n').chapters).toEqual([
-      { slug: 'my chapter', title: 'A' },
+      { slug: 'my-chapter', title: 'A' },
     ]);
   });
 
   it('accepts a percent-encoded destination', () => {
     expect(parseGuide('g', '# G\n- [A](my%20chapter.md)\n').chapters).toEqual([
-      { slug: 'my chapter', title: 'A' },
+      { slug: 'my-chapter', title: 'A' },
     ]);
   });
 

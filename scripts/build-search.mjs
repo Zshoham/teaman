@@ -6,6 +6,7 @@ import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
 import { pagefindGlob } from '../src/lib/collections.mjs';
+import { entryHref } from '../src/lib/entry-identity.mjs';
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
@@ -38,7 +39,7 @@ if (existsSync(slidesSrcDir)) {
     const name = deck.id;
     const { title, content } = parseDeck(deck.markdown);
     const { errors: recordErrors } = await index.addCustomRecord({
-      url: `${siteBase}slides/${name}/`,
+      url: entryHref(siteBase, 'slides', name),
       content,
       language: 'en',
       meta: { title: title ?? name },

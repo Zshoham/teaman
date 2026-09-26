@@ -102,6 +102,19 @@ describe('reference document discovery', () => {
     expect(book.data.title).toBe('Real title');
   });
 
+  it('names references with the site entry id', () => {
+    const root = fixture();
+    mkdirSync(join(root, 'Rust Book'), { recursive: true });
+    writeFileSync(join(root, 'Rust Book', 'SUMMARY.md'), '# Rust\n\n- [Intro](intro.md)\n');
+    writeFileSync(join(root, 'Rust Book', 'intro.md'), '# Intro\n');
+    writeFileSync(join(root, 'My Ref.md'), '# Mine\n');
+    writeFileSync(join(root, 'renamed.md'), '---\nslug: custom\n---\n# Renamed\n');
+
+    expect(discoverReferenceDocuments(root).map(document => document.id)).toEqual([
+      'custom', 'my-ref', 'rust-book',
+    ]);
+  });
+
   it('exposes a SUMMARY directory as one document while keeping standalone files compatible', () => {
     const root = fixture();
     mkdirSync(join(root, 'language', 'items'), { recursive: true });

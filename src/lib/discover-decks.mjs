@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { extname, join, relative, sep } from 'node:path';
+import { extname, join, relative } from 'node:path';
 import matter from 'gray-matter';
+import { entryId } from './entry-identity.mjs';
 
 /**
  * Whether a deck id / relative path is publishable: false when any path segment
@@ -34,7 +35,8 @@ export function discoverDecks(slidesRoot) {
       const { data } = matter(markdown);
       if (data.draft === true) continue;
       decks.push({
-        id: rel.slice(0, -extname(rel).length).split(sep).join('/'),
+        // The site's name for the deck — its URL and build directory.
+        id: entryId('slides', rel, data),
         path,
         relativePath: rel,
         markdown,
