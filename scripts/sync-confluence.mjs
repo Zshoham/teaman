@@ -68,7 +68,7 @@ Examples:
     --token "$CONFLUENCE_TOKEN" --roots guides=111,notes=222 --apply
 
   CONFLUENCE_BASE_URL=https://wiki.local CONFLUENCE_PAT=secret \\
-  CONFLUENCE_ROOTS='{"guides":"111"}' npm run sync:confluence -- --apply
+  CONFLUENCE_ROOTS='{"guides":"111"}' bun run sync:confluence -- --apply
 
 Markdown support:
   Tables, strikethrough, headings, lists, links, images, and fenced code (with

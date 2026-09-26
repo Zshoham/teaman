@@ -14,7 +14,7 @@ const fontsDir = join(dirname(require.resolve('@excalidraw/excalidraw')), 'fonts
 
 // Astro integration that makes the fonts available on every entry point of the
 // env seam — `astro dev` (middleware) and `astro build`/`astro preview` (copied
-// into outDir) — so the plain npm scripts, the e2e suite, and the CLI all
+// into outDir) — so the plain package scripts, the e2e suite, and the CLI all
 // resolve `${base}excalidraw-assets/fonts/` without the CLI staging anything.
 export function excalidrawAssets({ base }) {
   const prefix = `${base}excalidraw-assets/fonts/`;

@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `teaman` is a static site generator for Obsidian vaults, shipped as an installable
-**Astro engine** (`npm`/`npx @zshoham/teaman`). The core idea: **the vault is pure data, the
+**Astro engine** (`bunx @zshoham/teaman`, published to npm). The core idea: **the vault is pure data, the
 engine is code**, and the two never mix.
 
 - A *vault* contains only content (`notes/ references/ guides/ slides/ dailies/`), a
@@ -25,41 +25,57 @@ semver contract before changing config keys, frontmatter schemas, or URL structu
 ## Commands (run from the repo root)
 
 ```sh
-npm install
-npm run dev            # Astro dev server on the bundled example/ vault (fastest loop)
-npm run build          # full prod build: astro → reference PDFs → slides → search  (build:all)
-npm run preview        # preview the production build
-npm test               # vitest unit suite (node env)
-npm run typecheck      # astro sync + tsc --noEmit (repo is typecheck-clean; CI enforces it)
-npm run test:watch     # vitest watch
-npm run test:e2e       # Playwright e2e (auto-starts the dev server)
-npm run test:e2e:ui    # Playwright interactive UI
-npm run test:integration  # pack → install tarball outside repo → build example/ (slow)
+bun install
+bun run dev            # Astro dev server on the bundled example/ vault (fastest loop)
+bun run build          # full prod build: astro → reference PDFs → slides → search  (build:all)
+bun run preview        # preview the production build
+bun run test           # vitest unit suite (on Bun; vitest `node` env)
+bun run typecheck      # astro sync + tsc --noEmit (repo is typecheck-clean; CI enforces it)
+bun run test:watch     # vitest watch
+bun run test:e2e       # Playwright e2e (auto-starts the dev server)
+bun run test:e2e:ui    # Playwright interactive UI
+bun run test:integration  # pack → install tarball outside repo → build example/ (slow)
 ```
 
+**Bun is the runtime and package manager** (version pinned in `package.json`
+`packageManager`; `bun.lock` is the lockfile). Node is not supported: the CLI
+refuses to start without `process.versions.bun`. Every stage the CLI starts runs
+as `process.execPath <script>`, so engine code must never shell out through
+`npx`/`npm`/`node` or a `.bin` shim. Package scripts use `bun --bun <tool>` so
+tools whose bin says `#!/usr/bin/env node` (astro, vitest) run on Bun too. The
+one exception is the Playwright test runner, which runs on Node (it does not
+support Bun) while the site under test is built and served by Bun.
+
+`markdown-it` is pinned to `^14` on purpose. Slidev uses `@comark/markdown-it`,
+which imports `markdown-it/lib/token.mjs` (gone in 15). npm nests a 14 under
+`@slidev/cli`, but Bun's hoisted install gives it the top-level copy, so a
+top-level 15 breaks every deck build. Don't bump it until `@comark/markdown-it`
+supports 15.
+
 TypeScript is intentionally installed side by side: `@typescript/native` provides
-the TypeScript 7 `tsc` binary used by `npm run typecheck`, while the `typescript`
+the TypeScript 7 `tsc` binary used by `bun run typecheck`, while the `typescript`
 package name aliases `@typescript/typescript6` for Astro/Slidev tools that still
 consume the compiler API (TypeScript 7.0 does not ship one).
 
 Run a single unit test file / pattern:
 ```sh
-npx vitest run src/lib/__tests__/format.test.ts
-npx vitest run -t "fmtDate"
+bun --bun vitest run src/lib/__tests__/format.test.ts
+bun --bun vitest run -t "fmtDate"
 ```
 
 Exercising the **full CLI path** (config serialization, Slidev, Pagefind, engine
 version check) against the bundled vault — from the repo root, the bundled vault
 is `./example`:
 ```sh
-node bin/teaman.mjs build ./example      # → example/dist
-node bin/teaman.mjs dev ./example        # CLI equivalent of `npm run dev`
-node bin/teaman.mjs doctor ./example     # validate config + lint content, no build
+bun bin/teaman.mjs build ./example      # → example/dist
+bun bin/teaman.mjs dev ./example        # CLI equivalent of `bun run dev`
+bun bin/teaman.mjs doctor ./example     # validate config + lint content, no build
 ```
 Options mirror the deploy target: `--out <dir>`, `--base /sub-path/`, `--port <n>`,
 `--host [addr]` (dev/preview, for serving outside the machine — e.g. a container).
-To test exactly as a consumer receives it: `npm pack` then
-`npx ./zshoham-teaman-<version>.tgz build ./example`.
+To test exactly as a consumer receives it: `bun pm pack`, then `bun add` the
+tarball into a scratch project and run its `teaman` (`bunx` cannot run a
+tarball directly) — or just `bun run test:integration`.
 
 The `Dockerfile` packages that same consumer path as an image: stage one runs
 `npm pack`, stage two installs the tarball (runtime deps only) into
@@ -81,7 +97,7 @@ The CLI never edits engine files to point at a vault. Instead `bin/teaman.mjs`
 resolves the vault, merges its config, stages static assets, and spawns Astro/scripts
 with environment variables. **Every engine entry point reads the same env vars and
 falls back to the bundled `example/` → `public/` when they are unset** — which is
-exactly why the plain `npm` scripts and the test suite work in place.
+exactly why the plain package scripts and the test suite work in place.
 
 `src/lib/build-env.mjs` resolves that seam **once** and is the only module that
 reads these vars. Import `vaultDir` / `outDir` / `publicDir` / `siteBase` /
@@ -249,7 +265,7 @@ stages writing to that one staged dir.
    decks (e.g. `nested/deck`) build to `<out>/slides/nested/deck/`. Decks are
    copied into the work dir first — the CLI-provided `TEAMAN_SLIDES_WORK` temp
    dir, falling back to `<engine>/.slides-build/` only when that env var is
-   unset (plain `npm run build`) — because Slidev resolves themes relative to
+   unset (plain `bun run build:slides`) — because Slidev resolves themes relative to
    the deck file and needs to walk up to the engine's `node_modules`. Every
    deck is built with `--theme` pointing at a staged copy of the engine theme
    `slidev-theme-teaman/` (in `<work dir>/theme/`); the build personalizes that
@@ -306,16 +322,16 @@ prefer extending those helpers over duplicating logic in pages.
   and selects on real component classes (`.crumbs`, `.guide-nav-link.next`). On Arch,
   headless Chromium needs `nspr nss atk at-spi2-core libx11 libxrandr mesa libxcb
   libxkbcommon alsa-lib`.
-- The integration test (`scripts/integration-test.mjs`, `npm run test:integration`)
-  is the only check that exercises the *packaged* consumer path: `npm pack` → install
+- The integration test (`scripts/integration-test.mjs`, `bun run test:integration`)
+  is the only check that exercises the *packaged* consumer path: `bun pm pack` → `bun add`
   the tarball into a throwaway project in the OS temp dir → `teaman build` the `example/`
   vault → assert the artifacts exist. It catches what the in-repo build can't — an
   incomplete `files` list, a runtime dep stranded in `devDependencies`, or a bin that
   doesn't resolve once installed. Anything `astro.config.mjs` or `global.css` imports
   at build time (e.g. `@tailwindcss/vite`, `tailwindcss`) must be a `dependency`, not a
-  `devDependency`. It is **not** part of `npm test` (a real install, ~minutes); CI runs
+  `devDependency`. It is **not** part of `bun run test` (a real install, ~minutes); CI runs
   it as its own job.
-- `npm run build` (or `node bin/teaman.mjs doctor ./example`) is the final
+- `bun run build` (or `bun bin/teaman.mjs doctor ./example`) is the final
   validation step; `doctor` gates CI by exiting non-zero on config/content problems.
 
 ## Conventions
@@ -325,9 +341,10 @@ prefer extending those helpers over duplicating logic in pages.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
 - CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with five jobs.
-  The `test` job runs `npm run typecheck` + `npm test` + `npm run build:all`, the `integration` job
-  runs `npm run test:integration` (the packaged consumer path), and the `e2e`
-  job installs the Playwright browser and runs `npm run test:e2e` (the
+  Every job installs Bun with `oven-sh/setup-bun` (version from `packageManager`).
+  The `test` job runs `bun run typecheck` + `bun run build:all` + `bun run test`, the `integration` job
+  runs `bun run test:integration` (the packaged consumer path), and the `e2e`
+  job installs the Playwright browser and runs `bun run test:e2e` (the
   `playwright.config.ts` webServer builds the production site and serves it via
   `astro preview`) — all three on every push/PR. The `publish` job has
   `needs: [test, integration, e2e]` (so a release can
@@ -335,7 +352,8 @@ prefer extending those helpers over duplicating logic in pages.
   runs on main pushes / version tags, publishing `@zshoham/teaman` to the public
   npm registry: every `main` commit as a `dev`-tagged prerelease (`X.Y.Z-dev.<sha>`,
   base from package.json), every `vX.Y.Z` tag as a `latest` release. The version is
-  derived in CI — never hand-bump for dev builds. Auth is npm trusted publishing
+  derived in CI — never hand-bump for dev builds. Publishing is the one step on
+  Node/npm, not Bun: npm trusted publishing
   (OIDC, `id-token: write`) — no token; the publisher is configured in the npm
   package settings and publishes carry build provenance.
 - The `image` job shares those `needs` and that main/tag gate: it builds the

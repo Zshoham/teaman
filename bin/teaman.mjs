@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // teaman — build an Obsidian vault into a static site with the bundled Astro
 // engine. The vault carries only data: a `teaman.config.js` plus content
 // directories (notes/ references/ guides/ slides/ dailies/). This CLI resolves the vault,
@@ -657,6 +657,12 @@ Options:
 
 // ── dispatch ─────────────────────────────────────────────────────────────
 async function main(argv = process.argv.slice(2)) {
+  // Bun is the one runtime the engine is built and tested on (every stage runs
+  // as `process.execPath`, and the single-file binary is Bun), so say so up
+  // front rather than let an untested runtime fail somewhere mid-build.
+  if (!process.versions.bun) {
+    fail('teaman runs on Bun (https://bun.sh) — run it with `bun` or `bunx @zshoham/teaman`, or use the single-file binary');
+  }
   // sync-confluence delegates wholesale to scripts/sync-confluence.mjs — it has
   // its own parser (util.parseArgs), CONFLUENCE_* env fallbacks, and --help. We
   // intercept before parseArgs so every flag (including -h/--help and repeated

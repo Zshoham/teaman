@@ -10,7 +10,7 @@
  * 404s). Locked in by a unit test so a future "cleanup" can't silently drop them.
  * @param {string} deckPath  the deck .md to build
  * @param {{ out: string, theme: string }} opts
- * @returns {string[]} argv passed after `npx`
+ * @returns {string[]} argv for Slidev's CLI (after its bin)
  */
 export function slidevBuildArgs(deckPath, { out, theme }) {
   return [

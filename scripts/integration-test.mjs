@@ -3,18 +3,18 @@
 // vault through the installed CLI, and assert the published artifacts exist.
 //
 // This covers the one thing unit tests and the in-repo `build:all` can't: the
-// consumer path (`npm pack` → `npm install` → `teaman build <vault>`). It catches
+// consumer path (`bun pm pack` → `bun add` → `teaman build <vault>`). It catches
 // regressions the in-place build is blind to — an incomplete `files` list in
 // package.json, a bin that doesn't resolve once installed, or a dependency the
 // engine reaches for that isn't actually declared.
 //
-// Run with `npm run test:integration`. Set TEAMAN_KEEP_TMP=1 to keep the temp
+// Run with `bun run test:integration`. Set TEAMAN_KEEP_TMP=1 to keep the temp
 // dir for debugging instead of cleaning it up.
 
 import { execFileSync } from 'child_process';
 import { mkdtempSync, mkdirSync, rmSync, cpSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
@@ -40,17 +40,14 @@ const workDir = mkdtempSync(join(tmpdir(), 'teaman-integration-'));
 
 try {
   // 1. Pack the engine exactly as it ships.
-  step('Packing the engine (npm pack)');
-  const packed = execFileSync('npm', ['pack', '--json', `--pack-destination=${workDir}`], {
+  step('Packing the engine (bun pm pack)');
+  // --quiet prints just the tarball's name.
+  const packed = execFileSync('bun', ['pm', 'pack', '--quiet', '--destination', workDir], {
     cwd: engineDir,
     encoding: 'utf8',
-  });
-  // npm <=11 returns an array; npm 12 keys the result by package name.
-  const packResult = JSON.parse(packed);
-  const packInfo = Array.isArray(packResult) ? packResult[0] : packResult[enginePkg.name];
-  if (!packInfo?.filename) throw new Error('npm pack did not report a tarball filename');
-  const tarball = join(workDir, packInfo.filename);
-  if (!existsSync(tarball)) throw new Error(`npm pack did not produce ${tarball}`);
+  }).trim().split('\n').pop();
+  const tarball = join(workDir, basename(packed));
+  if (!existsSync(tarball)) throw new Error(`bun pm pack did not produce ${tarball}`);
 
   // 2. Install the tarball into a fresh consumer project.
   const consumer = join(workDir, 'consumer');
@@ -60,7 +57,7 @@ try {
     JSON.stringify({ name: 'teaman-integration-consumer', version: '1.0.0', private: true }, null, 2) + '\n',
   );
   step('Installing the tarball into a throwaway project');
-  run('npm', ['install', tarball, '--no-audit', '--no-fund'], { cwd: consumer });
+  run('bun', ['add', tarball], { cwd: consumer });
 
   const cli = join(consumer, 'node_modules', '@zshoham', 'teaman', 'bin', 'teaman.mjs');
   if (!existsSync(cli)) throw new Error(`installed CLI not found at ${cli}`);
