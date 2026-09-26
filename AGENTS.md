@@ -85,7 +85,7 @@ exactly why the plain `npm` scripts and the test suite work in place.
 
 `src/lib/build-env.mjs` resolves that seam **once** and is the only module that
 reads these vars. Import `vaultDir` / `outDir` / `publicDir` / `siteBase` /
-`teamanConfig` / `engineDir` from it — never reach for `process.env` again, and
+`siteConfig` / `engineVersion` / `engineDir` from it — never reach for `process.env` again, and
 never hardcode a path:
 
 | Env var | Meaning | Exported by `build-env.mjs` as |
@@ -93,7 +93,7 @@ never hardcode a path:
 | `TEAMAN_VAULT` | vault root | `vaultDir` (→ `content-paths.ts` roots) |
 | `TEAMAN_OUT` | output dir | `outDir` (→ `astro.config.mjs` `outDir`) |
 | `TEAMAN_BASE` | base URL path | `siteBase`, already `normalizeBase`d (also legacy `SITE_BASE`) |
-| `TEAMAN_CONFIG` | the vault config, serialized to JSON | `teamanConfig` (→ `src/config.ts` merges it over `DEFAULT_CONFIG`) |
+| `TEAMAN_CONFIG` | the vault config, serialized to JSON | `siteConfig`, already merged over `DEFAULT_CONFIG` |
 | `TEAMAN_PUBLIC` | staged static dir | `publicDir` (→ `astro.config.mjs` `publicDir`) |
 
 The one exception is `TEAMAN_SLIDES_WORK` (Slidev work dir), read directly by
@@ -109,11 +109,15 @@ Consequences when changing things:
 ### Config flow
 
 `teaman.config.js` is **pure data, default-exported** (no functions — it's JSON-
-serialized through `TEAMAN_CONFIG`). The CLI may pass a partial config;
-`src/config.ts` merges it over `DEFAULT_CONFIG` (with `hero` merged one level deep)
-and exports `SITE_CONFIG`. The authoritative `SiteConfig` shape and its doc comments
-live in `src/config.ts` — keep it in sync with the README and with `KNOWN_KEYS`/
-`KNOWN_HERO_KEYS`/`KNOWN_SLIDES_KEYS` in `bin/teaman.mjs` (the `doctor` validator).
+serialized through `TEAMAN_CONFIG`). `src/lib/vault-config.mjs` is the one copy of
+everything about it: the zod `siteConfigSchema` (with the field docs;
+`SiteConfig` is inferred from it), `DEFAULT_CONFIG`, `mergeConfig` (`hero` merged
+one level deep), `checkVaultConfig` (what `doctor` reports — schema issues are
+problems, unknown keys at any depth are warnings), and `resolveLogoFile` (the
+one logo lookup, used by CLI staging and the slides build). `build-env.mjs`
+exports the merged `siteConfig`, so the TS site (`src/config.ts` just re-exports
+it as `SITE_CONFIG`), `astro.config.mjs`, and the build scripts all read the same
+complete shape. Keep the README in sync with the schema.
 
 **Theming is the only per-vault styling surface**: `config.theme` is a map of CSS
 custom properties layered onto `:root`. Token names mirror `:root` in

@@ -15,9 +15,11 @@
  * `vi.resetModules()` after setting the env, the same way `content-paths` has
  * always been exercised.
  */
+import { readFileSync } from 'fs';
 import { isAbsolute, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { normalizeBase } from './site-base.mjs';
+import { mergeConfig } from './vault-config.mjs';
 
 /** The engine checkout / installed package root. */
 export const engineDir = fileURLToPath(new URL('../..', import.meta.url));
@@ -44,13 +46,15 @@ export const publicDir = fromEnv(process.env.TEAMAN_PUBLIC, join(engineDir, 'res
 export const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);
 
 /**
- * The vault's `teaman.config.js`, serialized by the CLI. Absent (plain
- * `npm run dev`, the tests) means "engine defaults". Malformed does too — the
- * markdown pipeline, the slides build and the site config must not fail over a
- * bad value here, since `teaman doctor` is what reports config problems — but
- * it warns, because a config that silently evaporates is worse than a noisy one.
+ * The site config: the vault's `teaman.config.js` (serialized by the CLI)
+ * merged over the engine defaults, so every consumer sees the same complete
+ * shape. Absent (plain `npm run dev`, the tests) means "engine defaults".
+ * Malformed does too — the markdown pipeline, the slides build and the site
+ * must not fail over a bad value here, since `teaman doctor` is what reports
+ * config problems — but it warns, because a config that silently evaporates is
+ * worse than a noisy one.
  */
-export const teamanConfig = (() => {
+export const siteConfig = mergeConfig((() => {
   const raw = process.env.TEAMAN_CONFIG;
   if (!raw) return {};
   try {
@@ -59,4 +63,11 @@ export const teamanConfig = (() => {
     console.warn('[teaman] could not parse TEAMAN_CONFIG, using defaults:', error);
     return {};
   }
-})();
+})());
+
+/**
+ * The engine version, stamped into built pages: the CLI's own version when it
+ * spawned this build, else the engine's package.json.
+ */
+export const engineVersion = process.env.TEAMAN_VERSION
+  ?? JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8')).version;

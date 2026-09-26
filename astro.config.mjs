@@ -22,7 +22,7 @@ import {
   outDir,
   publicDir,
   siteBase as base,
-  teamanConfig,
+  siteConfig,
   vaultDir,
 } from './src/lib/build-env.mjs';
 
@@ -42,10 +42,8 @@ const svgRoots = [...new Set([
 ])];
 
 // Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira
-// Data Center. The markdown pipeline runs inside this config, which can't import
-// the TS `src/config.ts`, so it reads the vault config off the same env seam —
-// absent (plain `npm run dev`, the tests) just means the built-in hosts.
-const smartLinkHosts = teamanConfig.smartLinks ?? undefined;
+// Data Center; absent just means the built-in hosts.
+const smartLinkHosts = siteConfig.smartLinks;
 
 export default defineConfig({
   base,

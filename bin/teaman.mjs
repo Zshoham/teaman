@@ -19,6 +19,7 @@ import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
+import { checkVaultConfig, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import matter from 'gray-matter';
@@ -148,6 +149,8 @@ async function openVault(vaultArg, opts = {}, { check = true } = {}) {
 // Stage static assets into a dir handed to Astro as publicDir: engine defaults
 // (teacup fallback) + optional vault/public + the configured logo (rewritten to
 // a bare filename so the site references it by name under `base`).
+// Returns the staged dir and the config the build should see: the logo is
+// found wherever `resolveLogoFile` finds it and served from the site root.
 function stageStatic(vault, config, stageDir) {
   mkdirSync(stageDir, { recursive: true });
   cpSync(join(engineDir, 'resources'), stageDir, { recursive: true });
@@ -155,16 +158,10 @@ function stageStatic(vault, config, stageDir) {
   const vaultStatic = join(vault, 'public');
   if (existsSync(vaultStatic)) cpSync(vaultStatic, stageDir, { recursive: true });
 
-  if (config.logo) {
-    const logoPath = isAbsolute(config.logo) ? config.logo : join(vault, config.logo);
-    if (existsSync(logoPath)) {
-      const name = basename(logoPath);
-      copyFileSync(logoPath, join(stageDir, name));
-      config.logo = name;
-    }
-    // else: assume it already lives in resources/ or vault/public — leave as-is.
-  }
-  return stageDir;
+  const logoFile = resolveLogoFile(config.logo, { vaultDir: vault, engineDir });
+  if (!logoFile) return { publicDir: stageDir, config };
+  copyFileSync(logoFile, join(stageDir, basename(logoFile)));
+  return { publicDir: stageDir, config: { ...config, logo: basename(logoFile) } };
 }
 
 export function validateOutPath(outArg, { vault, engine = engineDir, cwd = process.cwd() }) {
@@ -333,9 +330,9 @@ async function cmdBuild(vaultArg, opts) {
   symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
   const stagedRoot = mkdtempSync(join(engineDir, stagedOutPrefixFor(process.pid)));
   const stagedOut = join(stagedRoot, 'dist');
-  const publicDir = stageStatic(vault, config, join(workDir, 'public'));
+  const staged = stageStatic(vault, config, join(workDir, 'public'));
   const env = {
-    ...envFor(vault, config, { out: stagedOut, base, publicDir }),
+    ...envFor(vault, staged.config, { out: stagedOut, base, publicDir: staged.publicDir }),
     TEAMAN_SLIDES_WORK: join(workDir, 'slides'),
   };
 
@@ -382,8 +379,8 @@ export function serverArgs(opts = {}) {
 async function cmdDev(vaultArg, opts) {
   const { vault, config, base } = await openVault(vaultArg, opts);
   const workDir = mkdtempSync(join(tmpdir(), 'teaman-dev-'));
-  const publicDir = stageStatic(vault, config, join(workDir, 'public'));
-  const env = envFor(vault, config, { base, publicDir });
+  const staged = stageStatic(vault, config, join(workDir, 'public'));
+  const env = envFor(vault, staged.config, { base, publicDir: staged.publicDir });
   info(`dev server for ${c.bold(vault)} ${c.dim(`(engine ${VERSION})`)}`);
   try {
     // PDFs are build artifacts rather than authored public files. Render them
@@ -437,12 +434,6 @@ function cmdInit(vaultArg) {
 }
 
 // ── doctor: validate config + lint content without a full build ──────────────
-const KNOWN_KEYS = new Set(['brand', 'tagline', 'logo', 'hero', 'footerNote', 'engine', 'theme', 'base', 'slides', 'links', 'smartLinks']);
-const KNOWN_HERO_KEYS = new Set(['eyebrow', 'title', 'description']);
-const KNOWN_SLIDES_KEYS = new Set(['logo', 'primary', 'secondary', 'footer']);
-const KNOWN_LINK_KEYS = new Set(['label', 'url', 'description', 'icon']);
-const KNOWN_SMART_LINK_KEYS = new Set(['jira', 'confluence', 'gitlab']);
-
 function knownThemeTokens() {
   try {
     const css = readFileSync(join(engineDir, 'src', 'styles', 'global.css'), 'utf8');
@@ -469,70 +460,11 @@ export function validateConfig(config, { hasConfigFile, version = VERSION, theme
   }
   if (!hasConfigFile) return { problems, warnings };
 
-  if (!config.brand) problems.push('config: missing required "brand"');
-  if (config.hero && !config.hero.title) problems.push('config: hero is present but missing "title"');
-  for (const k of Object.keys(config)) {
-    if (!KNOWN_KEYS.has(k)) warnings.push(`config: unknown key "${k}"`);
-  }
-  for (const k of Object.keys(config.hero ?? {})) {
-    if (!KNOWN_HERO_KEYS.has(k)) warnings.push(`config: unknown hero key "${k}"`);
-  }
-  for (const k of Object.keys(config.slides ?? {})) {
-    if (!KNOWN_SLIDES_KEYS.has(k)) warnings.push(`config: unknown slides key "${k}"`);
-  }
-
-  if (config.links !== undefined) {
-    if (!Array.isArray(config.links)) {
-      problems.push('config: "links" must be an array');
-    } else {
-      config.links.forEach((l, i) => {
-        if (!l || typeof l !== 'object') {
-          problems.push(`config: links[${i}] must be an object`);
-          return;
-        }
-        if (!l.label) problems.push(`config: links[${i}] missing required "label"`);
-        if (!l.url) problems.push(`config: links[${i}] missing required "url"`);
-        else if (!/^(https?:\/\/|\/|#)/i.test(String(l.url)))
-          warnings.push(`config: links[${i}] url "${l.url}" doesn't look like a URL`);
-        for (const k of Object.keys(l)) {
-          if (!KNOWN_LINK_KEYS.has(k)) warnings.push(`config: unknown link key "${k}" (links[${i}])`);
-        }
-      });
-    }
-  }
-
-  if (config.smartLinks !== undefined) {
-    if (typeof config.smartLinks !== 'object' || Array.isArray(config.smartLinks) || !config.smartLinks) {
-      problems.push('config: "smartLinks" must be an object keyed by service');
-    } else {
-      for (const [service, hosts] of Object.entries(config.smartLinks)) {
-        if (!KNOWN_SMART_LINK_KEYS.has(service)) {
-          warnings.push(`config: unknown smartLinks service "${service}"`);
-          continue;
-        }
-        if (!Array.isArray(hosts)) {
-          problems.push(`config: smartLinks.${service} must be an array of hostnames`);
-          continue;
-        }
-        hosts.forEach((h, i) => {
-          if (typeof h !== 'string' || !h.trim()) {
-            problems.push(`config: smartLinks.${service}[${i}] must be a non-empty hostname`);
-          } else if (!/^(\*\.)?[a-z0-9.-]+$/i.test(h.trim().replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, ''))) {
-            warnings.push(`config: smartLinks.${service}[${i}] "${h}" doesn't look like a hostname`);
-          }
-        });
-      }
-    }
-  }
-
-  const tokens = themeTokens === undefined ? knownThemeTokens() : themeTokens;
-  if (tokens && config.theme) {
-    for (const t of Object.keys(config.theme)) {
-      const key = t.startsWith('--') ? t : `--${t}`;
-      if (!tokens.has(key)) warnings.push(`theme: unknown token "${t}"`);
-    }
-  }
-
+  const checked = checkVaultConfig(config, {
+    themeTokens: themeTokens === undefined ? knownThemeTokens() : themeTokens,
+  });
+  problems.push(...checked.problems);
+  warnings.push(...checked.warnings);
   return { problems, warnings };
 }
 

@@ -6,7 +6,6 @@ import { join } from 'path';
 import {
   renderVarsCss,
   renderLogoConfig,
-  resolveLogoSource,
   slidevBuildArgs,
   renderViteConfig,
   DEFAULT_SLIDE_PRIMARY,
@@ -114,29 +113,3 @@ describe('slidev router paths', () => {
   });
 });
 
-describe('resolveLogoSource', () => {
-  const vaultDir = '/vault';
-  const teamanPublic = '/staged';
-
-  it('returns null without a logo', () => {
-    expect(resolveLogoSource(null, { vaultDir })).toBe(null);
-    expect(resolveLogoSource(undefined, { vaultDir })).toBe(null);
-  });
-
-  it('prefers the staged public dir, then vault/public, then vault root', () => {
-    const exists = (p) => p === '/vault/public/logo.svg';
-    expect(resolveLogoSource('logo.svg', { teamanPublic, vaultDir, exists })).toBe('/vault/public/logo.svg');
-
-    const stagedWins = (p) => p === '/staged/logo.svg' || p === '/vault/public/logo.svg';
-    expect(resolveLogoSource('logo.svg', { teamanPublic, vaultDir, exists: stagedWins })).toBe('/staged/logo.svg');
-  });
-
-  it('honours an absolute path only when it exists', () => {
-    expect(resolveLogoSource('/abs/logo.svg', { vaultDir, exists: (p) => p === '/abs/logo.svg' })).toBe('/abs/logo.svg');
-    expect(resolveLogoSource('/abs/logo.svg', { vaultDir, exists: () => false })).toBe(null);
-  });
-
-  it('returns null when nothing matches', () => {
-    expect(resolveLogoSource('missing.svg', { teamanPublic, vaultDir, exists: () => false })).toBe(null);
-  });
-});

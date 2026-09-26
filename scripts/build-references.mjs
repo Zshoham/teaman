@@ -19,8 +19,7 @@ import { createReferenceCompiler } from '../src/lib/typst-packages.mjs';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { entryHref } from '../src/lib/entry-identity.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
-import { DEFAULT_BRAND } from '../src/lib/config-defaults.mjs';
-import { engineDir, outDir, teamanConfig, vaultDir } from '../src/lib/build-env.mjs';
+import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
 const referencesDir = join(vaultDir, 'references');
 const diagramCacheDir = join(engineDir, '.diagram-cache');
@@ -75,7 +74,7 @@ if (!existsSync(referencesDir)) {
       summary: document.data.summary,
       date: document.data.date,
       tags: Array.isArray(document.data.tags) ? document.data.tags : [],
-      brand: teamanConfig.brand ?? DEFAULT_BRAND,
+      brand: siteConfig.brand,
       body: document.body,
       chapters: document.kind === 'book' ? document.chapters : undefined,
       sourcePath: document.sourcePath,

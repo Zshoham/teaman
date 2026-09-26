@@ -79,7 +79,7 @@ describe('teaman doctor', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { tagline: "no brand here" };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
-    expect(stderr).toMatch(/missing required "brand"/);
+    expect(stderr).toMatch(/config: brand: required/);
   });
 
   it('warns on unknown config keys without failing', () => {
@@ -102,28 +102,28 @@ describe('teaman doctor', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", hero: { title: "ok", subtitle: "bad" } };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown hero key "subtitle"/);
+    expect(stderr).toMatch(/unknown key "hero\.subtitle"/);
   });
 
   it('warns on unknown slides keys', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", slides: { accent: "red" } };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown slides key "accent"/);
+    expect(stderr).toMatch(/unknown key "slides\.accent"/);
   });
 
   it('flags a link missing required fields', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ url: "https://a" }] };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
-    expect(stderr).toMatch(/links\[0\] missing required "label"/);
+    expect(stderr).toMatch(/links\[0\]\.label: required/);
   });
 
   it('warns on an unknown link key', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ label: "ok", url: "/x", color: "red" }] };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown link key "color"/);
+    expect(stderr).toMatch(/unknown key "links\[\d+\]\.color"/);
   });
 
   it('accepts a minimal link (label + url only)', () => {
@@ -137,7 +137,7 @@ describe('teaman doctor', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: "nope" };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
-    expect(stderr).toMatch(/"links" must be an array/);
+    expect(stderr).toMatch(/config: links: Invalid input: expected array/);
   });
 
   it('accepts a valid smartLinks host map', () => {
@@ -153,7 +153,7 @@ describe('teaman doctor', () => {
       'export default { brand: "x", smartLinks: { github: ["github.com"] } };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown smartLinks service "github"/);
+    expect(stderr).toMatch(/unknown key "smartLinks\.github"/);
   });
 
   it('flags a smartLinks service whose value is not an array', () => {
@@ -161,7 +161,7 @@ describe('teaman doctor', () => {
       'export default { brand: "x", smartLinks: { gitlab: "gitlab.acme.io" } };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
-    expect(stderr).toMatch(/smartLinks\.gitlab must be an array/);
+    expect(stderr).toMatch(/smartLinks\.gitlab: Invalid input: expected array/);
   });
 
   it('warns on a smartLinks entry that is not a hostname', () => {

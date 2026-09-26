@@ -393,7 +393,7 @@ describe('validateConfig', () => {
   });
 
   it('requires a brand once a config file exists', () => {
-    expect(validateConfig({}, ok).problems).toContain('config: missing required "brand"');
+    expect(validateConfig({}, ok).problems).toContain('config: brand: required');
   });
 
   // A vault with no config file runs on engine defaults, so its "missing
@@ -418,14 +418,14 @@ describe('validateConfig', () => {
     );
     expect(warnings).toEqual([
       'config: unknown key "nope"',
-      'config: unknown hero key "bogus"',
-      'config: unknown slides key "weird"',
+      'config: unknown key "hero.bogus"',
+      'config: unknown key "slides.weird"',
     ]);
   });
 
   it('requires a hero title when hero is present', () => {
     expect(validateConfig({ brand: 'x', hero: { eyebrow: 'hi' } }, ok).problems)
-      .toContain('config: hero is present but missing "title"');
+      .toContain('config: hero.title: required');
   });
 
   it('validates links entries', () => {
@@ -433,14 +433,14 @@ describe('validateConfig', () => {
       { brand: 'x', links: [{ url: 'ftp://x' }, { label: 'a', url: '/ok', extra: 1 }] },
       ok,
     );
-    expect(problems).toContain('config: links[0] missing required "label"');
-    expect(warnings).toContain('config: links[0] url "ftp://x" doesn\'t look like a URL');
-    expect(warnings).toContain('config: unknown link key "extra" (links[1])');
+    expect(problems).toContain('config: links[0].label: required');
+    expect(warnings).toContain('config: links[0].url "ftp://x" doesn\'t look like a URL');
+    expect(warnings).toContain('config: unknown key "links[1].extra"');
   });
 
   it('rejects a non-array links', () => {
     expect(validateConfig({ brand: 'x', links: {} }, ok).problems)
-      .toContain('config: "links" must be an array');
+      .toContain('config: links: Invalid input: expected array, received object');
   });
 
   it('validates smartLinks services and hostnames', () => {
@@ -448,8 +448,8 @@ describe('validateConfig', () => {
       { brand: 'x', smartLinks: { gitlab: ['git.example.com'], nope: [], jira: 'no' } },
       ok,
     );
-    expect(warnings).toContain('config: unknown smartLinks service "nope"');
-    expect(problems).toContain('config: smartLinks.jira must be an array of hostnames');
+    expect(warnings).toContain('config: unknown key "smartLinks.nope"');
+    expect(problems).toContain('config: smartLinks.jira: Invalid input: expected array, received string');
   });
 
   it('warns on theme tokens the stylesheet does not define', () => {

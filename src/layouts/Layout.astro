@@ -3,12 +3,11 @@ import '../styles/global.css';
 import { SITE_CONFIG } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
 import { Whiteboard } from '../components/Whiteboard';
-import { version as pkgVersion } from '../../package.json';
+import { engineVersion } from '../lib/build-env.mjs';
+import { themeTokenName } from '../lib/vault-config.mjs';
 
-// Engine version, stamped into <meta name="generator"> so a built site records
-// which `teaman` produced it. The CLI passes TEAMAN_VERSION; otherwise the
-// engine's own package.json version (inlined at build) is used.
-const engineVersion = process.env.TEAMAN_VERSION ?? pkgVersion;
+// `engineVersion` is stamped into <meta name="generator"> so a built site
+// records which `teaman` produced it.
 
 interface Props {
   /**
@@ -32,7 +31,7 @@ const docTitle = title
 // Per-vault theme overrides → a `:root` rule layered over global.css defaults.
 const themeCss = SITE_CONFIG.theme
   ? `:root{${Object.entries(SITE_CONFIG.theme)
-      .map(([token, value]) => `${token.startsWith('--') ? token : `--${token}`}:${value};`)
+      .map(([token, value]) => `${themeTokenName(token)}:${value};`)
       .join('')}}`
   : '';
 ---

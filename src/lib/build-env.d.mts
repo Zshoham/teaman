@@ -13,5 +13,10 @@ export const publicDir: string;
 /** Base URL path, normalized to a single leading + trailing slash. */
 export const siteBase: string;
 
-/** The vault's `teaman.config.js` as serialized by the CLI, or `{}`. */
-export const teamanConfig: Record<string, unknown>;
+import type { SiteConfig } from './vault-config.mjs';
+
+/** The vault's config merged over the engine defaults. */
+export const siteConfig: SiteConfig;
+
+/** The engine version stamped into built pages. */
+export const engineVersion: string;

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { isAbsolute } from 'path';
 
-const VARS = ['TEAMAN_VAULT', 'TEAMAN_OUT', 'TEAMAN_PUBLIC', 'TEAMAN_BASE', 'SITE_BASE', 'TEAMAN_CONFIG'];
+const VARS = ['TEAMAN_VAULT', 'TEAMAN_OUT', 'TEAMAN_PUBLIC', 'TEAMAN_BASE', 'SITE_BASE', 'TEAMAN_CONFIG', 'TEAMAN_VERSION'];
 
 // build-env reads the seam at module-eval time, so each case sets the env then
 // imports a fresh copy of the module.
@@ -53,18 +53,28 @@ describe('build-env', () => {
     expect((await load({ TEAMAN_BASE: '/new/', SITE_BASE: '/old/' })).siteBase).toBe('/new/');
   });
 
-  it('parses TEAMAN_CONFIG, defaulting to an empty config', async () => {
-    expect((await load()).teamanConfig).toEqual({});
-    expect((await load({ TEAMAN_CONFIG: '{"brand":"x"}' })).teamanConfig).toEqual({ brand: 'x' });
+  it('merges TEAMAN_CONFIG over the defaults, or uses the defaults alone', async () => {
+    const { DEFAULT_CONFIG } = await import('../vault-config.mjs');
+    expect((await load()).siteConfig).toEqual(DEFAULT_CONFIG);
+    const { siteConfig } = await load({ TEAMAN_CONFIG: '{"brand":"x","hero":{"title":"T"}}' });
+    expect(siteConfig.brand).toBe('x');
+    expect(siteConfig.tagline).toBe(DEFAULT_CONFIG.tagline);
+    expect(siteConfig.hero).toEqual({ ...DEFAULT_CONFIG.hero, title: 'T' });
   });
 
   it('warns and falls back to defaults when TEAMAN_CONFIG is malformed', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { teamanConfig } = await load({ TEAMAN_CONFIG: '{not json' });
-    expect(teamanConfig).toEqual({});
+    const { siteConfig } = await load({ TEAMAN_CONFIG: '{not json' });
+    const { DEFAULT_CONFIG } = await import('../vault-config.mjs');
+    expect(siteConfig).toEqual(DEFAULT_CONFIG);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('could not parse TEAMAN_CONFIG'),
       expect.anything(),
     );
+  });
+
+  it('reports the CLI\'s engine version, else the package version', async () => {
+    expect((await load({ TEAMAN_VERSION: '9.9.9' })).engineVersion).toBe('9.9.9');
+    expect((await load()).engineVersion).toMatch(/^\d+\.\d+\.\d+/);
   });
 });

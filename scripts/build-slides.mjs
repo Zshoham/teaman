@@ -1,16 +1,17 @@
 import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, extname } from 'path';
-import { renderVarsCss, renderLogoConfig, resolveLogoSource, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
+import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
+import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
-import { engineDir, outDir, publicDir, teamanConfig, vaultDir } from '../src/lib/build-env.mjs';
+import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const slidesTmpDir = process.env.TEAMAN_SLIDES_WORK ?? join(engineDir, '.slides-build');
 const slidesOutDir = join(outDir, 'slides');
 
-// `slides` knobs from teaman.config.js; absent or malformed → theme defaults.
-const slidesConfig = teamanConfig.slides ?? {};
+// `slides` knobs from teaman.config.js; absent → theme defaults.
+const slidesConfig = siteConfig.slides ?? {};
 
 if (!existsSync(slidesSrcDir)) {
   console.log('No slides directory, skipping.');
@@ -43,10 +44,7 @@ const themeDir = join(slidesTmpDir, 'theme');
 cpSync(join(engineDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
 writeFileSync(join(themeDir, 'styles', 'vars.css'), renderVarsCss(slidesConfig));
 
-const logoSrc = resolveLogoSource(slidesConfig.logo, {
-  teamanPublic: publicDir,
-  vaultDir,
-});
+const logoSrc = resolveLogoFile(slidesConfig.logo, { vaultDir, engineDir });
 let logoFile = null;
 if (logoSrc) {
   logoFile = `teaman-slide-logo${extname(logoSrc) || '.svg'}`;
