@@ -14,6 +14,9 @@ published to the public npm registry as **`@zshoham/teaman`** — no auth needed
 to install. Tagged releases ship as `latest`; every `main` commit also publishes
 a prerelease under the `dev` tag (`bunx @zshoham/teaman@dev`).
 
+No Bun? Each [GitHub release](https://github.com/Zshoham/teaman/releases) also
+ships a [single-file binary](#single-file-binary) with everything inside.
+
 The vault never contains engine source, only:
 
 ```
@@ -167,6 +170,40 @@ inline, `--svg-macro <name>` (e.g. the stock `html` macro) inlines the svg
 markup into that macro instead. ` ```tikz `/` ```typst ` fences compile to
 svg during the sync (sharing the site build's diagram cache) and then sync
 the same way; a fence that fails to compile syncs as a labeled source block.
+
+## Single-file binary
+
+One executable with the Bun runtime, the engine, and its whole toolchain
+(Typst, Slidev, Pagefind) inside, so a machine needs no Bun, Node, or npm. Every
+command works — `init`, `build`, `dev`, `preview`, `doctor`, `sync-confluence`:
+
+```sh
+./teaman-linux-x64 init my-vault
+./teaman-linux-x64 build my-vault
+```
+
+Download the one for your platform from the
+[releases](https://github.com/Zshoham/teaman/releases): `teaman-linux-x64`,
+`teaman-linux-arm64`, `teaman-darwin-arm64`, `teaman-darwin-x64`, or
+`teaman-win32-x64.exe`. The Linux binaries need glibc (not Alpine/musl).
+
+The first run unpacks the engine (~900 MB, a few seconds) into a per-version
+cache dir; later runs start straight from it. That dir is
+`$XDG_CACHE_HOME/teaman` (or `~/.cache/teaman`) on Linux,
+`~/Library/Caches/teaman` on macOS, `%LOCALAPPDATA%\teaman` on Windows, or
+`$TEAMAN_CACHE_DIR` if set. Each binary gets its own `engine-<version>-<id>`
+there — delete the ones for versions you no longer use.
+
+The macOS binaries are ad-hoc signed but not notarized, so one downloaded
+through a browser is quarantined: clear it once with
+`xattr -d com.apple.quarantine teaman-darwin-arm64` before the first run.
+
+To build one yourself (any target builds on any host):
+
+```sh
+bun run build:binary                                        # this platform → dist-bin/
+bun scripts/build-binary.mjs --target bun-darwin-arm64      # or any other target
+```
 
 ## Docker
 

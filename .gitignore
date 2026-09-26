@@ -3,6 +3,7 @@ public/
 test-results/
 playwright-report/
 example/dist
+dist-bin/
 
 # Dependencies
 node_modules/
