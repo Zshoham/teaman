@@ -91,18 +91,6 @@ Hence the rule above: stages start as `process.execPath <script>`, nothing
 else. CI's `binaries` job cross-compiles all targets on one Linux runner and
 builds `example/` with the Linux binary and an empty `PATH`.
 
-The `Dockerfile` packages that same consumer path as an image: stage one runs
-`npm pack`, stage two installs the tarball (runtime deps only) into
-`/opt/teaman`, world-writable so the container can run as an arbitrary
-`--user`, and symlinks the bin onto `PATH`. There is no entrypoint wrapper and
-no build-only mode — the image is a machine with `teaman` installed, `WORKDIR
-/vault`, `CMD ["bash"]`, so `docker run <image> teaman <command>` runs any
-command and a bare `docker run -it <image>` is a shell. (`teaman dev`/`preview`
-need `--host` to be reachable from outside the container.) Keep it that way:
-container-shaped behaviour belongs in the CLI, where every consumer gets it —
-see `moveStagedBuild` for the cross-filesystem case that used to need a shim.
-See the Docker section of the README for usage.
-
 ## Architecture
 
 ### The env seam (most important thing to understand)
@@ -354,14 +342,18 @@ prefer extending those helpers over duplicating logic in pages.
   for component filenames, kebab-case lowercase for routed content slugs.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
-- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with five jobs.
+- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with six jobs.
   Every job installs Bun with `oven-sh/setup-bun` (version from `packageManager`).
   The `test` job runs `bun run typecheck` + `bun run build:all` + `bun run test`, the `integration` job
   runs `bun run test:integration` (the packaged consumer path), and the `e2e`
   job installs the Playwright browser and runs `bun run test:e2e` (the
   `playwright.config.ts` webServer builds the production site and serves it via
-  `astro preview`) — all three on every push/PR. The `publish` job has
-  `needs: [test, integration, e2e]` (so a release can
+  `astro preview`), and the `binaries` job cross-compiles the single-file
+  binary for every target and builds `example/` with the Linux one on an empty
+  `PATH` — all four on every push/PR. On a `vX.Y.Z` tag, the `release` job
+  (after all four) attaches the binaries to that GitHub release
+  (`contents: write`). The `publish` job has
+  `needs: [test, integration, e2e, binaries]` (so a release can
   never ship untested or unpackageable) and only
   runs on main pushes / version tags, publishing `@zshoham/teaman` to the public
   npm registry: every `main` commit as a `dev`-tagged prerelease (`X.Y.Z-dev.<sha>`,
@@ -370,11 +362,3 @@ prefer extending those helpers over duplicating logic in pages.
   Node/npm, not Bun: npm trusted publishing
   (OIDC, `id-token: write`) — no token; the publisher is configured in the npm
   package settings and publishes carry build provenance.
-- The `image` job shares those `needs` and that main/tag gate: it builds the
-  Dockerfile and pushes `linux/amd64` to `ghcr.io/zshoham/teaman` — `:dev` +
-  `:X.Y.Z-dev.g<sha>` from main, `:latest` + `:X.Y.Z` from a version tag —
-  authenticating with the workflow's `GITHUB_TOKEN` (`packages: write`), no
-  stored secret. It does not exercise the image; `docker build -t teaman . &&
-  docker run --rm -v "$PWD/example:/vault" teaman teaman build` is the local
-  check (the vault is a bind mount, so it also covers the cross-filesystem
-  build path).
