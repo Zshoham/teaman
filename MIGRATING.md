@@ -23,6 +23,25 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **teaman runs on Bun, not Node** (no vault changes; a new runtime for anyone
+  running the npm package). Install [Bun](https://bun.sh) ≥ 1.4 and swap `npx`
+  for `bunx`: `bunx @zshoham/teaman build`. Under node the CLI now stops with a
+  message saying so. If you'd rather install nothing, use the single-file
+  binary below.
+- **The Docker image is retired; use the single-file binary** (no vault
+  changes). `ghcr.io/zshoham/teaman` gets no new tags (this change does not delete
+  the existing ones). Each GitHub release now ships one executable per platform with the
+  runtime and the whole toolchain inside, which covers what the image was for
+  (building on a machine with no Node or npm) without Docker:
+
+  ```sh
+  docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build   # before
+  ./teaman-linux-x64 build                                                       # now
+  ```
+
+  In CI, download the release binary for the runner instead of pulling the image.
+  Still need a container? Any glibc base image plus the Linux binary works.
+
 - **One URL rule, and Obsidian wiki-links** (minor). Every entry's URL now
   comes from one rule: its path, slugged per segment. References and decks
   whose file or folder name is not already a slug move (`references/My Ref.md`:
