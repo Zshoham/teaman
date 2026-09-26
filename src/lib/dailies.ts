@@ -1,4 +1,5 @@
-import { getCollection, type CollectionEntry } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import { getPublished } from './published';
 import { wordCount } from './text';
 import {
   SHORT_FROM_INDEX,
@@ -47,9 +48,8 @@ export interface DailyWeek {
 }
 
 export async function loadDailyEntries(): Promise<DailyEntry[]> {
-  const dailies = await getCollection('dailies');
+  const dailies = await getPublished('dailies');
   return dailies
-    .filter(d => !d.data.draft)
     .map(d => {
       const date = dailyDateId(d);
       const localDate = dateFromIsoDate(date);

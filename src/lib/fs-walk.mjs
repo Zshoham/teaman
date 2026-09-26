@@ -22,9 +22,9 @@ export function isInside(root, path) {
  *
  * @param {string} dir
  * @param {{ skipUnderscore?: boolean }} [options]
- *   `skipUnderscore` drops paths with an `_`-prefixed segment. Reference books
- *   and slide decks use that convention for drafts and partials; Astro's glob
- *   loader does *not* apply it, so the collections it loads must not either.
+ *   `skipUnderscore` drops paths with an `_`-prefixed segment — the publish
+ *   rule's (`publication.mjs`). Only for discovery that feeds the site
+ *   directly; lints must see every file, as Astro's glob loaders do.
  */
 export function walkMarkdown(dir, { skipUnderscore = false } = {}) {
   if (!existsSync(dir)) return [];

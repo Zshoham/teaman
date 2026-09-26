@@ -1,5 +1,6 @@
 ---
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
+import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { ReferenceReader } from '../../components/reference/ReferenceReader';
@@ -9,7 +10,7 @@ import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 import { plural } from '../../lib/text';
 
 export async function getStaticPaths() {
-  const references = await getCollection('references', reference => !reference.data.draft);
+  const references = await getPublished('references');
   return references.map(reference => ({
     params: { slug: reference.id },
     props: { reference },

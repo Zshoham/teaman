@@ -1,4 +1,4 @@
-import { getCollection } from 'astro:content';
+import { getPublished } from './published';
 import { stat } from 'fs/promises';
 import { resolve } from 'path';
 import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
@@ -70,9 +70,8 @@ async function loadDocumentEntries(
   collection: 'notes' | 'references',
   type: 'note' | 'reference',
 ): Promise<Entry[]> {
-  const documents = await getCollection(collection);
+  const documents = await getPublished(collection);
   return documents
-    .filter(document => !document.data.draft)
     .map(document => {
       const body = (document.body ?? '') as string;
       const date = (document.data.date ?? new Date()) as Date;
@@ -100,7 +99,7 @@ export function loadReferenceEntries(): Promise<Entry[]> {
 }
 
 export async function loadSlideEntries(): Promise<Entry[]> {
-  const slides = await getCollection('slides');
+  const slides = await getPublished('slides');
   const entries = slides
     .map(async s => {
       const body = (s.body ?? '') as string;
@@ -122,8 +121,8 @@ export async function loadSlideEntries(): Promise<Entry[]> {
 
 export async function loadGuideEntries(): Promise<Entry[]> {
   const [chapters, summaries, guides] = await Promise.all([
-    getCollection('guides'),
-    getCollection('guideSummaries'),
+    getPublished('guides'),
+    getPublished('guideSummaries'),
     listGuides(),
   ]);
   const chaptersById = new Map(chapters.map(chapter => [chapter.id, chapter]));
@@ -178,9 +177,8 @@ const WEEKDAY_FROM_INDEX: WeekdayShort[] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', '
  * one entry whose href deep-links to its anchor inside the week page.
  */
 export async function loadDailyNoteEntries(): Promise<Entry[]> {
-  const dailies = await getCollection('dailies');
+  const dailies = await getPublished('dailies');
   return dailies
-    .filter(d => !d.data.draft)
     .map(d => {
       const body = (d.body ?? '') as string;
       const iso = dailyDateId(d);

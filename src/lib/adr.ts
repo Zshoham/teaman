@@ -1,4 +1,5 @@
-import { getCollection, type CollectionEntry } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+import { getPublished } from './published';
 import { adrNum, type AdrStatus } from './adr-shared';
 import { isoDate } from './format';
 
@@ -25,7 +26,7 @@ export interface Adr {
 
 /** Loads the `decisions` collection as `Adr`s, sorted newest first. */
 export async function loadAdrs(): Promise<Adr[]> {
-  const entries = await getCollection('decisions');
+  const entries = await getPublished('decisions');
   return entries
     .map((e) => ({
       num: adrNum(e.id),

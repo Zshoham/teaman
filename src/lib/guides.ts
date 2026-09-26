@@ -1,4 +1,5 @@
 import { getCollection } from 'astro:content';
+import { getPublished, isPublishedEntry } from './published';
 import { entryId, guideChapterHref } from './entry-identity.mjs';
 import { parseReferenceSummary } from './reference-documents.mjs';
 
@@ -25,10 +26,20 @@ export function guideSlugFromSummaryId(id: string): string {
   return id.replace(/\/summary$/i, '');
 }
 
+/**
+ * Every published guide, with its published chapters in SUMMARY order. A
+ * drafted (or `_`-prefixed) SUMMARY.md hides the guide; a drafted chapter drops
+ * out of the chapter list, so the next chapter takes its place — including at
+ * the guide root.
+ */
 export async function listGuides(): Promise<Guide[]> {
-  const summaries = await getCollection('guideSummaries');
+  const [summaries, chapters] = await Promise.all([getPublished('guideSummaries'), getCollection('guides')]);
+  const hidden = new Set(chapters.filter(chapter => !isPublishedEntry('guides', chapter)).map(chapter => chapter.id));
   return summaries
-    .map(summary => parseGuide(guideSlugFromSummaryId(summary.id), summary.body ?? ''))
+    .map(summary => {
+      const guide = parseGuide(guideSlugFromSummaryId(summary.id), summary.body ?? '');
+      return { ...guide, chapters: guide.chapters.filter(chapter => !hidden.has(`${guide.slug}/${chapter.slug}`)) };
+    })
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 

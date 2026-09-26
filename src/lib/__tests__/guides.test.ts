@@ -198,4 +198,23 @@ describe('listGuides', () => {
     vi.mocked(getCollection).mockResolvedValue([] as any);
     expect(await listGuides()).toEqual([]);
   });
+
+  it('hides drafted and _-prefixed guides, and drafted chapters', async () => {
+    const collections: Record<string, unknown[]> = {
+      guideSummaries: [
+        { id: 'live/summary', data: {}, filePath: 'example/guides/live/SUMMARY.md', body: '- [A](a.md)\n- [B](b.md)\n' },
+        { id: 'wip/summary', data: { draft: true }, filePath: 'example/guides/wip/SUMMARY.md', body: '- [A](a.md)\n' },
+        { id: '_tpl/summary', data: {}, filePath: 'example/guides/_tpl/SUMMARY.md', body: '- [A](a.md)\n' },
+      ],
+      guides: [
+        { id: 'live/a', data: { draft: true }, filePath: 'example/guides/live/a.md' },
+        { id: 'live/b', data: {}, filePath: 'example/guides/live/b.md' },
+      ],
+    };
+    vi.mocked(getCollection).mockImplementation((async (name: string) => collections[name] ?? []) as any);
+
+    const guides = await listGuides();
+    expect(guides.map(g => g.slug)).toEqual(['live']);
+    expect(guides[0].chapters.map(c => c.slug)).toEqual(['b']);
+  });
 });

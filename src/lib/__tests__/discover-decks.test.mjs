@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverDecks, isPublishableDeckId } from '../discover-decks.mjs';
+import { discoverDecks } from '../discover-decks.mjs';
 
 let root;
 afterEach(() => {
@@ -54,27 +54,5 @@ describe('deck catalog fields', () => {
 
   it('yields nothing for a vault without slides', () => {
     expect(discoverDecks(join(tmpdir(), 'teaman-no-such-slides'))).toEqual([]);
-  });
-});
-
-describe('isPublishableDeckId', () => {
-  it('publishes ids with no underscore-prefixed segment', () => {
-    expect(isPublishableDeckId('live')).toBe(true);
-    expect(isPublishableDeckId('foo/bar')).toBe(true);
-    expect(isPublishableDeckId('foo_bar/baz')).toBe(true);
-  });
-
-  it('rejects a trailing underscore-prefixed segment', () => {
-    expect(isPublishableDeckId('foo/_wip')).toBe(false);
-    expect(isPublishableDeckId('_hidden')).toBe(false);
-  });
-
-  it('rejects an underscore-prefixed parent segment', () => {
-    expect(isPublishableDeckId('_foo/bar')).toBe(false);
-  });
-
-  it('handles platform-separated relative paths too', () => {
-    expect(isPublishableDeckId('foo\\_wip')).toBe(false);
-    expect(isPublishableDeckId('foo\\bar')).toBe(true);
   });
 });

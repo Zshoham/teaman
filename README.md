@@ -42,6 +42,13 @@ carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), opti
 of a related ADR); the body holds the prose (Context / Decision / Consequences). They
 render as a filterable timeline at `/decisions/` and also appear in the home feed.
 
+**Drafts.** Anything with `draft: true` in its frontmatter stays off the site —
+out of pages, feeds, navigation, search, and wiki-link targets — and so does
+anything under an `_`-prefixed file or folder (`notes/_templates/`,
+`slides/_wip.md`). On a guide's `SUMMARY.md` or a reference book's, `draft`
+hides the whole guide or book; on a guide chapter, just that chapter. Tags may
+be written as a list or as `tags: a, b` on any file.
+
 **URLs and wiki-links.** A page's URL is its path under the content directory,
 slugged per segment: `notes/Team Rituals/Shipping Cadence.md` is served at
 `/notes/team-rituals/shipping-cadence/`. Notes, standalone references, and decks

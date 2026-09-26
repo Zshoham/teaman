@@ -3,17 +3,7 @@ import { extname, join, relative } from 'node:path';
 import matter from 'gray-matter';
 import { parseSync } from '@slidev/parser/core';
 import { entryId } from './entry-identity.mjs';
-
-/**
- * Whether a deck id / relative path is publishable: false when any path segment
- * starts with `_`. Accepts `/`-separated ids as well as platform-separated
- * relative paths.
- */
-export function isPublishableDeckId(id) {
-  return !id
-    .split(/[/\\]/)
-    .some(segment => segment.startsWith('_'));
-}
+import { isPublished, isPublishedPath } from './publication.mjs';
 
 /** `tags: a, b` and `tags: [a, b]` both mean two tags, as in the collection schema. */
 function tagList(value) {
@@ -27,7 +17,7 @@ function tagList(value) {
  * and the wiki-link index all read decks here, so they agree on which decks
  * exist, what each is called, and where it is served.
  *
- * Publishable means no `_`-prefixed path segment and no `draft: true`.
+ * Only published decks (see `publication.mjs`).
  *
  * @param {string} slidesRoot
  */
@@ -42,7 +32,8 @@ export function discoverDecks(slidesRoot) {
     for (const entry of entries) {
       const path = join(dir, entry.name);
       const rel = relative(slidesRoot, path);
-      if (!isPublishableDeckId(rel)) continue;
+      // A `_` directory prunes its whole subtree.
+      if (!isPublishedPath(rel)) continue;
       if (entry.isDirectory()) {
         walk(path);
         continue;
@@ -50,7 +41,7 @@ export function discoverDecks(slidesRoot) {
       if (!entry.isFile() || extname(entry.name) !== '.md') continue;
       const markdown = readFileSync(path, 'utf8');
       const { data } = matter(markdown);
-      if (data.draft === true) continue;
+      if (!isPublished({ data, relPath: rel })) continue;
       const id = entryId('slides', rel, data);
       const { slides } = parseSync(markdown, path);
       decks.push({

@@ -1,5 +1,6 @@
 ---
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
+import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import DocMeta from '../../components/DocMeta.astro';
@@ -8,7 +9,7 @@ import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
 export async function getStaticPaths() {
-  const notes = await getCollection('notes', n => !n.data.draft);
+  const notes = await getPublished('notes');
   return notes.map(note => ({
     params: { slug: note.id },
     props: { note },

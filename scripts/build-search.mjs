@@ -1,5 +1,5 @@
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import * as pagefind from 'pagefind';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
@@ -7,6 +7,7 @@ import { pagefindGlob } from '../src/lib/collections.mjs';
 import { adrHref, entryHref } from '../src/lib/entry-identity.mjs';
 import { adrDisplayTitle, adrSearchText } from '../src/lib/decision-records.mjs';
 import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
+import { isPublished } from '../src/lib/publication.mjs';
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
@@ -55,6 +56,7 @@ if (existsSync(slidesSrcDir)) {
 // DOM when a modal opens, so the built HTML can't be crawled per-ADR. Feed each
 // ADR in as its own custom record that deep-links to its modal (?adr=<num>).
 for (const record of discoverDecisions(decisionsSrcDir)) {
+  if (!isPublished({ data: record.data, relPath: relative(decisionsSrcDir, record.sourcePath) })) continue;
   const title = String(record.data.title ?? `ADR-${record.num}`);
   const { errors: recordErrors } = await index.addCustomRecord({
     url: adrHref(siteBase, record.num),

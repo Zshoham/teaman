@@ -1,5 +1,6 @@
 ---
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
+import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { GuideTOC } from '../../components/guide/GuideTOC';
@@ -35,7 +36,7 @@ const { guideSlug, chapterSlug } = Astro.props;
 const guide = await getGuide(guideSlug);
 if (!guide) throw new Error(`Guide not found: ${guideSlug}`);
 
-const entries = await getCollection('guides');
+const entries = await getPublished('guides');
 const entry = entries.find(e => e.id === `${guideSlug}/${chapterSlug}`);
 if (!entry) throw new Error(`Chapter not found: ${guideSlug}/${chapterSlug}`);
 

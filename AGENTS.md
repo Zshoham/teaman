@@ -147,8 +147,13 @@ pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
 `slides` are catalog-fed loaders built on `vault-loader.mjs` (store sync, digest
 skipping, dev watching), fed by `discoverReferenceDocuments` and the deck
 catalog `discoverDecks`. Notes about the model:
+- **Publishing** is one rule for every type (`publication.mjs`): `draft: true`
+  or any `_`-prefixed path segment keeps a file off the site. Read collections
+  with `getPublished` (`published.ts`), never bare `getCollection`; discovery
+  outside Astro calls `isPublished`. Frontmatter schemas are one per file kind
+  in `frontmatter-schemas.mjs`, shared by `content.config.ts` and `doctor`.
 - `discoverDecks` (`discover-decks.mjs`) is the one deck catalog: membership
-  (`_` paths and `draft: true` excluded), id, title, tags, slide count, and
+  (published decks only), id, title, tags, slide count, and
   visible text, parsed once with `@slidev/parser`. The slides collection,
   `build-slides`, search, and the vault index all read it.
 - ADRs: statuses, the standalone `ADR-n · title`, and search text live in

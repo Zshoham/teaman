@@ -15,6 +15,7 @@ import {
   guideHref,
 } from './entry-identity.mjs';
 import { isInside, walkMarkdown } from './fs-walk.mjs';
+import { isPublished } from './publication.mjs';
 import { discoverReferenceDocuments, parseReferenceSummary } from './reference-documents.mjs';
 
 /**
@@ -23,9 +24,9 @@ import { discoverReferenceDocuments, parseReferenceSummary } from './reference-d
  * remark plugin, `doctor`, and Confluence sync all resolve links here, so they
  * agree on what `[[x]]` means.
  *
- * Membership mirrors what the site publishes: drafts, `_`-prefixed references
- * and decks, SUMMARY.md files, and guide chapters no SUMMARY lists are not
- * targets.
+ * Membership mirrors what the site publishes (`publication.mjs`): drafts,
+ * `_`-prefixed paths, SUMMARY.md files, and guide chapters no SUMMARY lists are
+ * not targets.
  */
 
 const posix = value => value.replace(/\\/g, '/');
@@ -60,7 +61,7 @@ function noteEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('note').dir);
   return walkMarkdown(root).flatMap(sourcePath => {
     const { data } = readMatter(sourcePath);
-    if (data.draft === true) return [];
+    if (!isPublished({ data, relPath: relative(root, sourcePath) })) return [];
     const id = entryId('note', relative(root, sourcePath), data);
     return [{ type: 'note', sourcePath, kind: 'file', href: entryHref(base, 'note', id) }];
   });
@@ -69,7 +70,8 @@ function noteEntries(vaultDir, base) {
 function referenceEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('reference').dir);
   return discoverReferenceDocuments(root).flatMap(document => {
-    if (!document.id || document.error || document.data?.draft === true) return [];
+    if (!document.id || document.error) return [];
+    if (!isPublished({ data: document.data, relPath: relative(root, document.sourcePath) })) return [];
     const href = entryHref(base, 'reference', document.id);
     if (document.kind === 'standalone') {
       return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', href }];
@@ -88,11 +90,16 @@ function guideEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('guide').dir);
   const summaries = walkMarkdown(root).filter(path => basename(path).toLowerCase() === 'summary.md');
   return summaries.flatMap(summaryPath => {
+    const summary = readMatter(summaryPath);
+    if (!isPublished({ data: summary.data, relPath: relative(root, summaryPath) })) return [];
     const dir = dirname(summaryPath);
     const guideSlug = entryId('guide', relative(root, summaryPath)).replace(/\/summary$/, '');
-    const chapters = parseReferenceSummary(readMatter(summaryPath).content, { rootRelative: true })
+    // Drafted chapters drop out, as they do on the site, so the first published
+    // chapter is the one served at the guide root.
+    const chapters = parseReferenceSummary(summary.content, { rootRelative: true })
       .map(chapter => ({ path: chapter.path, sourcePath: resolve(dir, chapter.path) }))
-      .filter(chapter => isInside(dir, chapter.sourcePath));
+      .filter(chapter => isInside(dir, chapter.sourcePath) && existsSync(chapter.sourcePath))
+      .filter(chapter => isPublished({ data: readMatter(chapter.sourcePath).data, relPath: relative(root, chapter.sourcePath) }));
     const slugs = chapters.map(chapter => entryId('guide', chapter.path));
     return [
       { type: 'guide', sourcePath: dir, kind: 'folder', href: guideHref(base, guideSlug) },
@@ -121,7 +128,7 @@ function dailyEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('daily').dir);
   return walkMarkdown(root).flatMap(sourcePath => {
     const { data } = readMatter(sourcePath);
-    if (data.draft === true) return [];
+    if (!isPublished({ data, relPath: relative(root, sourcePath) })) return [];
     const id = entryId('daily', relative(root, sourcePath));
     const date = data.date instanceof Date ? data.date : new Date(String(data.date ?? ''));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && Number.isNaN(date.getTime())) return [];
@@ -131,12 +138,14 @@ function dailyEntries(vaultDir, base) {
 
 function decisionEntries(vaultDir, base) {
   const root = join(vaultDir, collectionFor('decision').dir);
-  return discoverDecisions(root).map(record => ({
-    type: 'decision',
-    sourcePath: record.sourcePath,
-    kind: 'file',
-    href: adrHref(base, record.num),
-  }));
+  return discoverDecisions(root)
+    .filter(record => isPublished({ data: record.data, relPath: relative(root, record.sourcePath) }))
+    .map(record => ({
+      type: 'decision',
+      sourcePath: record.sourcePath,
+      kind: 'file',
+      href: adrHref(base, record.num),
+    }));
 }
 
 // Directories that hold no vault attachments: tooling state and build output

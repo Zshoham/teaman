@@ -9,7 +9,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import {
   compileReferenceDiagrams,
   referencePdfCacheKey,
@@ -19,6 +19,7 @@ import { createReferenceCompiler } from '../src/lib/typst-packages.mjs';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { entryHref } from '../src/lib/entry-identity.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
+import { isPublished } from '../src/lib/publication.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
 const referencesDir = join(vaultDir, 'references');
@@ -51,7 +52,7 @@ if (!existsSync(referencesDir)) {
   let count = 0;
   for (const document of discoverReferenceDocuments(referencesDir)) {
     if (document.error) throw new Error(document.error);
-    if (document.data.draft === true) continue;
+    if (!isPublished({ data: document.data, relPath: relative(referencesDir, document.sourcePath) })) continue;
     if (document.missing.length > 0) {
       throw new Error(`${document.id}/SUMMARY.md lists missing chapters: ${document.missing.join(', ')}`);
     }

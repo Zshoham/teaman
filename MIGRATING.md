@@ -31,6 +31,14 @@ mismatch warning stays quiet and records what the vault now targets.
   not just top-level notes, and a missing link renders as text instead of a
   dead href. Links that worked before still resolve; run `teaman doctor` to see
   any that only match by the old slug rule or are ambiguous.
+- **One publish rule** (minor, with one behaviour change). `draft: true` now
+  works on guides (on `SUMMARY.md` or a chapter) and decisions too, and an
+  `_`-prefixed file or folder is unpublished for **every** type — before, only
+  references and decks honoured it, so a note under `notes/_templates/` was
+  published. Rename such a folder if you meant to publish it. `tags: a, b`
+  now works everywhere, and `doctor` checks frontmatter with the build's own
+  schemas, so its wording changed; ADR lineage may name a file
+  (`supersedes: adr-0002`).
 - **Obsidian embeds** (minor). `![[image.png]]` now renders as an image on the
   site (it used to show as literal text), found by name anywhere in the vault.
   `![[Some Note]]` is now an error in `doctor` and the build — notes cannot be

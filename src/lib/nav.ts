@@ -1,4 +1,4 @@
-import { getCollection } from 'astro:content';
+import { getPublished } from './published';
 import { COLLECTIONS, type EntryType } from './collections.mjs';
 import { loadDailyWeeks, weekHref } from './dailies';
 import { listGuides } from './guides';
@@ -21,23 +21,22 @@ const base = import.meta.env.BASE_URL;
  * ship no slides or no guides at all, so an empty collection must not leave a
  * dead link in the nav — same rule the home page's type tabs already follow.
  *
- * "Has content" is the one genuinely per-type bit: a draft note doesn't count,
- * and a guide is a directory rather than a file. (The slides collection only
- * holds published decks.) Label, href, grouping and order come from the registry.
+ * "Has content" means published content (see `getPublished`): a vault of
+ * drafts has no section. Label, href, grouping and order come from the registry.
  */
 export async function loadNavSections(): Promise<NavSection[]> {
   const [notes, references, slides, guides, weeks, decisions] = await Promise.all([
-    getCollection('notes'),
-    getCollection('references'),
-    getCollection('slides'),
+    getPublished('notes'),
+    getPublished('references'),
+    getPublished('slides'),
     listGuides(),
     loadDailyWeeks(),
-    getCollection('decisions'),
+    getPublished('decisions'),
   ]);
 
   const hasContent: Record<EntryType, boolean> = {
-    note: notes.some(note => !note.data.draft),
-    reference: references.some(reference => !reference.data.draft),
+    note: notes.length > 0,
+    reference: references.length > 0,
     guide: guides.length > 0,
     slides: slides.length > 0,
     daily: weeks.length > 0,

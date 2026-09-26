@@ -63,6 +63,28 @@ describe('createVaultIndex', () => {
     }
   });
 
+  it('applies the publish rule to every type', () => {
+    const index = fixture();
+    write('notes/_templates/tpl.md');
+    write('decisions/adr-0003.md', '---\ntitle: T\ndraft: true\n---\n');
+    write('dailies/_scratch/2026-03-13.md', '---\ndate: 2026-03-13\n---\n');
+    write('guides/hidden/SUMMARY.md', '---\ndraft: true\n---\n- [Only](only.md)\n');
+    write('guides/hidden/only.md');
+    const fresh = createVaultIndex(vault, { base: '/site/' });
+    for (const target of ['tpl', 'adr-0003', '2026-03-13', 'hidden', 'only']) {
+      expect(fresh.resolve(target), target).toBeNull();
+    }
+    expect(index.resolve('top')).not.toBeNull();
+  });
+
+  it('serves the first published chapter at the guide root', () => {
+    fixture();
+    write('guides/using-it/intro.md', '---\ndraft: true\n---\n');
+    const index = createVaultIndex(vault, { base: '/site/' });
+    expect(index.resolve('intro', join(vault, 'guides/using-it/unlisted.md'))?.entry.type).not.toBe('guide');
+    expect(hrefOf(index, 'Setup Steps')).toBe('/site/guides/using-it/');
+  });
+
   it('matches names case-insensitively, with or without .md', () => {
     const index = fixture();
     expect(hrefOf(index, 'TOP')).toBe('/site/notes/top/');
