@@ -14,7 +14,7 @@
  */
 export function slidevBuildArgs(deckPath, { out, theme }) {
   return [
-    'slidev', 'build', deckPath,
+    'build', deckPath,
     '--base', './',
     '--out', out,
     '--theme', theme,
