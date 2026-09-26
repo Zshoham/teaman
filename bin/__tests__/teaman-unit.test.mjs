@@ -482,20 +482,56 @@ describe('lintContent', () => {
   it('requires a date on every daily', async () => {
     write('dailies/2026-05-04.md', '# no frontmatter\n');
     const { problems } = await lintContent(vault);
-    expect(problems).toContain('dailies: 2026-05-04.md needs a "date" in frontmatter');
+    expect(problems).toContain('dailies: 2026-05-04.md: date: required');
   });
 
   it('requires a date and a valid status on every decision', async () => {
     write('decisions/adr-0001.md', '---\nstatus: sideways\n---\n');
     const { problems } = await lintContent(vault);
-    expect(problems).toContain('decisions: adr-0001.md needs a "date" in frontmatter');
-    expect(problems).toContain('decisions: adr-0001.md has invalid status "sideways"');
+    expect(problems).toEqual([
+      'decisions: adr-0001.md: title: required',
+      'decisions: adr-0001.md: date: required',
+      'decisions: adr-0001.md: status: must be one of accepted | proposed | superseded',
+    ]);
+  });
+
+  it('rejects an unquoted ADR number in lineage, and accepts file names', async () => {
+    write('decisions/adr-0001.md', '---\ntitle: A\ndate: 2026-01-01\nstatus: accepted\nsupersedes: 0002\n---\n');
+    write('decisions/adr-0002.md', '---\ntitle: B\ndate: 2026-01-01\nstatus: superseded\nsupersededBy: adr-0001\n---\n');
+    const { problems, warnings } = await lintContent(vault);
+    expect(problems).toEqual([
+      'decisions: adr-0001.md: supersedes: must name an ADR as a string — write adr-0002 (or quote the number)',
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('checks every kind of file against its collection schema', async () => {
+    write('notes/n.md', '---\ntags: 3\n---\n');
+    write('guides/g/SUMMARY.md', '---\ndraft: maybe\n---\n- [A](a.md)\n');
+    write('guides/g/a.md', '---\ntitle: 7\n---\n');
+    write('references/r.md', '---\ndate: someday\n---\n');
+    write('slides/deck.md', '---\ntags: [1]\n---\n# Deck\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toEqual([
+      'notes: n.md: tags: Invalid input: expected array, received number',
+      'guides: g/a.md: title: Invalid input: expected string, received number',
+      'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
+      'slides: deck.md: tags.0: Invalid input: expected string, received number',
+      'references: r.md: date: not a valid date',
+    ]);
+  });
+
+  it('accepts comma-separated tags on every type', async () => {
+    write('notes/n.md', '---\ntags: a, b\n---\n');
+    write('dailies/2026-01-01.md', '---\ndate: 2026-01-01\ntags: a, b\n---\n');
+    write('references/r.md', '---\ntags: a, b\n---\n');
+    expect((await lintContent(vault)).problems).toEqual([]);
   });
 
   it('warns when ADR lineage points at a missing record', async () => {
-    write('decisions/adr-0001.md', '---\ndate: 2026-01-01\nstatus: accepted\nsupersededBy: 9\n---\n');
+    write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nsupersededBy: adr-0009\n---\n');
     const { warnings } = await lintContent(vault);
-    expect(warnings).toContain('decisions: adr-0001.md supersededBy points at missing ADR-9');
+    expect(warnings).toContain('decisions: adr-0001.md supersededBy points at missing adr-0009');
   });
 
   it('requires a SUMMARY.md in every guide directory', async () => {

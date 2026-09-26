@@ -35,8 +35,10 @@ export async function loadAdrs(): Promise<Adr[]> {
       status: e.data.status,
       tags: e.data.tags ?? [],
       summary: e.data.summary ?? '',
-      supersedes: e.data.supersedes,
-      supersededBy: e.data.supersededBy,
+      // Lineage is written as a file name (`adr-0002`) or a number (`"0002"`);
+      // the timeline links ADRs by number.
+      supersedes: e.data.supersedes && adrNum(e.data.supersedes),
+      supersededBy: e.data.supersededBy && adrNum(e.data.supersededBy),
       entry: e,
     }))
     .sort((a, b) =>

@@ -95,7 +95,7 @@ describe('teaman doctor', () => {
     writeFileSync(join(dir, 'dailies', '2026-01-01.md'), '# just a heading, no frontmatter\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
-    expect(stderr).toMatch(/needs a "date" in frontmatter/);
+    expect(stderr).toMatch(/2026-01-01\.md: date: required/);
   });
 
   it('warns on unknown hero keys', () => {

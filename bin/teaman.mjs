@@ -17,9 +17,11 @@ import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
 import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
-import { COLLECTIONS, CONTENT_DIRS } from '../src/lib/collections.mjs';
-import { SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
-import { ADR_STATUSES } from '../src/lib/decision-records.mjs';
+import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
+import { adrNum, SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
+import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
+import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import matter from 'gray-matter';
 import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
@@ -541,38 +543,59 @@ export function validateConfig(config, { hasConfigFile, version = VERSION, theme
  * @param {string} vault
  * @returns {Promise<{ problems: string[], warnings: string[] }>}
  */
+/** A file's frontmatter, or `{}` when it has none or it does not parse. */
+function frontmatterOr(source) {
+  try { return matter(source).data; } catch { return {}; }
+}
+
 export async function lintContent(vault) {
   const problems = [];
   const warnings = [];
 
-  // Frontmatter checks need gray-matter from the engine's deps; without it the
-  // build is the backstop, so skip rather than fail.
-  let matter;
-  try { matter = (await import('gray-matter')).default; } catch { /* skip fm checks */ }
-
-  if (matter) {
-    for (const file of walkMarkdown(join(vault, 'dailies'))) {
-      const { data } = matter(readFileSync(file, 'utf8'));
-      // The dailies collection schema requires `date`; a YYYY-MM-DD filename
-      // only supplies the URL slug, not the schema field, so the build rejects
-      // a dated filename without frontmatter. Match that here.
-      if (!data.date) problems.push(`dailies: ${basename(file)} needs a "date" in frontmatter`);
+  // Frontmatter, validated by the same schemas the content collections use
+  // (frontmatter-schemas.mjs), so passing here means the build accepts it.
+  const checkFrontmatter = (dir, root, file, kind, data) => {
+    const where = `${dir}: ${relative(root, file).split(sep).join('/')}`;
+    for (const problem of frontmatterProblems(kind, data)) problems.push(`${where}: ${problem}`);
+  };
+  const frontmatterOf = (dir, root, file) => {
+    try {
+      return matter(readFileSync(file, 'utf8')).data;
+    } catch (error) {
+      problems.push(`${dir}: ${relative(root, file).split(sep).join('/')}: frontmatter is not valid YAML (${String(error.message).split('\n')[0]})`);
+      return null;
     }
+  };
+  for (const [type, kindOf] of [
+    ['note', () => 'note'],
+    ['daily', () => 'daily'],
+    ['decision', () => 'decision'],
+    ['guide', file => (basename(file).toLowerCase() === 'summary.md' ? 'guideSummary' : 'guideChapter')],
+  ]) {
+    const { dir } = collectionFor(type);
+    const root = join(vault, dir);
+    for (const file of walkMarkdown(root)) {
+      const data = frontmatterOf(dir, root, file);
+      if (data) checkFrontmatter(dir, root, file, kindOf(file), data);
+    }
+  }
+  // Decks and references reach their collections through the engine's own
+  // discovery, so validate what it hands over.
+  const slidesRoot = join(vault, 'slides');
+  for (const deck of discoverDecks(slidesRoot)) checkFrontmatter('slides', slidesRoot, deck.path, 'deck', deck.data);
+  const referencesRoot = join(vault, 'references');
+  for (const document of discoverReferenceDocuments(referencesRoot)) {
+    if (!document.error) checkFrontmatter('references', referencesRoot, document.sourcePath, 'reference', document.data);
+  }
 
-    // The decisions collection requires `date` + a valid `status`; lineage
-    // pointers should resolve to an ADR that actually exists in the vault.
-    const records = discoverDecisions(join(vault, 'decisions'));
-    const nums = new Set(records.map(record => record.num));
-    for (const { sourcePath, data } of records) {
-      const name = basename(sourcePath);
-      if (!data.date) problems.push(`decisions: ${name} needs a "date" in frontmatter`);
-      if (!data.status) problems.push(`decisions: ${name} needs a "status" (${ADR_STATUSES.join(' | ')})`);
-      else if (!ADR_STATUSES.includes(data.status)) problems.push(`decisions: ${name} has invalid status "${data.status}"`);
-      for (const key of ['supersedes', 'supersededBy']) {
-        const ref = data[key];
-        if (ref && !nums.has(String(ref))) {
-          warnings.push(`decisions: ${name} ${key} points at missing ADR-${ref}`);
-        }
+  // Lineage pointers should resolve to an ADR that exists in the vault.
+  const records = discoverDecisions(join(vault, 'decisions'));
+  const nums = new Set(records.map(record => record.num));
+  for (const { sourcePath, data } of records) {
+    for (const key of ['supersedes', 'supersededBy']) {
+      const ref = data[key];
+      if (typeof ref === 'string' && ref && !nums.has(adrNum(ref))) {
+        warnings.push(`decisions: ${basename(sourcePath)} ${key} points at missing ${ref}`);
       }
     }
   }
@@ -614,7 +637,7 @@ export async function lintContent(vault) {
     for (const file of walkMarkdown(root)) {
       const where = `${dir}: ${relative(root, file).split(sep).join('/')}`;
       const source = readFileSync(file, 'utf8');
-      if (matter && !SLUG_OVERRIDE_TYPES.has(type) && matter(source).data.slug) {
+      if (!SLUG_OVERRIDE_TYPES.has(type) && frontmatterOr(source).slug) {
         warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
       }
       // Parsed with the dialect the PDF and Confluence render with, so code
