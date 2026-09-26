@@ -72,7 +72,7 @@ describe('slidevBuildArgs', () => {
   const args = slidevBuildArgs('/tmp/deck.md', { out: '/out', theme: '/theme' });
 
   it('builds the given deck into the given out dir with the theme', () => {
-    expect(args.slice(0, 3)).toEqual(['slidev', 'build', '/tmp/deck.md']);
+    expect(args.slice(0, 2)).toEqual(['build', '/tmp/deck.md']);
     expect(args).toContain('--out');
     expect(args[args.indexOf('--out') + 1]).toBe('/out');
     expect(args[args.indexOf('--theme') + 1]).toBe('/theme');

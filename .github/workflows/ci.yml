@@ -4,10 +4,10 @@ name: CI
 # `integration` packs the engine as a real tarball and builds the example vault
 #   through the installed CLI — the consumer path the in-repo build can't see.
 # `e2e` builds the production site and runs the Playwright suite against it.
-# `image` builds the Docker image and pushes it to GHCR.
-# `publish` and `image` run only after the first three pass, and push only on
-#   main pushes / version tags — so a release can never ship untested or
-#   unpackageable.
+# `binaries` builds the single-file binary for every platform and runs the
+#   Linux one with nothing on PATH; `release` attaches them to a tag's release.
+# `publish` runs only after all of those pass, and only on main pushes /
+#   version tags — so a release can never ship untested or unpackageable.
 #
 # Two release channels to the public npm registry:
 #   - push to main        -> prerelease  X.Y.Z-dev.g<sha> @ dist-tag `dev`
@@ -32,104 +32,98 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun install --frozen-lockfile
       # astro sync generates .astro/types.d.ts (astro:content module types),
       # which tsconfig includes — a fresh checkout has none until then.
-      - run: npm run typecheck
-      - run: npm run build:all
-      - run: npm test
+      - run: bun run typecheck
+      - run: bun run build:all
+      - run: bun run test
 
   # Consumer path: pack the engine, install the tarball into a throwaway project
   # outside the repo, and build the example vault through the installed CLI. Runs
-  # its own install of the tarball, so no `npm ci` here — it catches packaging
+  # its own install of the tarball, so no `bun install` here — it catches packaging
   # bugs (missing `files`/`dependencies`, unresolvable bin) the in-repo build can't.
   integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm run test:integration
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun run test:integration
 
   # Browser suite: the Playwright config's webServer builds the production site
   # and serves it via `astro preview`, then runs the e2e/ specs against it.
-  # `npx playwright install --with-deps chromium` pulls the headless browser
-  # binary and the system libraries it needs on a clean Ubuntu runner.
+  # `bunx playwright install --with-deps chromium` pulls the headless browser
+  # binary and the system libraries it needs on a clean Ubuntu runner. The
+  # Playwright runner itself runs on the runner's preinstalled Node (it does not
+  # support Bun); the site it tests is built and served by Bun.
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e
 
-  # The container image: the same engine, packaged for hosts that have Docker but
-  # no Node. Built and pushed to GHCR only after the test jobs pass, on the same
-  # two channels as npm:
-  #   - push to main    -> ghcr.io/zshoham/teaman:dev     (+ :X.Y.Z-dev.g<sha>)
-  #   - push tag vX.Y.Z -> ghcr.io/zshoham/teaman:latest  (+ :X.Y.Z)
-  # linux/amd64 only: a cross-built arm64 image would run this dependency tree's
-  # install under QEMU. Add arm64 by building it natively on an `ubuntu-24.04-arm`
-  # runner and merging the two into one manifest.
-  image:
-    needs: [test, integration, e2e]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    concurrency:
-      group: image-${{ github.ref }}
-      cancel-in-progress: true
+  # The single-file binaries (scripts/build-binary.mjs): the Bun runtime plus
+  # the packed engine, for hosts with no Bun, Node or npm. Every target
+  # cross-compiles on this one Linux runner — Bun cross-compiles the runtime,
+  # and each target's native dependencies are installed by OS/CPU. The Linux
+  # binary is then run with an empty PATH against the example vault, which is
+  # the one check that the binary needs nothing from the machine. (The others
+  # cannot run here.) Nothing to install: the build packs the engine itself.
+  binaries:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
       - name: Build
-        run: docker build -t teaman:ci .
-      - name: Push
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            TAGS="${GITHUB_REF_NAME#v} latest"
-          else
-            TAGS="$(node -p "require('./package.json').version")-dev.g$(git rev-parse --short HEAD)"
-          fi
-          # GHCR repository names must be lowercase; the GitHub owner need not be.
-          IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for tag in $TAGS; do
-            echo "Pushing $IMAGE:$tag"
-            docker tag teaman:ci "$IMAGE:$tag"
-            docker push "$IMAGE:$tag"
+          for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64 bun-windows-x64; do
+            bun scripts/build-binary.mjs --target "$target"
           done
-          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
-            # A same-ref concurrency group cancels an older image job once a
-            # newer one is ready. This check also catches an older job that did
-            # not become runnable until after the newer job already completed.
-            git fetch --no-tags --depth=1 origin main
-            CURRENT=$(git rev-parse origin/main)
-            if [[ "$GITHUB_SHA" != "$CURRENT" ]]; then
-              echo "Skipping dev tag: $GITHUB_SHA is no longer origin/main ($CURRENT)."
-              exit 0
-            fi
-            echo "Pushing $IMAGE:dev"
-            docker tag teaman:ci "$IMAGE:dev"
-            docker push "$IMAGE:dev"
+      - name: Build the example vault with the Linux binary alone
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty-path"
+          cp -r example "$RUNNER_TEMP/vault"
+          env PATH="$RUNNER_TEMP/empty-path" TEAMAN_CACHE_DIR="$RUNNER_TEMP/teaman-cache" \
+            "$PWD/dist-bin/teaman-linux-x64" build "$RUNNER_TEMP/vault"
+          for artifact in index.html slides/intro/index.html pagefind/pagefind.js references/rust-reference/reference.pdf; do
+            test -f "$RUNNER_TEMP/vault/dist/$artifact" || { echo "missing $artifact"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teaman-binaries
+          path: dist-bin/
+          compression-level: 0 # already zstd inside
+          retention-days: 7
+
+  # A version tag's binaries go on its GitHub release, once everything passed.
+  release:
+    needs: [test, integration, e2e, binaries]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: teaman-binaries
+          path: dist-bin
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist-bin/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist-bin/* --verify-tag --generate-notes
           fi
 
   publish:
-    needs: [test, integration, e2e]
+    needs: [test, integration, e2e, binaries]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
@@ -141,7 +135,8 @@ jobs:
         with:
           node-version: 24 # bundles npm >= 11.5.1, which supports OIDC trusted publishing
           registry-url: https://registry.npmjs.org
-      # No npm ci needed: the package ships source (see `files` in package.json),
+      # npm, not bun, publishes: npm trusted publishing (OIDC) and provenance
+      # are npm CLI features. No install needed: the package ships source (see `files` in package.json),
       # and the `test` job already validated install + build.
       - name: Resolve version and publish
         run: |
@@ -157,7 +152,7 @@ jobs:
               echo "Skipping publish: $GITHUB_SHA is no longer origin/main ($CURRENT)."
               exit 0
             fi
-            BASE=$(node -p "require('./package.json').version")
+            BASE=$(jq -r .version package.json)
             SHA=$(git rev-parse --short HEAD)
             VERSION="$BASE-dev.g$SHA"
             DIST_TAG=dev

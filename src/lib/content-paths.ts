@@ -3,7 +3,7 @@ import { vaultDir } from './build-env.mjs';
 import { collectionFor, type EntryType } from './collections.mjs';
 
 // The vault root the site is built from, straight off the env seam — which
-// falls back to the repo's bundled `example/` vault so `npm run dev` and the
+// falls back to the repo's bundled `example/` vault so `bun run dev` and the
 // test suite work in place. See `build-env.mjs`.
 export const contentRoot = vaultDir;
 

@@ -5,13 +5,17 @@ A static site generator for Obsidian vaults. `teaman` is an installable Astro
 you build it with one command:
 
 ```sh
-npx @zshoham/teaman build ~/vaults/my-notes      # → ~/vaults/my-notes/dist
-npx @zshoham/teaman dev   ~/vaults/my-notes      # live preview
+bunx @zshoham/teaman build ~/vaults/my-notes      # → ~/vaults/my-notes/dist
+bunx @zshoham/teaman dev   ~/vaults/my-notes      # live preview
 ```
 
-Published to the public npm registry as **`@zshoham/teaman`** — no auth needed to
-install. Tagged releases ship as `latest`; every `main` commit also publishes a
-prerelease under the `dev` tag (`npx @zshoham/teaman@dev`).
+teaman runs on [Bun](https://bun.sh) (≥ 1.4); it does not run on Node. It is
+published to the public npm registry as **`@zshoham/teaman`** — no auth needed
+to install. Tagged releases ship as `latest`; every `main` commit also publishes
+a prerelease under the `dev` tag (`bunx @zshoham/teaman@dev`).
+
+No Bun? Each [GitHub release](https://github.com/Zshoham/teaman/releases) also
+ships a [single-file binary](#single-file-binary) with everything inside.
 
 The vault never contains engine source, only:
 
@@ -29,7 +33,7 @@ my-vault/
   public/   …           # optional static passthrough (logo, images)
 ```
 
-Run `npx @zshoham/teaman init my-vault` to scaffold the config and content dirs.
+Run `bunx @zshoham/teaman init my-vault` to scaffold the config and content dirs.
 
 Every content kind gets its own index — `/notes/`, `/references/`, `/guides/`,
 `/slides/`, `/daily/`, `/decisions/` — and the header links the ones your vault actually
@@ -167,69 +171,39 @@ markup into that macro instead. ` ```tikz `/` ```typst ` fences compile to
 svg during the sync (sharing the site build's diagram cache) and then sync
 the same way; a fence that fails to compile syncs as a labeled source block.
 
-## Docker
+## Single-file binary
 
-A self-contained image carrying the engine and its whole toolchain (Typst,
-Slidev, Pagefind), so a machine with Docker needs no Node, no `npm install`, and
-no `npx`. CI publishes it to GHCR on the same two channels as npm — `:latest`
-for a released version, `:dev` for the tip of main:
-
-```sh
-docker pull ghcr.io/zshoham/teaman:latest     # or :1.5.3, :dev, :1.5.3-dev.g<sha>
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" ghcr.io/zshoham/teaman teaman build
-```
-
-Pinning a version tag is the container equivalent of pinning `engine` in your
-config. To build it yourself:
+One executable with the Bun runtime, the engine, and its whole toolchain
+(Typst, Slidev, Pagefind) inside, so a machine needs no Bun, Node, or npm. Every
+command works — `init`, `build`, `dev`, `preview`, `doctor`, `sync-confluence`:
 
 ```sh
-docker build -t teaman .                      # or: docker build -t teaman https://github.com/Zshoham/teaman.git
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build
+./teaman-linux-x64 init my-vault
+./teaman-linux-x64 build my-vault
 ```
 
-There is no entrypoint wrapper and no special mode: the image is a machine with
-`teaman` on its `PATH`, working in `/vault`. Anything you write after the image
-name is the command, so every CLI command works, with its normal flags —
+Download the one for your platform from the
+[releases](https://github.com/Zshoham/teaman/releases): `teaman-linux-x64`,
+`teaman-linux-arm64`, `teaman-darwin-arm64`, `teaman-darwin-x64`, or
+`teaman-win32-x64.exe`. The Linux binaries need glibc (not Alpine/musl).
+
+The first run unpacks the engine (~900 MB, a few seconds) into a per-version
+cache dir; later runs start straight from it. That dir is
+`$XDG_CACHE_HOME/teaman` (or `~/.cache/teaman`) on Linux,
+`~/Library/Caches/teaman` on macOS, `%LOCALAPPDATA%\teaman` on Windows, or
+`$TEAMAN_CACHE_DIR` if set. Each binary gets its own `engine-<version>-<id>`
+there — delete the ones for versions you no longer use.
+
+The macOS binaries are ad-hoc signed but not notarized, so one downloaded
+through a browser is quarantined: clear it once with
+`xattr -d com.apple.quarantine teaman-darwin-arm64` before the first run.
+
+To build one yourself (any target builds on any host):
 
 ```sh
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman doctor
-docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman teaman build --base /my-site/
+bun run build:binary                                        # this platform → dist-bin/
+bun scripts/build-binary.mjs --target bun-darwin-arm64      # or any other target
 ```
-
-— and with no command you get a shell with the whole toolchain in it:
-
-```sh
-docker run --rm -it -v "$PWD:/vault" -u "$(id -u):$(id -g)" teaman
-```
-
-The dev and preview servers work too, given a published port and a `--host`
-(without it they bind loopback *inside* the container, where nothing can reach
-them):
-
-```sh
-docker run --rm -it -p 4321:4321 -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
-  teaman teaman dev --host
-```
-
-Notes:
-
-- **Published for `linux/amd64`.** On another architecture, build it locally —
-  the Dockerfile is arch-agnostic.
-- **Run as yourself** (`-u "$(id -u):$(id -g)"`) so `dist/` is owned by you and
-  not by root. The image keeps its engine dir world-writable for exactly this.
-- **It holds only the published package.** The image is built from `npm pack`,
-  so it carries exactly what npm ships plus runtime dependencies — no repo
-  source, no dev dependencies, no test tooling.
-- **Caches die with the container.** Diagram renders and reference PDFs are
-  cached in the engine dir, so a `--rm` run recompiles them every time (tens of
-  seconds for a book-sized reference). Keep them in named volumes:
-
-  ```sh
-  docker run --rm -v "$PWD:/vault" -u "$(id -u):$(id -g)" \
-    -v teaman-diagrams:/opt/teaman/node_modules/@zshoham/teaman/.diagram-cache \
-    -v teaman-pdfs:/opt/teaman/node_modules/@zshoham/teaman/.reference-cache \
-    teaman teaman build
-  ```
 
 ## Config — `teaman.config.js`
 
@@ -332,8 +306,8 @@ Because the vault is pure data, upgrading the engine is changing **one number**.
 
 - **Pin via `engine`.** Put a semver range (`'^1.0'`, `'~1.0.2'`) in your config.
   Every `teaman` run compares it to the running engine and **warns on mismatch**.
-  With the npx model there's no lockfile, so pin tightly for byte-stable rebuilds
-  (e.g. CI: `npx @zshoham/teaman@1.0.2 build`). Built pages carry
+  With the bunx model there's no lockfile, so pin tightly for byte-stable rebuilds
+  (e.g. CI: `bunx @zshoham/teaman@1.0.2 build`). Built pages carry
   `<meta name="generator" content="teaman X.Y.Z">` for after-the-fact debugging.
 - **Semver contract** — *patch*: fixes/dep bumps, always safe. *minor*: new
   optional config keys, content types, theme tokens — old configs keep working.
@@ -349,20 +323,20 @@ This repo *is* the engine: the Astro app, CLI, and build scripts live at the rep
 root, plus a bundled example vault in `example/`. Work from the repo root:
 
 ```sh
-npm install
-npm run dev      # serves the bundled example/ vault (no CLI needed)
-npm run build    # writes ./public
-npm test         # vitest unit suite
+bun install
+bun run dev      # serves the bundled example/ vault
+bun run build    # writes ./public
+bun run test     # vitest unit suite (on Bun)
 ```
 
 The engine reads the vault, output, base, config, and static dir from
 `TEAMAN_VAULT` / `TEAMAN_OUT` / `TEAMAN_BASE` / `TEAMAN_CONFIG` / `TEAMAN_PUBLIC`;
 when unset it falls back to the bundled `example/` → `public/`, which is why the
-plain `npm` scripts and tests work in place.
+plain package scripts and tests work in place.
 
 ### Building & previewing the current vault
 
-The `npm run dev` above serves `example/` straight through Astro, which is the
+The `bun run dev` above serves `example/` straight through Astro, which is the
 fastest inner loop. To exercise the **full CLI path** — config serialization,
 Slidev, Pagefind, the `engine` version check — against the bundled vault before
 publishing or cutting a release, drive the local `bin` directly:
@@ -372,26 +346,28 @@ CLI warns `no content dirs found` but still builds — you get the home page wit
 **zero notes**, which is the usual cause of an empty preview.
 
 ```sh
-npm install
-node bin/teaman.mjs build ./example      # → example/dist (Astro + Typst PDFs + Slidev + Pagefind)
-node bin/teaman.mjs preview ./example     # serve example/dist as it'll ship
+bun install
+bun bin/teaman.mjs build ./example      # → example/dist (Astro + Typst PDFs + Slidev + Pagefind)
+bun bin/teaman.mjs preview ./example     # serve example/dist as it'll ship
 ```
 
-`node bin/teaman.mjs dev ./example` is the CLI equivalent of `npm run dev`, and
-`node bin/teaman.mjs doctor ./example` validates `example/teaman.config.js` and
+`bun bin/teaman.mjs dev ./example` is the CLI equivalent of `bun run dev`, and
+`bun bin/teaman.mjs doctor ./example` validates `example/teaman.config.js` and
 lints the notes without building. Add `--out <dir>`, `--base /sub-path/`, or
 `--port <n>` to mirror a specific deploy target. `example/dist` is throwaway —
 delete it between runs if you want a clean build.
 
 To test the CLI exactly as a consumer would get it (from the packaged tarball
-rather than the working tree), pack and run it against any vault:
+rather than the working tree), pack it and install the tarball into a scratch
+project (`bunx` cannot run a tarball directly):
 
 ```sh
-npm pack                                     # → zshoham-teaman-<version>.tgz
-npx ./zshoham-teaman-1.0.0.tgz build ./example   # same as a published `npx @zshoham/teaman`
+bun pm pack --destination /tmp/try             # → /tmp/try/zshoham-teaman-<version>.tgz
+cd /tmp/try && bun add ./zshoham-teaman-*.tgz
+bunx teaman build ~/Dev/teaman/example         # same as a published `bunx @zshoham/teaman`
 ```
 
-`npm run test:integration` automates exactly this — pack, install the tarball into
+`bun run test:integration` automates exactly this — pack, install the tarball into
 a throwaway project outside the repo, build the `example/` vault, and assert the
 output. It's the only check that catches packaging bugs (an incomplete `files`
 list, a runtime dep stranded in `devDependencies`), so it runs as its own CI job.

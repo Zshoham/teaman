@@ -1,10 +1,19 @@
-import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync } from 'fs';
+import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync, readFileSync } from 'fs';
 import { execFileSync } from 'child_process';
-import { join, extname } from 'path';
+import { join, extname, dirname } from 'path';
+import { createRequire } from 'module';
 import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
+
+// Slidev's own JS entry, run by the runtime running this script — not `npx`,
+// which needs npm on PATH.
+const slidevBin = (() => {
+  const pkgPath = createRequire(import.meta.url).resolve('@slidev/cli/package.json');
+  const { bin } = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  return join(dirname(pkgPath), typeof bin === 'string' ? bin : bin.slidev);
+})();
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const slidesTmpDir = process.env.TEAMAN_SLIDES_WORK ?? join(engineDir, '.slides-build');
@@ -81,7 +90,7 @@ try {
     // Slide navigation from deeper routes (presenter mode, the overview) needs
     // router paths that are absolute and base-less; Slidev ≥ 52.17 ships that
     // (getSlideRoutePath) — see the routing note in scripts/slides-theme.mjs.
-    execFileSync('npx', slidevBuildArgs(tmpDeck, { out: deckOutDir, theme: themeDir }), {
+    execFileSync(process.execPath, [slidevBin, ...slidevBuildArgs(tmpDeck, { out: deckOutDir, theme: themeDir })], {
       cwd: engineDir,
       stdio: 'inherit',
     });

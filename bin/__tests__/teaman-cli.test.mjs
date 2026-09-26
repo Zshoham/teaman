@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, delimiter, join } from 'node:path';
 
 const CLI = fileURLToPath(new URL('../teaman.mjs', import.meta.url));
 
@@ -38,6 +38,21 @@ describe('teaman --version / help', () => {
     const { code, stderr } = cli(['frobnicate']);
     expect(code).toBe(1);
     expect(stderr).toMatch(/unknown command "frobnicate"/);
+  });
+});
+
+// The CLI runs only on Bun; under node it must say so rather than run on an
+// untested runtime. `bun --bun` puts a `node` that is really Bun first on PATH
+// (a `bun-node-*` dir), so look for the real one past it.
+const nodeBin = (process.env.PATH ?? '').split(delimiter)
+  .filter(dir => dir && !basename(dir).startsWith('bun-node-'))
+  .map(dir => join(dir, process.platform === 'win32' ? 'node.exe' : 'node'))
+  .find(existsSync);
+describe.skipIf(!nodeBin)('teaman under node', () => {
+  it('refuses to run and points at Bun', () => {
+    const r = spawnSync(nodeBin, [CLI, '--version'], { encoding: 'utf8' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/teaman runs on Bun/);
   });
 });
 

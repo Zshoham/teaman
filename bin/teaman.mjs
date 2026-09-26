@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // teaman — build an Obsidian vault into a static site with the bundled Astro
 // engine. The vault carries only data: a `teaman.config.js` plus content
 // directories (notes/ references/ guides/ slides/ dailies/). This CLI resolves the vault,
@@ -281,11 +281,25 @@ function envFor(vault, config, { out, base, publicDir } = {}) {
   };
 }
 
+// Signals sent to the CLI alone — `kill`, a closed terminal, a process manager
+// stopping it — are passed on to the stage it is running, which would
+// otherwise outlive it (an orphaned dev server still holding its port). The
+// CLI then ends when the stage does, so a build still cleans up after itself.
+// Ctrl-C needs no forwarding: it reaches the whole foreground process group.
+const FORWARDED_SIGNALS = ['SIGTERM', 'SIGHUP'];
+
 function run(cmd, args, env) {
   return new Promise((res, rej) => {
     const child = spawn(cmd, args, { cwd: engineDir, env, stdio: 'inherit' });
-    child.on('error', rej);
-    child.on('exit', code => code === 0 ? res() : rej(new Error(`${basename(cmd)} exited with code ${code}`)));
+    const forward = signal => child.kill(signal);
+    for (const signal of FORWARDED_SIGNALS) process.on(signal, forward);
+    const done = () => { for (const signal of FORWARDED_SIGNALS) process.off(signal, forward); };
+    child.on('error', error => { done(); rej(error); });
+    child.on('exit', (code, signal) => {
+      done();
+      if (code === 0) res();
+      else rej(new Error(signal ? `${basename(cmd)} stopped by ${signal}` : `${basename(cmd)} exited with code ${code}`));
+    });
   });
 }
 
@@ -388,7 +402,7 @@ async function cmdDev(vaultArg, opts) {
     // the local dev loop as well as in a production build.
     await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], {
       ...env,
-      TEAMAN_OUT: publicDir,
+      TEAMAN_OUT: staged.publicDir,
     });
     await run(node, [astroBin, 'dev', ...serverArgs(opts)], env);
   } finally {
@@ -657,6 +671,12 @@ Options:
 
 // ── dispatch ─────────────────────────────────────────────────────────────
 async function main(argv = process.argv.slice(2)) {
+  // Bun is the one runtime the engine is built and tested on (every stage runs
+  // as `process.execPath`, and the single-file binary is Bun), so say so up
+  // front rather than let an untested runtime fail somewhere mid-build.
+  if (!process.versions.bun) {
+    fail('teaman runs on Bun (https://bun.sh) — run it with `bun` or `bunx @zshoham/teaman`, or use the single-file binary');
+  }
   // sync-confluence delegates wholesale to scripts/sync-confluence.mjs — it has
   // its own parser (util.parseArgs), CONFLUENCE_* env fallbacks, and --help. We
   // intercept before parseArgs so every flag (including -h/--help and repeated
