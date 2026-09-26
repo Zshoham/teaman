@@ -60,3 +60,139 @@ export function globEntryId(type) {
 export function entryHref(base, type, id) {
   return `${base}${collectionFor(type).route}/${id}/`;
 }
+
+// ── Dailies ──────────────────────────────────────────────────────────────────
+// A daily has no page of its own: it is an anchored section of the week page
+// for the Sunday that starts its week.
+
+/**
+ * Local-time ISO date (YYYY-MM-DD).
+ *
+ * Deliberately *not* `format.ts`'s `isoDate`, which is UTC. The two are not
+ * interchangeable and the distinction is load-bearing, so the names differ:
+ * - `localIsoDate` formats Dates built from local components (`sundayOf`,
+ *   `addDays`, `new Date(y, m, d)`). Using the UTC one on those would, on a
+ *   positive-offset build, render local midnight as the *previous* UTC day —
+ *   rolling a week back and breaking the link to its `/daily/<sunday>/` page.
+ * - `isoDate` formats Dates that came from frontmatter, which YAML parses as
+ *   UTC midnight. Using this one on those slides the date back a day on any
+ *   negative-offset build.
+ *
+ * @param {Date} d
+ */
+export function localIsoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * A `YYYY-MM-DD` string as a local-midnight Date — the inverse of `localIsoDate`.
+ *
+ * @param {string} date
+ */
+export function dateFromIsoDate(date) {
+  return new Date(`${date}T00:00:00`);
+}
+
+/**
+ * Sunday of the week containing `d`, in local time.
+ *
+ * @param {Date} d
+ */
+export function sundayOf(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+}
+
+/**
+ * The ISO date a daily is filed under. A `YYYY-MM-DD` id supplies it
+ * directly; anything else falls back to the required `date` frontmatter, which
+ * YAML parses as UTC midnight — hence UTC formatting, not `localIsoDate`.
+ *
+ * @param {string} id
+ * @param {Date} date
+ */
+export function dailyIsoDate(id, date) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(id)) return id;
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Anchor id for a day inside a week page.
+ *
+ * @param {string} iso
+ */
+export function dayAnchor(iso) {
+  return `day-${iso}`;
+}
+
+/**
+ * URL of the week page whose id (its Sunday) is `weekId`.
+ *
+ * @param {string} base
+ * @param {string} weekId
+ */
+export function weekHref(base, weekId) {
+  return `${base}${collectionFor('daily').route}/${weekId}/`;
+}
+
+/**
+ * URL of one day: its section on the week page.
+ *
+ * @param {string} base
+ * @param {string} iso  the day's ISO date (`dailyIsoDate`)
+ */
+export function dailyHref(base, iso) {
+  return `${weekHref(base, localIsoDate(sundayOf(dateFromIsoDate(iso))))}#${dayAnchor(iso)}`;
+}
+
+// ── Guides ───────────────────────────────────────────────────────────────────
+
+/**
+ * URL of a guide — which is also where its first chapter is served.
+ *
+ * @param {string} base
+ * @param {string} guideSlug
+ */
+export function guideHref(base, guideSlug) {
+  return `${base}${collectionFor('guide').route}/${guideSlug}/`;
+}
+
+/**
+ * URL of one guide chapter. The first chapter in SUMMARY order is served at the
+ * guide root; the rest under `<guide>/<chapter>/`.
+ *
+ * @param {string} base
+ * @param {string} guideSlug
+ * @param {readonly string[]} chapterSlugs  the guide's chapters, in SUMMARY order
+ * @param {string} chapterSlug
+ */
+export function guideChapterHref(base, guideSlug, chapterSlugs, chapterSlug) {
+  const root = guideHref(base, guideSlug);
+  return chapterSlugs[0] === chapterSlug ? root : `${root}${chapterSlug}/`;
+}
+
+// ── Decisions ────────────────────────────────────────────────────────────────
+// ADRs are one island on the decisions page; each opens as a modal addressed
+// by the number in its filename.
+
+/**
+ * The ADR number in an entry id (`adr-0007` → `0007`), or the id itself.
+ *
+ * @param {string} id
+ */
+export function adrNum(id) {
+  const m = id.match(/(\d+)/);
+  return m ? m[1] : id;
+}
+
+/**
+ * URL of one ADR: the decisions page, deep-linked to its modal.
+ *
+ * @param {string} base
+ * @param {string} num
+ */
+export function adrHref(base, num) {
+  return `${base}${collectionFor('decision').route}/?adr=${num}`;
+}

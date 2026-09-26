@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync, existsSync } from 'fs';
-import { join, basename } from 'path';
+import { join } from 'path';
 import matter from 'gray-matter';
 import * as pagefind from 'pagefind';
 import { parseDeck } from '../src/lib/parse-deck.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
 import { pagefindGlob } from '../src/lib/collections.mjs';
-import { entryHref } from '../src/lib/entry-identity.mjs';
+import { adrHref, adrNum, entryHref, entryId } from '../src/lib/entry-identity.mjs';
 
 const slidesSrcDir = join(vaultDir, 'slides');
 const decisionsSrcDir = join(vaultDir, 'decisions');
@@ -58,7 +58,7 @@ if (existsSync(slidesSrcDir)) {
 if (existsSync(decisionsSrcDir)) {
   const files = readdirSync(decisionsSrcDir).filter(f => f.endsWith('.md'));
   for (const file of files) {
-    const num = (basename(file, '.md').match(/(\d+)/) ?? [])[1] ?? basename(file, '.md');
+    const num = adrNum(entryId('decision', file));
     const { data, content } = matter(readFileSync(join(decisionsSrcDir, file), 'utf8'));
     const title = data.title ?? `ADR-${num}`;
     const body = [data.summary, content]
@@ -68,7 +68,7 @@ if (existsSync(decisionsSrcDir)) {
       .replace(/^[-*+]\s+/gm, '') // drop bullet markers
       .trim();
     const { errors: recordErrors } = await index.addCustomRecord({
-      url: `${siteBase}decisions/?adr=${num}`,
+      url: adrHref(siteBase, num),
       content: `${title}\n${body}`,
       language: 'en',
       meta: { title: `ADR-${num} · ${title}` },

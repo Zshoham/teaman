@@ -1,5 +1,5 @@
 import { getCollection } from 'astro:content';
-import { entryId } from './entry-identity.mjs';
+import { entryId, guideChapterHref } from './entry-identity.mjs';
 import { parseReferenceSummary } from './reference-documents.mjs';
 
 export interface GuideChapter {
@@ -18,10 +18,7 @@ const base = import.meta.env.BASE_URL;
 
 /** URL for a chapter. The first chapter of a guide is served at the guide root. */
 export function chapterHref(guide: Guide, chapterSlug: string): string {
-  const isFirst = guide.chapters[0]?.slug === chapterSlug;
-  return isFirst
-    ? `${base}guides/${guide.slug}/`
-    : `${base}guides/${guide.slug}/${chapterSlug}/`;
+  return guideChapterHref(base, guide.slug, guide.chapters.map(chapter => chapter.slug), chapterSlug);
 }
 
 export function guideSlugFromSummaryId(id: string): string {

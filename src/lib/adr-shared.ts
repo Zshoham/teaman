@@ -36,10 +36,7 @@ export function statusColor(s: AdrStatus): string {
  * so the id is `adr-0001`; we keep the zero-padded digits as the canonical num.
  * Falls back to the whole id if it carries no digits.
  */
-export function adrNum(id: string): string {
-  const m = id.match(/(\d+)/);
-  return m ? m[1] : id;
-}
+export { adrNum } from './entry-identity.mjs';
 
 // The view helpers below are structurally typed so they work on both the full
 // `Adr` (server side) and the lighter `AdrView` the React island receives.

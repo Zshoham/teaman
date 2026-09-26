@@ -6,14 +6,10 @@ import { guideSlugFromSummaryId, listGuides } from './guides';
 import { loadAdrs } from './adr';
 import { isPublishableDeckId } from './discover-decks.mjs';
 import { engineDir } from './build-env.mjs';
-import { entryHref } from './entry-identity.mjs';
+import { adrHref, dailyHref, entryHref, guideHref } from './entry-identity.mjs';
 import {
   dailyDateId,
   dateFromIsoDate,
-  dayAnchor,
-  localIsoDate,
-  sundayOf,
-  weekHref,
   WEEKDAY_LONG,
   type WeekdayShort,
 } from './dailies';
@@ -171,7 +167,7 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       updated: isoDate(updated),
       created: isoDate(created),
       meta: wordMeta(words),
-      href: `${base}guides/${g.slug}/`,
+      href: guideHref(base, g.slug),
     };
   });
   return Promise.all(entries);
@@ -193,7 +189,6 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
       const iso = dailyDateId(d);
       const date = dateFromIsoDate(iso);
       const weekday = WEEKDAY_LONG[WEEKDAY_FROM_INDEX[date.getDay()]];
-      const weekId = localIsoDate(sundayOf(date));
       return {
         id: `daily-${iso}`,
         type: 'daily' as const,
@@ -203,7 +198,7 @@ export async function loadDailyNoteEntries(): Promise<Entry[]> {
         updated: iso,
         created: iso,
         meta: wordMeta(wordCount(body)),
-        href: `${weekHref({ id: weekId })}#${dayAnchor(iso)}`,
+        href: dailyHref(base, iso),
       };
     });
 }
@@ -225,7 +220,7 @@ export async function loadDecisionEntries(): Promise<Entry[]> {
       updated: a.date,
       created: a.date,
       meta: wordMeta(wordCount(body)),
-      href: `${base}decisions/?adr=${a.num}`,
+      href: adrHref(base, a.num),
     };
   });
 }
