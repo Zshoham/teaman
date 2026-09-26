@@ -77,6 +77,20 @@ To test exactly as a consumer receives it: `bun pm pack`, then `bun add` the
 tarball into a scratch project and run its `teaman` (`bunx` cannot run a
 tarball directly) — or just `bun run test:integration`.
 
+The **single-file binary** (`scripts/build-binary.mjs`, `bun run build:binary
+[--target bun-<os>-<arch>]`) packs that same consumer install — `bun pm pack`,
+then `bun add` the tarball with `--os/--cpu` for the target, musl-only packages
+pruned — into a zstd archive (`scripts/engine-archive.mjs`) embedded in a
+`bun build --compile` executable whose entry is `bin/teaman-binary.mjs`. On
+first run it unpacks into a per-version cache dir (`engine-<version>-<id>`,
+see `cacheRoot`), because Astro, Vite and native addons need real files and
+the engine writes caches into its own dir. It then runs the CLI as a child of
+itself with `BUN_BE_BUN=1`, which makes a compiled Bun binary act as `bun`, so
+every stage the CLI starts as `process.execPath` runs on the embedded Bun.
+Hence the rule above: stages start as `process.execPath <script>`, nothing
+else. CI's `binaries` job cross-compiles all targets on one Linux runner and
+builds `example/` with the Linux binary and an empty `PATH`.
+
 The `Dockerfile` packages that same consumer path as an image: stage one runs
 `npm pack`, stage two installs the tarball (runtime deps only) into
 `/opt/teaman`, world-writable so the container can run as an arbitrary

@@ -4,6 +4,8 @@ name: CI
 # `integration` packs the engine as a real tarball and builds the example vault
 #   through the installed CLI — the consumer path the in-repo build can't see.
 # `e2e` builds the production site and runs the Playwright suite against it.
+# `binaries` builds the single-file binary for every platform and runs the
+#   Linux one with nothing on PATH; `release` attaches them to a tag's release.
 # `image` builds the Docker image and pushes it to GHCR.
 # `publish` and `image` run only after the first three pass, and push only on
 #   main pushes / version tags — so a release can never ship untested or
@@ -65,6 +67,62 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
+
+  # The single-file binaries (scripts/build-binary.mjs): the Bun runtime plus
+  # the packed engine, for hosts with no Bun, Node or npm. Every target
+  # cross-compiles on this one Linux runner — Bun cross-compiles the runtime,
+  # and each target's native dependencies are installed by OS/CPU. The Linux
+  # binary is then run with an empty PATH against the example vault, which is
+  # the one check that the binary needs nothing from the machine. (The others
+  # cannot run here.) Nothing to install: the build packs the engine itself.
+  binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - name: Build
+        run: |
+          for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64 bun-windows-x64; do
+            bun scripts/build-binary.mjs --target "$target"
+          done
+      - name: Build the example vault with the Linux binary alone
+        run: |
+          mkdir -p "$RUNNER_TEMP/empty-path"
+          cp -r example "$RUNNER_TEMP/vault"
+          env PATH="$RUNNER_TEMP/empty-path" TEAMAN_CACHE_DIR="$RUNNER_TEMP/teaman-cache" \
+            "$PWD/dist-bin/teaman-linux-x64" build "$RUNNER_TEMP/vault"
+          for artifact in index.html slides/intro/index.html pagefind/pagefind.js references/rust-reference/reference.pdf; do
+            test -f "$RUNNER_TEMP/vault/dist/$artifact" || { echo "missing $artifact"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teaman-binaries
+          path: dist-bin/
+          compression-level: 0 # already zstd inside
+          retention-days: 7
+
+  # A version tag's binaries go on its GitHub release, once everything passed.
+  release:
+    needs: [test, integration, e2e, binaries]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: teaman-binaries
+          path: dist-bin
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist-bin/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist-bin/* --verify-tag --generate-notes
+          fi
 
   # The container image: the same engine, packaged for hosts that have Docker but
   # no Node. Built and pushed to GHCR only after the test jobs pass, on the same
