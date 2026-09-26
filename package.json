@@ -6,6 +6,10 @@
   "bin": {
     "teaman": "./bin/teaman.mjs"
   },
+  "packageManager": "bun@1.4.2",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -24,21 +28,21 @@
     "tsconfig.json"
   ],
   "scripts": {
-    "dev": "node bin/teaman.mjs dev ./example",
-    "build": "npm run build:all",
-    "build:astro": "astro build",
-    "preview": "node bin/teaman.mjs preview ./example --out public",
-    "build:references": "node scripts/build-references.mjs",
-    "build:slides": "node scripts/build-slides.mjs",
-    "build:search": "node scripts/build-search.mjs",
-    "build:all": "node bin/teaman.mjs build ./example --out public",
-    "typecheck": "astro sync && tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "dev": "bun bin/teaman.mjs dev ./example",
+    "build": "bun run build:all",
+    "build:astro": "bun --bun astro build",
+    "preview": "bun bin/teaman.mjs preview ./example --out public",
+    "build:references": "bun scripts/build-references.mjs",
+    "build:slides": "bun scripts/build-slides.mjs",
+    "build:search": "bun scripts/build-search.mjs",
+    "build:all": "bun bin/teaman.mjs build ./example --out public",
+    "typecheck": "bun --bun astro sync && tsc --noEmit",
+    "test": "bun --bun vitest run",
+    "test:watch": "bun --bun vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:integration": "node scripts/integration-test.mjs",
-    "sync:confluence": "node scripts/sync-confluence.mjs"
+    "test:integration": "bun scripts/integration-test.mjs",
+    "sync:confluence": "bun scripts/sync-confluence.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.2.2",
@@ -67,7 +71,7 @@
     "gray-matter": "^4.0.3",
     "jsdom": "^30.0.1",
     "lucide-react": "^1.28.0",
-    "markdown-it": "^15.0.0",
+    "markdown-it": "^14.1.1",
     "mermaid": "^11.16.0",
     "node-tikzjax": "^1.0.5",
     "pagefind": "^1.5.2",

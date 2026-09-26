@@ -18,8 +18,8 @@ export default defineConfig({
   webServer: {
     // Serve the production build so search/slides paths and any prod-only
     // markdown processing are exercised. `reuseExistingServer` keeps local
-    // iteration fast if you leave `npm run preview` running in another shell.
-    command: 'npm run build && npm run preview',
+    // iteration fast if you leave `bun run preview` running in another shell.
+    command: 'bun run build && bun run preview',
     url: 'http://localhost:4321',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

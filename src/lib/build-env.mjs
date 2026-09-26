@@ -4,7 +4,7 @@
  * The CLI (`bin/teaman.mjs`) never edits engine files to point at a vault: it
  * spawns Astro and the build scripts with `TEAMAN_*` env vars. Every engine
  * entry point has to read those vars *and* fall back to the bundled `example/`
- * → `public/` when they are unset, which is what makes the plain `npm` scripts
+ * → `public/` when they are unset, which is what makes the plain package scripts
  * and the test suite work in place.
  *
  * That fallback used to be hand-mirrored in `astro.config.mjs`, all three
@@ -48,7 +48,7 @@ export const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SIT
 /**
  * The site config: the vault's `teaman.config.js` (serialized by the CLI)
  * merged over the engine defaults, so every consumer sees the same complete
- * shape. Absent (plain `npm run dev`, the tests) means "engine defaults".
+ * shape. Absent (plain `bun run dev`, the tests) means "engine defaults".
  * Malformed does too — the markdown pipeline, the slides build and the site
  * must not fail over a bad value here, since `teaman doctor` is what reports
  * config problems — but it warns, because a config that silently evaporates is

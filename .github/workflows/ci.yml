@@ -32,49 +32,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun install --frozen-lockfile
       # astro sync generates .astro/types.d.ts (astro:content module types),
       # which tsconfig includes — a fresh checkout has none until then.
-      - run: npm run typecheck
-      - run: npm run build:all
-      - run: npm test
+      - run: bun run typecheck
+      - run: bun run build:all
+      - run: bun run test
 
   # Consumer path: pack the engine, install the tarball into a throwaway project
   # outside the repo, and build the example vault through the installed CLI. Runs
-  # its own install of the tarball, so no `npm ci` here — it catches packaging
+  # its own install of the tarball, so no `bun install` here — it catches packaging
   # bugs (missing `files`/`dependencies`, unresolvable bin) the in-repo build can't.
   integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm run test:integration
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun run test:integration
 
   # Browser suite: the Playwright config's webServer builds the production site
   # and serves it via `astro preview`, then runs the e2e/ specs against it.
-  # `npx playwright install --with-deps chromium` pulls the headless browser
-  # binary and the system libraries it needs on a clean Ubuntu runner.
+  # `bunx playwright install --with-deps chromium` pulls the headless browser
+  # binary and the system libraries it needs on a clean Ubuntu runner. The
+  # Playwright runner itself runs on the runner's preinstalled Node (it does not
+  # support Bun); the site it tests is built and served by Bun.
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e
 
   # The container image: the same engine, packaged for hosts that have Docker but
   # no Node. Built and pushed to GHCR only after the test jobs pass, on the same
@@ -103,7 +93,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAGS="${GITHUB_REF_NAME#v} latest"
           else
-            TAGS="$(node -p "require('./package.json').version")-dev.g$(git rev-parse --short HEAD)"
+            TAGS="$(jq -r .version package.json)-dev.g$(git rev-parse --short HEAD)"
           fi
           # GHCR repository names must be lowercase; the GitHub owner need not be.
           IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
@@ -141,7 +131,8 @@ jobs:
         with:
           node-version: 24 # bundles npm >= 11.5.1, which supports OIDC trusted publishing
           registry-url: https://registry.npmjs.org
-      # No npm ci needed: the package ships source (see `files` in package.json),
+      # npm, not bun, publishes: npm trusted publishing (OIDC) and provenance
+      # are npm CLI features. No install needed: the package ships source (see `files` in package.json),
       # and the `test` job already validated install + build.
       - name: Resolve version and publish
         run: |
@@ -157,7 +148,7 @@ jobs:
               echo "Skipping publish: $GITHUB_SHA is no longer origin/main ($CURRENT)."
               exit 0
             fi
-            BASE=$(node -p "require('./package.json').version")
+            BASE=$(jq -r .version package.json)
             SHA=$(git rev-parse --short HEAD)
             VERSION="$BASE-dev.g$SHA"
             DIST_TAG=dev
