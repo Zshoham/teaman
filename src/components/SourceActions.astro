@@ -1,0 +1,17 @@
+---
+import { basename } from 'node:path';
+import { MarkdownSource } from './MarkdownSource';
+import { sourceHref } from '../lib/entry-identity.mjs';
+
+interface Props {
+  entry: { collection: string; id: string; filePath?: string };
+}
+
+const { entry } = Astro.props;
+const href = sourceHref(import.meta.env.BASE_URL, entry.collection, entry.id);
+const filename = entry.filePath && !/\/SUMMARY\.md$/i.test(entry.filePath)
+  ? basename(entry.filePath)
+  : `${entry.id.split('/').pop()}.md`;
+---
+
+<MarkdownSource href={href} filename={filename} client:load />

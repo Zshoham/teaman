@@ -61,6 +61,15 @@ export function entryHref(base, type, id) {
   return `${base}${collectionFor(type).route}/${id}/`;
 }
 
+/** Raw Markdown URL, including nested ids and the normalized site base.
+ * @param {string} base
+ * @param {string} collection
+ * @param {string} id
+ */
+export function sourceHref(base, collection, id) {
+  return `${base}source/${encodeURIComponent(collection)}/${id.split('/').map(encodeURIComponent).join('/')}.md`;
+}
+
 // ── Dailies ──────────────────────────────────────────────────────────────────
 // A daily has no page of its own: it is an anchored section of the week page
 // for the Sunday that starts its week.

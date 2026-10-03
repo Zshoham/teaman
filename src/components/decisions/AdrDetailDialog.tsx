@@ -1,3 +1,4 @@
+import { MarkdownSource } from '../MarkdownSource';
 import { useEffect, useState } from "react";
 import { ArrowLeftIcon, ArrowRightIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 
@@ -76,8 +77,8 @@ export function AdrDetailDialog({
                     {shown.summary}
                   </p>
                 )}
-                {shown.tags.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-[7px]">
+                <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap gap-[7px]">
                     {shown.tags.map((t) => (
                       <span
                         key={t}
@@ -87,7 +88,8 @@ export function AdrDetailDialog({
                       </span>
                     ))}
                   </div>
-                )}
+                  <MarkdownSource key={shown.sourceHref} href={shown.sourceHref} filename={shown.sourceFilename} />
+                </div>
               </div>
             </div>
             <div className="px-9 pt-2 pb-[34px] max-[760px]:px-[22px]">

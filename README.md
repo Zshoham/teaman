@@ -40,6 +40,12 @@ Every content kind gets its own index — `/notes/`, `/references/`, `/guides/`,
 has, so a vault with no decks never shows a `slides` link. `/` stays the
 combined feed across all of them.
 
+**Markdown source.** Notes, guide chapters, daily entries, and decision records
+offer a **Source** button aligned to the right of their metadata or tags. It
+opens a Markdown viewer with a **Download Markdown** action that serves the
+original file, including frontmatter. Source files follow the same publication
+rules as their pages. References have no Source button; they offer a PDF instead.
+
 Each `decisions/adr-NNNN.md` is one Architecture Decision Record: frontmatter
 carries `title`, `date`, `status` (`accepted` | `proposed` | `superseded`), optional
 `tags`, a one-line `summary`, and optional `supersedes` / `supersededBy` (the `NNNN`

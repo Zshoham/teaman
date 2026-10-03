@@ -3,6 +3,7 @@ import { render } from 'astro:content';
 import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
+import SourceActions from '../../components/SourceActions.astro';
 import DocMeta from '../../components/DocMeta.astro';
 import MetaDot from '../../components/MetaDot.astro';
 import { fmtDate } from '../../lib/format';
@@ -41,6 +42,7 @@ const words = wordCount(note.body ?? '');
             {note.data.tags.map(tag => <span class="text-faint tracking-wide">#{tag}</span>)}
           </span>
         )}
+        <SourceActions slot="actions" entry={note} />
       </DocMeta>
     </header>
 

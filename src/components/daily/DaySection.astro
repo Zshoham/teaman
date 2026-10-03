@@ -1,4 +1,5 @@
 ---
+import SourceActions from '../SourceActions.astro';
 import { render } from 'astro:content';
 import type { DailyEntry } from '../../lib/dailies';
 import { WEEKDAY_LONG, dayAnchor } from '../../lib/dailies';
@@ -37,11 +38,12 @@ const { Content } = await render(day.entry);
     <Content />
   </div>
 
-  {day.tags.length > 0 && (
-    <div class="mt-7 flex flex-wrap justify-center gap-3">
+  <div class="mt-7 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+    <div class="flex min-w-0 flex-wrap gap-3">
       {day.tags.map(tag => (
         <span class="font-mono text-meta tracking-wide text-faint">#{tag}</span>
       ))}
     </div>
-  )}
+    <SourceActions entry={day.entry} />
+  </div>
 </section>

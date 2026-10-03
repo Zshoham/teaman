@@ -14,6 +14,9 @@ export function globEntryId(
 /** Site URL of an entry served one page per file. */
 export function entryHref(base: string, type: 'note' | 'reference' | 'slides', id: string): string;
 
+/** Raw Markdown URL for a published entry. */
+export function sourceHref(base: string, collection: string, id: string): string;
+
 export function localIsoDate(d: Date): string;
 export function dateFromIsoDate(date: string): Date;
 export function sundayOf(d: Date): Date;

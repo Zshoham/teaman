@@ -8,6 +8,7 @@
  * list) goes in the default slot, which is separated from `items` by the same
  * dot; use `<MetaDot />` between slotted items. An empty slot adds no dot, so a
  * note with neither date nor tags doesn't end in a dangling separator.
+ * The optional actions slot stays aligned at the right edge of the row.
  */
 interface Props {
   /** Text items, in order. Empty/nullish entries are dropped. */
@@ -27,13 +28,16 @@ const slotHtml = Astro.slots.has('default')
   : '';
 ---
 
-<div class:list={['flex flex-wrap items-baseline gap-2 font-mono text-meta text-faint', className]}>
-  {shown.map((item, index) => (
-    <>
-      {index > 0 && <span class="opacity-50">·</span>}
-      <span>{item}</span>
-    </>
-  ))}
-  {slotHtml && shown.length > 0 && <span class="opacity-50">·</span>}
-  {slotHtml && <Fragment set:html={slotHtml} />}
+<div class:list={['grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 font-mono text-meta text-faint', className]}>
+  <div class="flex min-w-0 flex-wrap items-baseline gap-2">
+    {shown.map((item, index) => (
+      <>
+        {index > 0 && <span class="opacity-50">·</span>}
+        <span>{item}</span>
+      </>
+    ))}
+    {slotHtml && shown.length > 0 && <span class="opacity-50">·</span>}
+    {slotHtml && <Fragment set:html={slotHtml} />}
+  </div>
+  <slot name="actions" />
 </div>

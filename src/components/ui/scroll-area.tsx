@@ -15,12 +15,15 @@ interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
    * reach. Overriding an inline style needs `!`.
    */
   wrapContent?: boolean
+  /** Render a horizontal scrollbar for content such as unwrapped source code. */
+  horizontalScrollbar?: boolean
 }
 
 function ScrollArea({
   className,
   children,
   wrapContent = false,
+  horizontalScrollbar = false,
   ...props
 }: ScrollAreaProps) {
   return (
@@ -41,6 +44,7 @@ function ScrollArea({
         </ScrollAreaPrimitive.Content>
       </ScrollAreaPrimitive.Viewport>
       <ScrollBar />
+      {horizontalScrollbar && <ScrollBar orientation="horizontal" />}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )
