@@ -126,6 +126,36 @@ describe('real compilers', () => {
     return (tree.children[0] as any);
   }
 
+  it('d2: renders TALA offline even when PDF browser globals are present', async () => {
+    vi.stubGlobal('window', {});
+    try {
+      const node = await compile('d2', 'client -> server -> database');
+      expect(node.value).toContain('content-svg d2-svg');
+      expect(node.value).toContain('data-d2-version="v0.9.0"');
+      expect(node.value).toContain('client');
+      expect(node.value).toContain('<path');
+      expect(node.value).not.toContain('diagram-error');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }, 30_000);
+
+  it('d2: honors the layout engine specified by the author', async () => {
+    const node = await compile('d2', 'vars: { d2-config: { layout-engine: elk } }\na -> b');
+    expect(node.value).toContain('content-svg d2-svg');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const invalid = await compile('d2', 'vars: { d2-config: { layout-engine: nonexistent } }\na -> b');
+    expect(invalid.value).toContain('d2 diagram could not be rendered');
+    expect(warn).toHaveBeenCalled();
+  }, 30_000);
+
+  it('d2: shows an error for empty input instead of caching a blank diagram', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const node = await compile('d2', '');
+    expect(node.value).toContain('d2 diagram could not be rendered');
+    expect(node.value).not.toContain('content-svg');
+  });
+
   it('typst: compiles math to a content-hugging svg', async () => {
     const node = await compile('typst', '$ x^2 + 1 $');
     expect(node.type).toBe('html');

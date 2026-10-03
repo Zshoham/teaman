@@ -22,7 +22,7 @@ The vault never contains engine source, only:
 ```
 my-vault/
   teaman.config.js     # site identity + theme (see below)
-  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml, tikz, typst)
+  notes/    *.md        # evergreen notes (wiki-links, callouts, mermaid, plantuml, tikz, typst, d2)
   references/           # long-form references: one .md or one SUMMARY.md book per page
     system.md
     language/SUMMARY.md + ordered chapter files
@@ -112,7 +112,7 @@ The normal build converts common Markdown (headings, emphasis, links, lists,
 quotes, Obsidian callouts, tables, code, and local images) to Typst and applies
 the engine's bundled `resources/reference-template.typ`; vaults do not carry a
 template or compiler. Mermaid and PlantUML fences render to print-friendly SVG
-with the same bundled engines used by the site, while TikZ and Typst fences
+with the same bundled engines used by the site, while TikZ, Typst, and D2 fences
 reuse the build-time SVG pipeline. Local PDF images resolve note-relative,
 then from the vault root, then `public/`; Obsidian `![[diagram.svg]]` embeds
 resolve by name anywhere in the vault, as on the site. A wiki-link to a
@@ -143,6 +143,20 @@ do. Renders are cached by content hash (`.diagram-cache/` in the engine —
 disposable), so only new or edited diagrams pay the compiler; a fence that
 fails to compile shows a quiet error notice in place and warns during the
 build instead of failing it.
+
+**D2 also compiles at build time.** Write a `d2` fence such as:
+
+```d2
+client -> server -> database
+```
+
+The bundled D2 WASM engine uses the open-source **TALA** layout by default;
+no system D2 install or license key is needed. To use another layout, add
+`vars: { d2-config: { layout-engine: elk } }` (or `dagre`) inside the fence.
+D2 keeps its own palette and background rather than rewriting its ink to the
+site colors. It shares the diagram cache and visible error fallback above,
+and works in reference PDFs and as SVG attachments in Confluence sync.
+Fences are self-contained: imports from vault files are not supported.
 
 ## Commands
 

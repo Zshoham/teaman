@@ -21,6 +21,7 @@ import {
   rewriteReferenceBookUrl,
 } from './remark-reference-books.mjs';
 import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
+import { fenceLanguages } from './remark-fence-svg.mjs';
 
 const markdown = new MarkdownIt({
   html: true,
@@ -29,8 +30,8 @@ const markdown = new MarkdownIt({
 }).use(obsidianDialect);
 markdown.enable(['strikethrough', 'table']);
 
-const DIAGRAM_LANGUAGES = new Set(['mermaid', 'plantuml', 'tikz', 'typst']);
-const DIAGRAM_LABELS = { mermaid: 'Mermaid', plantuml: 'PlantUML', tikz: 'TikZ', typst: 'Typst' };
+const DIAGRAM_LANGUAGES = new Set(['mermaid', 'plantuml', ...fenceLanguages]);
+const DIAGRAM_LABELS = { mermaid: 'Mermaid', plantuml: 'PlantUML', tikz: 'TikZ', typst: 'Typst', d2: 'D2' };
 const HTML_ID_RE = /\sid\s*=\s*(["'])([^"']+)\1/gi;
 
 const asTypstString = value => JSON.stringify(String(value ?? ''));

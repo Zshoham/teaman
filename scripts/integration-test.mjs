@@ -74,6 +74,7 @@ try {
   const required = [
     'index.html',
     'notes/vault-architecture/index.html',
+    'notes/diagrams-as-code/index.html',
     'guides/using-this-system/index.html',
     'guides/using-this-system/adding-notes/index.html',
     'references/teaman-system/index.html',
@@ -96,6 +97,14 @@ try {
   const expected = `content="teaman ${VERSION}"`;
   if (!home.includes(expected)) {
     throw new Error(`home page missing generator meta ${JSON.stringify(expected)}`);
+  }
+
+  // D2 needs its WASM assets and isolated renderer in the installed package.
+  // Compilation failures are visible fallbacks, so page existence alone is
+  // insufficient to verify that the consumer can actually render diagrams.
+  const diagrams = readFileSync(join(dist, 'notes/diagrams-as-code/index.html'), 'utf8');
+  if (!diagrams.includes('content-svg d2-svg') || !diagrams.includes('>Teaman</text>') || diagrams.includes('class="diagram-error"')) {
+    throw new Error('packaged engine did not compile the example D2 diagram');
   }
 
   console.log(green(`\n✓ integration test passed — packed, installed, and built ${required.length} artifacts`));

@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Build-time-compiled diagram fences (src/lib/remark-fence-svg.mjs): the
- * example note at /notes/diagrams-as-code/ carries a ```tikz and a ```typst
+ * example note at /notes/diagrams-as-code/ carries ```tikz, ```typst and ```d2
  * fence, which the production build must turn into inline, theme-aware SVG.
  * These tests run against the built site (playwright's webServer serves
  * `astro preview`), so they exercise the real compile → cache → embed path.
@@ -85,6 +85,18 @@ test.describe('typst fences', () => {
     expect(box!.width).toBeGreaterThan(50);
     expect(box!.height).toBeGreaterThan(20);
   });
+});
+
+test('D2 compiles to visible SVG with architecture labels and geometry', async ({ page }) => {
+  await page.goto(NOTE);
+  const svg = page.locator('.prose > svg.d2-svg');
+  await expect(svg).toBeVisible();
+  await expect(svg).toContainText('Teaman');
+  expect(await svg.locator('path').count()).toBeGreaterThan(0);
+  expect(await page.locator('.prose pre code', { hasText: 'engine.diagrams' }).count()).toBe(0);
+  await page.click('[data-theme-toggle]');
+  await expect(svg).toBeVisible();
+  await expect(svg).toContainText('Teaman');
 });
 
 test('no diagram renders as a compile-error notice', async ({ page }) => {

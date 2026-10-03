@@ -9,7 +9,7 @@
  * - `[[target]]`, `[[target|label]]`, `![[embed]]` — `wiki_link` inline tokens.
  *   Being tokens, they never form inside code spans or fences.
  * - `> [!type]± Title` callouts — `meta.callout` on the blockquote tokens.
- * - diagram fences (mermaid, plantuml, tikz, typst), compiled ahead of the
+ * - diagram fences (mermaid, plantuml, tikz, typst, d2), compiled ahead of the
  *   synchronous render by `compileDiagramFences`.
  */
 import MarkdownIt from 'markdown-it';

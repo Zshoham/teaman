@@ -15,6 +15,30 @@ So those compile once, at build time, into inline SVG. The ink is rewritten to
 `currentColor` on the way through, which means even a TeX drawing follows the
 light/dark toggle.
 
+## D2
+
+A `d2` fence compiles to SVG using the bundled WASM engine, with TALA's
+architecture-oriented layout by default. No D2 executable or license key is
+needed. The diagram keeps D2's own colors and background.
+
+```d2
+direction: right
+reader: Reader
+engine: Teaman {
+  markdown: Markdown
+  diagrams: Diagrams
+  markdown -> diagrams
+}
+site: Static site
+reader -> engine.markdown: writes
+engine.diagrams -> site: builds
+site -> reader: reads
+```
+
+To choose a different layout, include `vars: { d2-config: { layout-engine: elk } }`
+in the fence (`dagre` is also available). Fences are self-contained; file imports
+are not loaded from the vault.
+
 ## TikZ
 
 A fence with the `tikz` language runs through a WASM TeX engine — the same one

@@ -23,6 +23,12 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **D2 diagram fences** (no vault changes). `d2` fences compile to SVG with
+  the bundled WASM engine and open-source TALA layout by default. Set
+  `vars: { d2-config: { layout-engine: elk } }` or `dagre` inside a fence to
+  choose another layout. Renders are cached and reused by the site, reference
+  PDFs, and Confluence sync; D2 retains its own colors and background.
+
 - **teaman runs on Bun, not Node** (no vault changes; a new runtime for anyone
   running the npm package). Install [Bun](https://bun.sh) ≥ 1.4 and swap `npx`
   for `bunx`: `bunx @zshoham/teaman build`. Under node the CLI now stops with a

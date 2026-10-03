@@ -5,6 +5,9 @@
  * the same wherever it is rendered.
  */
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import MarkdownIt from 'markdown-it';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -13,7 +16,8 @@ import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import remarkWikiLink from 'remark-wiki-link';
 import { rehypeFlexibleCallouts } from '../rehype-flexible-callouts.mjs';
-import { obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
+import { compileDiagramFences, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
+import { remarkFenceSvg, fenceLanguages } from '../remark-fence-svg.mjs';
 
 const CASES = [
   { name: 'a bare link', md: 'See [[note]].', links: [['note', 'note']] },
@@ -88,4 +92,21 @@ describe('embeds', () => {
       { target: 'Some Note', label: 'Some Note', embed: true },
     ]);
   });
+});
+
+it('renders D2 fences identically through remark and the shared Markdown dialect', async () => {
+  const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-d2-dialect-'));
+  const md = '```d2\nclient -> server\n```';
+  const compilers = { d2: async () => '<svg><text fill="black">client</text></svg>' };
+  try {
+    const site = unified().use(remarkParse).use(remarkFenceSvg, { cacheDir, compilers });
+    const tree = await site.run(site.parse(md));
+    const tokens = new MarkdownIt().use(obsidianDialect).parse(md, {});
+    const diagrams = await compileDiagramFences(tokens, { languages: fenceLanguages, cacheDir, compilers });
+    expect(diagrams.size).toBe(1);
+    expect([...diagrams.values()][0].svg).toBe(tree.children[0].value);
+    expect(tree.children[0].value).toContain('fill="black"');
+  } finally {
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
 });

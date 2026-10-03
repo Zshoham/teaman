@@ -268,7 +268,7 @@ describe('reference PDF rendering', () => {
   it('discovers, de-duplicates, and compiles every supported diagram fence', async () => {
     const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-diagrams-'));
     const compilers = Object.fromEntries(
-      ['mermaid', 'plantuml', 'tikz', 'typst'].map(language => [
+      ['mermaid', 'plantuml', 'tikz', 'typst', 'd2'].map(language => [
         language,
         vi.fn(async source => `<svg xmlns="http://www.w3.org/2000/svg"><text>${language}:${source}</text></svg>`),
       ]),
@@ -290,20 +290,24 @@ describe('reference PDF rendering', () => {
         '```typst',
         '$ x^2 $',
         '```',
+        '```d2',
+        'client -> server',
+        '```',
       ].join('\n'), { cacheDir, compilers });
 
-      expect(diagrams).toHaveLength(4);
+      expect(diagrams).toHaveLength(5);
       expect(compilers.mermaid).toHaveBeenCalledTimes(1);
       expect(compilers.plantuml).toHaveBeenCalledTimes(1);
       expect(compilers.tikz).toHaveBeenCalledTimes(1);
       expect(compilers.typst).toHaveBeenCalledTimes(1);
+      expect(compilers.d2).toHaveBeenCalledTimes(1);
       for (const value of diagrams.values()) expect(value.svg).toContain('class="content-svg');
     } finally {
       rmSync(cacheDir, { recursive: true, force: true });
     }
   });
 
-  it('carries real TikZ and Typst fence SVGs through to the final PDF', async () => {
+  it('carries real TikZ, Typst and D2 fence SVGs through to the final PDF', async () => {
     const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-real-diagrams-'));
     const body = [
       '## Generated diagrams',
@@ -315,10 +319,14 @@ describe('reference PDF rendering', () => {
       '```typst',
       '$ x^2 + 1 $',
       '```',
+      '',
+      '```d2',
+      'client -> server',
+      '```',
     ].join('\n');
     try {
       const diagrams = await compileReferenceDiagrams(body, { cacheDir });
-      expect(diagrams).toHaveLength(2);
+      expect(diagrams).toHaveLength(3);
       for (const value of diagrams.values()) expect(value.svg).toContain('<svg');
 
       const source = renderReferenceTypst({

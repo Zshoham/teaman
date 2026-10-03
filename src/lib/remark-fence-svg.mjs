@@ -1,11 +1,12 @@
-/** Compiles ```tikz and ```typst fences into inline SVG at build time. Unlike
+/** Compiles ```tikz, ```typst and ```d2 fences into inline SVG at build time. Unlike
  *  mermaid/plantuml (rendered client-side, so they can follow the theme toggle
  *  live), TikZ needs a TeX engine and Typst a real compiler — far too heavy to
  *  ship to the browser. So these render during the build: `node-tikzjax` (the
  *  same WASM TeX the Obsidian TikZJax plugin uses — no system LaTeX required)
  *  and `@myriaddreamin/typst-ts-node-compiler` (native Typst via napi). Theme
  *  reactivity is recovered by rewriting black strokes/fills to `currentColor`,
- *  which resolves against the page like the inlined svg images do.
+ *  which resolves against the page like the inlined svg images do. D2 uses
+ *  its bundled WASM engine with TALA and retains its own palette.
  *
  *  Compiles are cached in `cacheDir` keyed by a hash of the source, so only
  *  new or edited diagrams pay the compiler cost (TikZ ≈ 1s each). The cache
@@ -15,13 +16,15 @@
 import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { escapeHtml } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v4';
+const FORMAT_VERSION = 'v6-d2-0.1.34';
 
 // Black is the compilers' "default ink"; rewrite it to currentColor so text
 // and strokes follow the site theme. Explicit non-black colors are kept —
@@ -77,7 +80,30 @@ async function compileTypst(source) {
   return svg;
 }
 
-const DEFAULT_COMPILERS = { tikz: compileTikz, typst: compileTypst };
+// Use a clean process: D2's Node worker detection depends on browser globals
+// being absent, while Mermaid/PlantUML's PDF renderers install jsdom globals.
+let d2Chain = Promise.resolve();
+function compileD2(source) {
+  const job = () => new Promise((resolve, reject) => {
+    const child = execFile(process.execPath, [fileURLToPath(new URL('../../scripts/render-d2.mjs', import.meta.url))], {
+      timeout: 60_000,
+      maxBuffer: 16 * 1024 * 1024,
+    }, (error, stdout, stderr) => {
+      if (error) reject(new Error(stderr.trim() || error.message));
+      else resolve(stdout);
+    });
+    child.stdin.on('error', error => {
+      child.kill();
+      reject(error);
+    });
+    child.stdin.end(source);
+  });
+  const run = d2Chain.then(job, job);
+  d2Chain = run.catch(() => {});
+  return run;
+}
+
+const DEFAULT_COMPILERS = { tikz: compileTikz, typst: compileTypst, d2: compileD2 };
 
 // Fence languages the default compilers cover — what callers without custom
 // `compilers` (the Confluence sync) can hand to renderFenceSvg.
@@ -101,7 +127,10 @@ export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {})
   const path = cachePath(cacheDir, lang, source);
   if (existsSync(path)) return { svg: readFileSync(path, 'utf8'), path };
 
-  const svg = classifySvg(themeAdaptSvg(await compile[lang](source)), `${lang}-svg`);
+  const rendered = await compile[lang](source);
+  // D2 carries its own palette and canvas; changing black alone can make its
+  // labels unreadable. Preserve the author's theme for HTML and attachments.
+  const svg = classifySvg(lang === 'd2' ? rendered : themeAdaptSvg(rendered), `${lang}-svg`);
   if (svg === null) throw new Error('compiler produced no <svg> root');
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(path, svg);
