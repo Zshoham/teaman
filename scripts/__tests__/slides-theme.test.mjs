@@ -104,12 +104,12 @@ describe('slidev router paths', () => {
     expect(src).toContain('`/presenter/${no}`');
   });
 
-  it('renderViteConfig only carries the Rolldown checks knob', () => {
+  it('renderViteConfig preserves shared output and configures Rolldown checks', () => {
     const cfg = renderViteConfig();
     expect(cfg).toContain('export default');
+    expect(cfg).toContain('emptyOutDir: false');
     // Mutes @vueuse/core's INVALID_ANNOTATION noise via the Rolldown checks knob.
     expect(cfg).toContain('invalidAnnotation: false');
     expect(cfg).not.toContain('getSlidePath');
   });
 });
-

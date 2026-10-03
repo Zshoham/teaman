@@ -1,5 +1,7 @@
 "use client"
-"use no memo"
+
+// React Compiler uses annotation mode (astro.config.mjs). Keep these filters
+// outside the rollout by leaving their functions without "use memo" directives.
 
 import type React from "react"
 import {
