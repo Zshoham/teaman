@@ -144,8 +144,11 @@ local LaTeX install needed; write what goes between the `document` tags,
 usually just the `tikzpicture` environment) and a ` ```typst ` fence through
 the native Typst compiler (the page auto-sizes to the content unless you `#set
 page(...)` yourself). Both render as inline SVG with black ink rewritten to
-`currentColor`, so they follow the light/dark toggle like mermaid and plantuml
-do. Renders are cached by content hash (`.diagram-cache/` in the engine —
+`currentColor`. Embedded CSS adapts explicit colors for dark mode by mirroring
+their lightness while preserving hue and transparency, so pale panels stay
+readable behind light labels. The SVG follows the site's light/dark toggle
+without recompiling; viewed on its own, it follows system preference. Print
+and reference PDFs use the light palette. Renders are cached by content hash (`.diagram-cache/` in the engine —
 disposable), so only new or edited diagrams pay the compiler; a fence that
 fails to compile shows a quiet error notice in place and warns during the
 build instead of failing it.
@@ -159,8 +162,11 @@ client -> server -> database
 The bundled D2 WASM engine uses the open-source **TALA** layout by default;
 no system D2 install or license key is needed. To use another layout, add
 `vars: { d2-config: { layout-engine: elk } }` (or `dagre`) inside the fence.
-D2 keeps its own palette and background rather than rewriting its ink to the
-site colors. It shares the diagram cache and visible error fallback above,
+D2 embeds its native light and dark palettes, switching with the site toggle
+or system preference when viewed on its own. Set `theme-id` and `dark-theme-id`
+inside `vars.d2-config` to choose the palettes (defaults: `0` and `200`);
+explicit D2 style colors remain author-controlled. Print uses the light palette.
+It shares the diagram cache and visible error fallback above,
 and works in reference PDFs and as SVG attachments in Confluence sync.
 Fences are self-contained: imports from vault files are not supported.
 

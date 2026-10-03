@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { remarkFenceSvg, themeAdaptSvg, classifySvg } from '../remark-fence-svg.mjs';
+import { remarkFenceSvg, classifySvg } from '../remark-fence-svg.mjs';
 
 // Minimal mdast-compatible node factories (see remark-mermaid.test.ts).
 const code = (lang: string | null, value: string) => ({ type: 'code', lang, value });
@@ -29,7 +29,7 @@ describe('remarkFenceSvg', () => {
     const tikz = vi.fn(async () => FAKE_SVG);
     const [node] = await run([code('tikz', '\\draw (0,0);')], { tikz });
     expect(node.type).toBe('html');
-    expect(node.value).toContain('class="content-svg tikz-svg"');
+    expect(node.value).toContain('content-svg tikz-svg');
     expect(node.value).toContain('stroke="currentColor"');
     expect(node.value).toContain('fill="currentColor"');
     expect(tikz).toHaveBeenCalledWith('\\draw (0,0);');
@@ -86,22 +86,6 @@ describe('remarkFenceSvg', () => {
   });
 });
 
-describe('themeAdaptSvg', () => {
-  it('rewrites black ink attributes and styles to currentColor', () => {
-    expect(themeAdaptSvg('<g stroke="#000" fill="#000000"><a fill="black"/></g>')).toBe(
-      '<g stroke="currentColor" fill="currentColor"><a fill="currentColor"/></g>',
-    );
-    expect(themeAdaptSvg('<g style="fill: #000; stroke:black"/>')).toBe(
-      '<g style="fill:currentColor; stroke:currentColor"/>',
-    );
-  });
-
-  it('leaves explicit non-black colors alone', () => {
-    const svg = '<g stroke="#0a0" fill="none" color="white"><a fill="#fff" stroke="red"/></g>';
-    expect(themeAdaptSvg(svg)).toBe(svg);
-  });
-});
-
 describe('classifySvg', () => {
   it('merges into an existing class and strips anything before <svg>', () => {
     const out = classifySvg('<?xml?><svg class="typst-doc" viewBox="0 0 1 1"/>', 'typst-svg')!;
@@ -134,10 +118,19 @@ describe('real compilers', () => {
       expect(node.value).toContain('data-d2-version="v0.9.0"');
       expect(node.value).toContain('client');
       expect(node.value).toContain('<path');
+      expect(node.value).toContain(':root[data-theme="dark"]');
+      expect(node.value).toContain('#CDD6F4');
       expect(node.value).not.toContain('diagram-error');
     } finally {
       vi.unstubAllGlobals();
     }
+  }, 30_000);
+
+  it('d2: honors an explicit dark theme and custom paint', async () => {
+    const node = await compile('d2', 'vars: { d2-config: { dark-theme-id: 0 } }\na: { style.fill: "#abcdef" }');
+    expect(node.value).toContain(':root[data-theme="dark"]');
+    expect(node.value).not.toContain('#CDD6F4');
+    expect(node.value).toContain('#abcdef');
   }, 30_000);
 
   it('d2: honors the layout engine specified by the author', async () => {

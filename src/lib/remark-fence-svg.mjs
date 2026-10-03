@@ -4,9 +4,9 @@
  *  ship to the browser. So these render during the build: `node-tikzjax` (the
  *  same WASM TeX the Obsidian TikZJax plugin uses — no system LaTeX required)
  *  and `@myriaddreamin/typst-ts-node-compiler` (native Typst via napi). Theme
- *  reactivity is recovered by rewriting black strokes/fills to `currentColor`,
- *  which resolves against the page like the inlined svg images do. D2 uses
- *  its bundled WASM engine with TALA and retains its own palette.
+ *  reactivity lives in the SVG: inherited ink and embedded dark paint rules
+ *  follow the site's theme without recompiling. D2 uses its bundled WASM
+ *  engine with TALA and embeds its native light/dark palettes.
  *
  *  Compiles are cached in `cacheDir` keyed by a hash of the source, so only
  *  new or edited diagrams pay the compiler cost (TikZ ≈ 1s each). The cache
@@ -21,20 +21,12 @@ import { fileURLToPath } from 'node:url';
 import { escapeHtml } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { svgRootOf, withSvgClass } from './svg-markup.mjs';
+import { themeAdaptSvg, themeD2Svg } from './svg-theme.mjs';
+export { themeAdaptSvg } from './svg-theme.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v6-d2-0.1.34';
-
-// Black is the compilers' "default ink"; rewrite it to currentColor so text
-// and strokes follow the site theme. Explicit non-black colors are kept —
-// authors who want theme tokens can write var(--primary) via svg passthrough
-// colors only in hand-written files, so black-as-ink is the contract here.
-export function themeAdaptSvg(svg) {
-  return svg
-    .replace(/\b(fill|stroke)="(?:#0{3}(?:0{3})?|black)"/gi, '$1="currentColor"')
-    .replace(/\b(fill|stroke):\s*(?:#0{3}(?:0{3})?|black)\b/gi, '$1:currentColor');
-}
+const FORMAT_VERSION = 'v7-embedded-themes-2-d2-0.1.34';
 
 // Trim to the root <svg> tag and merge our classes into it (`content-svg` for
 // the shared prose sizing, plus a per-language class for targeted styling).
@@ -128,9 +120,7 @@ export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {})
   if (existsSync(path)) return { svg: readFileSync(path, 'utf8'), path };
 
   const rendered = await compile[lang](source);
-  // D2 carries its own palette and canvas; changing black alone can make its
-  // labels unreadable. Preserve the author's theme for HTML and attachments.
-  const svg = classifySvg(lang === 'd2' ? rendered : themeAdaptSvg(rendered), `${lang}-svg`);
+  const svg = classifySvg(lang === 'd2' ? themeD2Svg(rendered) : themeAdaptSvg(rendered), `${lang}-svg`);
   if (svg === null) throw new Error('compiler produced no <svg> root');
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(path, svg);

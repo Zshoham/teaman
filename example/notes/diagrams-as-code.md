@@ -12,14 +12,16 @@ nothing. But some notation wants a real typesetter. TikZ needs TeX, Typst
 needs its compiler — neither belongs in a visitor's browser tab.
 
 So those compile once, at build time, into inline SVG. The ink is rewritten to
-`currentColor` on the way through, which means even a TeX drawing follows the
-light/dark toggle.
+`currentColor` on the way through, and embedded CSS adapts colored fills and
+strokes for dark mode. Even a TeX drawing follows the light/dark toggle without
+recompiling. Standalone SVGs follow system preference; print keeps light colors.
 
 ## D2
 
 A `d2` fence compiles to SVG using the bundled WASM engine, with TALA's
 architecture-oriented layout by default. No D2 executable or license key is
-needed. The diagram keeps D2's own colors and background.
+needed. The SVG carries D2's light and dark palettes and switches with the site
+theme. Set `theme-id` and `dark-theme-id` in `vars.d2-config` to choose palettes.
 
 ```d2
 direction: right

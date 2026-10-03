@@ -23,11 +23,18 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Compiled diagrams follow the theme** (patch, no vault changes). TikZ and
+  Typst SVGs now embed dark-mode colors for explicit fills and strokes as well
+  as inherited default ink. D2 embeds both native palettes. The site toggle
+  takes precedence over system preference; standalone SVGs follow the system,
+  and print/PDF output keeps light colors. Existing diagram caches regenerate
+  automatically.
+
 - **D2 diagram fences** (no vault changes). `d2` fences compile to SVG with
   the bundled WASM engine and open-source TALA layout by default. Set
   `vars: { d2-config: { layout-engine: elk } }` or `dagre` inside a fence to
   choose another layout. Renders are cached and reused by the site, reference
-  PDFs, and Confluence sync; D2 retains its own colors and background.
+  PDFs, and Confluence sync; D2 uses its native light and dark palettes.
 
 - **teaman runs on Bun, not Node** (no vault changes; a new runtime for anyone
   running the npm package). Install [Bun](https://bun.sh) ≥ 1.4 and swap `npx`

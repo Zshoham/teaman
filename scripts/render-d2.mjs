@@ -6,7 +6,7 @@ if (!source.trim()) throw new Error('D2 diagram source is empty');
 const d2 = new D2();
 try {
   // Leave layout selection in the source so vars.d2-config can override it.
-  const result = await d2.compile(`vars: { d2-config: { layout-engine: tala } }\n${source}`);
+  const result = await d2.compile(`vars: { d2-config: { layout-engine: tala; dark-theme-id: 200 } }\n${source}`);
   const svg = await d2.render(result.diagram, { ...result.renderOptions, noXMLTag: true });
   process.stdout.write(svg);
 } catch (error) {

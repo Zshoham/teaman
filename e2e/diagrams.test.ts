@@ -45,8 +45,8 @@ test.describe('tikz fences', () => {
     await page.goto(NOTE);
     const label = page.locator('.prose svg.tikz-svg text').first();
     await expect(label).toBeVisible();
-    // dvi2svg emits <text> without a fill attribute (svg default: black);
-    // the engine CSS must recolor it to the page ink for dark-theme safety.
+    // dvi2svg emits <text> without a fill attribute; the generated SVG root
+    // supplies inherited ink without depending on the site's stylesheet.
     expect(await label.evaluate((el) => getComputedStyle(el).fill)).toBe(await pageInk(page));
     // The TeX font families referenced by the svg must actually be loaded
     // from the @font-face set global.css imports out of node-tikzjax.
@@ -98,6 +98,52 @@ test('D2 compiles to visible SVG with architecture labels and geometry', async (
   await expect(svg).toBeVisible();
   await expect(svg).toContainText('Teaman');
 });
+
+for (const [language, paint, property] of [
+  ['tikz', 'text', 'fill'],
+  ['typst', '[fill="#e1bee7"]', 'fill'],
+  ['d2', 'rect.fill-N7', 'fill'],
+] as const) {
+  test(`${language} embeds live theme rules; site choice overrides OS and print stays light`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.addInitScript(() => localStorage.setItem('vault-theme', 'light'));
+    await page.goto(NOTE);
+    const svg = page.locator(`.prose > svg.${language}-svg`);
+    await expect(svg).toBeVisible();
+    const target = svg.locator(paint).first();
+    const color = () => target.evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
+    const light = await color();
+    const markup = await svg.evaluate(element => element.outerHTML);
+    await expect(page.locator('[data-theme-toggle]')).toHaveAttribute('aria-label', 'Use dark theme');
+    await page.click('[data-theme-toggle]');
+    await expect.poll(color).not.toBe(light);
+    if (language === 'typst') expect(await color()).toBe('rgb(59, 24, 65)');
+    expect(await svg.evaluate(element => element.outerHTML)).toBe(markup);
+
+    await page.emulateMedia({ media: 'print' });
+    if (language !== 'tikz') await expect.poll(color).toBe(light);
+    else await expect.poll(color).toBe('rgb(0, 0, 0)');
+    await page.emulateMedia({ media: 'screen' });
+    await page.click('[data-theme-toggle]');
+    await expect.poll(color).toBe(light);
+  });
+
+  test(`${language} SVG follows system preference when viewed on its own`, async ({ page }) => {
+    await page.goto(NOTE);
+    const svg = page.locator(`.prose > svg.${language}-svg`);
+    await expect(svg).toBeVisible();
+    const markup = await svg.evaluate(element => new XMLSerializer().serializeToString(element));
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.goto(`data:image/svg+xml;base64,${Buffer.from(markup).toString('base64')}`);
+    const target = page.locator(paint).first();
+    const color = () => target.evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
+    const light = await color();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect.poll(color).not.toBe(light);
+    await page.emulateMedia({ media: 'print' });
+    await expect.poll(color).toBe(light);
+  });
+}
 
 test('no diagram renders as a compile-error notice', async ({ page }) => {
   await page.goto(NOTE);

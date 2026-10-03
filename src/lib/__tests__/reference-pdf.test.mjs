@@ -301,7 +301,7 @@ describe('reference PDF rendering', () => {
       expect(compilers.tikz).toHaveBeenCalledTimes(1);
       expect(compilers.typst).toHaveBeenCalledTimes(1);
       expect(compilers.d2).toHaveBeenCalledTimes(1);
-      for (const value of diagrams.values()) expect(value.svg).toContain('class="content-svg');
+      for (const value of diagrams.values()) expect(value.svg).toContain('content-svg');
     } finally {
       rmSync(cacheDir, { recursive: true, force: true });
     }

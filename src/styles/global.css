@@ -754,10 +754,6 @@ body {
    --tw-prose-captions, we just center the pair and drop the doubled margin. */
 .prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
 .prose figure.content-figure > svg.content-svg { margin: 0 auto; }
-/* TikZ text nodes come out of dvi2svg with no fill attribute, which SVG
-   defaults to black — invisible on the dark theme. Give unfilled text the
-   page ink; text an author explicitly colored keeps its fill. */
-.prose svg.tikz-svg text:not([fill]) { fill: currentColor; }
 
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
    diagrams both render client-side into these blocks, so they share the same
