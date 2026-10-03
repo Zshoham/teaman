@@ -12,6 +12,22 @@ const NOTE = '/notes/diagrams-as-code/';
 const pageInk = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).color);
 
+test('Mermaid renders neo flowcharts and re-renders when the theme changes', async ({ page }) => {
+  await page.goto('/notes/shipping-cadence/');
+  const diagram = page.locator('.prose pre.mermaid').first();
+  const svg = diagram.locator('svg');
+  await expect(svg).toBeVisible();
+  await expect(svg).toContainText('watch it land');
+  await expect(svg.locator('.node').first()).toHaveAttribute('data-look', 'neo');
+  const before = await svg.evaluate(el => el.outerHTML);
+
+  await page.click('[data-theme-toggle]');
+  await expect.poll(() => svg.evaluate(el => el.outerHTML)).not.toBe(before);
+  await expect(svg).toContainText('watch it land');
+  await expect(svg.locator('.node').first()).toHaveAttribute('data-look', 'neo');
+  await expect(page.locator('.prose pre.mermaid-error')).toHaveCount(0);
+});
+
 test.describe('tikz fences', () => {
   test('compile to an inline svg with drawn geometry, leaving no code fence', async ({ page }) => {
     await page.goto(NOTE);

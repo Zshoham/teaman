@@ -56,7 +56,11 @@ test.describe('architecture decisions', () => {
     await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: 'Filter', exact: true }).click();
-    await page.getByRole('option', { name: 'Status' }).hover();
+    // Reopening can leave the pointer over the same trigger, so another hover
+    // need not enter it again. Open through the menu's keyboard interaction.
+    const fieldSearch = page.getByPlaceholder('Filter...');
+    await fieldSearch.fill('Status');
+    await fieldSearch.press('ArrowRight');
     const accepted = page.getByRole('option', { name: /^Accepted/ });
     await expect(accepted).toHaveAttribute('aria-checked', 'true');
     await accepted.click();

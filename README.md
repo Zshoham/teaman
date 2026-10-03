@@ -326,6 +326,7 @@ root, plus a bundled example vault in `example/`. Work from the repo root:
 bun install
 bun run dev      # serves the bundled example/ vault
 bun run build    # writes ./public
+bun run test:doctor # Vitest 5 measures test configuration performance
 bun run test     # vitest unit suite (on Bun)
 ```
 
@@ -333,6 +334,14 @@ The engine reads the vault, output, base, config, and static dir from
 `TEAMAN_VAULT` / `TEAMAN_OUT` / `TEAMAN_BASE` / `TEAMAN_CONFIG` / `TEAMAN_PUBLIC`;
 when unset it falls back to the bundled `example/` → `public/`, which is why the
 plain package scripts and tests work in place.
+
+React Compiler runs through Astro's Oxc integration in annotation mode.
+`EntryFilterBar` and `AdrTimeline` opt in with a function-level `'use memo'`
+directive; other components keep their existing behavior. Compiler diagnostics
+are enabled, and unit tests verify these islands produce memoized output without
+bailing out. Keep explicit memoization where generated output does not cache an
+expensive calculation, including the ADR filtering and grouping. The reference
+reader's custom TOC comparator and ReUI filters remain outside this rollout.
 
 ### Building & previewing the current vault
 

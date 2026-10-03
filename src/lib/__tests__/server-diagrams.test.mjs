@@ -13,6 +13,7 @@ describe('server diagram SVG rendering', () => {
     const svg = await renderMermaidSvg('flowchart LR\nInput --> Build --> PDF');
     expect(svg).toContain('<svg');
     expect(svg).toContain('flowchart');
+    expect(svg).toContain('data-look="neo"');
     const viewBox = /viewBox="[^"]*?\s([\d.]+)\s([\d.]+)"/.exec(svg);
     expect(Number(viewBox?.[1])).toBeGreaterThan(250);
     expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');

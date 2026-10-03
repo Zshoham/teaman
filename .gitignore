@@ -2,6 +2,7 @@
 public/
 test-results/
 playwright-report/
+.vitest/
 example/dist
 dist-bin/
 

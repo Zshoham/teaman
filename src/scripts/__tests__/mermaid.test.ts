@@ -50,8 +50,14 @@ describe('initMermaid', () => {
 
     expect(pre.dataset.src).toBe('graph TD\n  A --> B');
     expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ startOnLoad: false, theme: 'default' }),
+      expect.objectContaining({
+        startOnLoad: false,
+        theme: 'redux-color',
+      }),
     );
+    const config = initialize.mock.calls[0][0];
+    expect(config).not.toHaveProperty('layout');
+    expect(config).not.toHaveProperty('look');
     expect(run).toHaveBeenCalledTimes(1);
     expect(run.mock.calls[0][0].nodes).toContain(pre);
   });
@@ -121,7 +127,7 @@ describe('initMermaid', () => {
     await init();
     expect(run).toHaveBeenCalledTimes(1);
 
-    document.documentElement.dataset.theme = 'light'; // still resolves to 'default'
+    document.documentElement.dataset.theme = 'light'; // still resolves to 'redux-color'
     await new Promise(r => setTimeout(r, 0));
 
     expect(run).toHaveBeenCalledTimes(1);

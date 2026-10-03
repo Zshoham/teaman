@@ -404,7 +404,12 @@ async function cmdDev(vaultArg, opts) {
       ...env,
       TEAMAN_OUT: staged.publicDir,
     });
-    await run(node, [astroBin, 'dev', ...serverArgs(opts)], env);
+    // Astro auto-detaches when it detects an AI agent. Keep the server under
+    // this CLI's lifetime so staged assets survive until the server stops.
+    await run(node, [astroBin, 'dev', ...serverArgs(opts)], {
+      ...env,
+      ASTRO_DEV_BACKGROUND: '0',
+    });
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
@@ -414,7 +419,11 @@ async function cmdPreview(vaultArg, opts) {
   const { vault, config, base } = await openVault(vaultArg, opts, { check: false });
   const out = resolve(opts.out ?? join(vault, 'dist'));
   const env = envFor(vault, config, { out, base });
-  await run(node, [astroBin, 'preview', ...serverArgs(opts)], env);
+  // Supervisors such as Playwright need the preview command to stay alive.
+  await run(node, [astroBin, 'preview', ...serverArgs(opts)], {
+    ...env,
+    ASTRO_PREVIEW_BACKGROUND: '0',
+  });
 }
 
 const STARTER_CONFIG = `// teaman vault config. Pure data — no functions (it is serialized to the

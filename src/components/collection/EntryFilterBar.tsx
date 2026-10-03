@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FilesIcon } from 'lucide-react';
 
 import { CollectionFilterBar } from '@/components/CollectionFilterBar';
@@ -77,6 +77,8 @@ export function EntryFilterBar({
   resultLabel = 'entries',
   preselectField,
 }: Props) {
+  'use memo';
+
   // An empty rule matches everything (see `matchesFilterRules`), so the chip
   // starts as a value picker rather than a filter. Fixed id: `createFilter`
   // randomises one, which would differ between SSR and hydration.
@@ -86,7 +88,7 @@ export function EntryFilterBar({
       : [],
   );
   const rootRef = useRef<HTMLDivElement>(null);
-  const fields = useMemo<FilterFieldConfig<string>[]>(() => {
+  const fields = (() => {
     const next: FilterFieldConfig<string>[] = [];
 
     // A per-collection index is already scoped to one type, so `buildFilterTabs`
@@ -107,15 +109,12 @@ export function EntryFilterBar({
     if (topics.length > 0) next.push(tagField(topics));
 
     return next;
-  }, [filterTabs, topics]);
+  })();
 
-  const filteredEntries = useMemo(
-    () => entries.filter((entry) => matchesFilterRules(
-      { type: [entry.type], tag: entry.tags },
-      filters,
-    )),
-    [entries, filters],
-  );
+  const filteredEntries = entries.filter((entry) => matchesFilterRules(
+    { type: [entry.type], tag: entry.tags },
+    filters,
+  ));
 
   useEffect(() => {
     const root = rootRef.current;

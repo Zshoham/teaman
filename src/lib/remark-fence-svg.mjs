@@ -21,7 +21,7 @@ import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v2';
+const FORMAT_VERSION = 'v4';
 
 // Black is the compilers' "default ink"; rewrite it to currentColor so text
 // and strokes follow the site theme. Explicit non-black colors are kept —

@@ -214,14 +214,13 @@ function serializeRender(work, chainName) {
   return run;
 }
 
-/** Render a Mermaid definition to a light, print-friendly SVG. */
+/** Render a Mermaid definition with its default appearance and SVG text for print. */
 export function renderMermaidSvg(source) {
   return serializeRender(async () => {
     await ensureDiagramDom();
     const { default: mermaid } = await import('mermaid');
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'neutral',
       securityLevel: 'strict',
       suppressErrorRendering: true,
       fontFamily: 'sans-serif',

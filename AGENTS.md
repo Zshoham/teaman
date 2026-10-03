@@ -53,9 +53,11 @@ top-level 15 breaks every deck build. Don't bump it until `@comark/markdown-it`
 supports 15.
 
 TypeScript is intentionally installed side by side: `@typescript/native` provides
-the TypeScript 7 `tsc` binary used by `bun run typecheck`, while the `typescript`
-package name aliases `@typescript/typescript6` for Astro/Slidev tools that still
-consume the compiler API (TypeScript 7.0 does not ship one).
+the TypeScript 7 `tsc` binary used explicitly by `bun run typecheck`, while
+`typescript` stays on `^6.0.3` for Slidev/Twoslash tools that consume the legacy
+compiler API. Bun executes TypeScript without typechecking it; it replaces
+neither the CI checker nor that API. Invoke the native compiler by its package
+path to avoid relying on which version owns the shared `tsc` bin name.
 
 Run a single unit test file / pattern:
 ```sh
@@ -310,6 +312,14 @@ which `build-slides.mjs` leaves in place when it writes each deck to
 
 Shared logic (path/format/entry-loading/dailies/guides parsing) lives in `src/lib/` —
 prefer extending those helpers over duplicating logic in pages.
+
+React Compiler uses Oxc in annotation mode (`astro.config.mjs`). Only
+`EntryFilterBar` and `AdrTimeline` currently opt in with function-level
+`'use memo'`. Before opting in another island or removing manual memoization,
+inspect generated output and run the relevant browser tests: successful builds
+can silently fall back, and not every calculation becomes cached. Keep the
+reference reader's custom TOC comparator and ReUI filters outside the rollout
+until their behavior has been assessed separately.
 
 ## Testing
 

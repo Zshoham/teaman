@@ -8,8 +8,8 @@ import {
   observeThemeChanges,
 } from './themed-diagrams';
 
-function currentTheme(): 'dark' | 'default' {
-  return isDarkTheme() ? 'dark' : 'default';
+function currentTheme(): 'dark' | 'redux-color' {
+  return isDarkTheme() ? 'dark' : 'redux-color';
 }
 
 /** Renders the page's mermaid blocks. Returns the theme-watching observer (or

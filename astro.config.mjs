@@ -49,7 +49,18 @@ export default defineConfig({
   base,
   outDir,
   publicDir,
-  integrations: [mdx(), react(), excalidrawAssets({ base }), failOnEmbedErrors()],
+  integrations: [
+    mdx(),
+    // Compile islands that explicitly opt in with "use memo". Keep diagnostics
+    // visible so a future compiler bailout does not silently lose memoization.
+    react({ compiler: {
+      compilationMode: 'annotation',
+      reportDiagnostics: true,
+      logDiagnostics: true,
+    } }),
+    excalidrawAssets({ base }),
+    failOnEmbedErrors(),
+  ],
   vite: {
     plugins: [tailwindcss()],
     server: {

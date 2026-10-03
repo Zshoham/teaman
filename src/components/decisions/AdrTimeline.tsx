@@ -81,14 +81,16 @@ function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
 }
 
 export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
+  'use memo';
+
   const [filters, setFilters] = useState<Filter<string>[]>([]);
   const [layout, setLayout] = useState<Layout>('spine');
 
-  const lookup = useMemo(() => byNum(adrs), [adrs]);
+  const lookup = byNum(adrs);
   const { openNum, setOpenNum, shown } = useAdrModalState(lookup);
-  const statusTotals = useMemo(() => statusCounts(adrs), [adrs]);
-  const allTags = useMemo(() => tagCounts(adrs), [adrs]);
-  const filterFields = useMemo<FilterFieldConfig<string>[]>(
+  const statusTotals = statusCounts(adrs);
+  const allTags = tagCounts(adrs);
+  const filterFields: FilterFieldConfig<string>[] = (
     () => {
       const fields = [
         multiselectField({
@@ -111,9 +113,10 @@ export function AdrTimeline({ adrs }: { adrs: AdrView[] }) {
       if (allTags.length > 0) fields.push(tagField(allTags));
 
       return fields;
-    },
-    [allTags, statusTotals],
-  );
+    }
+  )();
+  // Keep these explicit: the compiler currently leaves both calculations
+  // uncached when `filtered` feeds the timeline's two rendering branches.
   const filtered = useMemo(
     () => adrs.filter((adr) => adrMatchesRules(adr, filters)),
     [adrs, filters],
