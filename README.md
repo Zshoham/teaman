@@ -313,7 +313,7 @@ unused; `teaman doctor` flags them.
 ### Slides
 
 Every Slidev deck in `slides/` is built with the engine's bundled theme
-(`slidev-theme-teaman`) — Source Serif 4 display, Inter body, JetBrains Mono
+(`resources/slidev-theme-teaman/`) — Source Serif 4 display, Inter body, JetBrains Mono
 code, one warm accent, matching the site. You don't set a `theme:` in any deck;
 the build applies it to all of them. The only knobs are project-wide, under
 `slides`:

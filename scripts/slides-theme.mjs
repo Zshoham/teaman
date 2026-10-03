@@ -61,7 +61,7 @@ export default {
 `;
 }
 
-// Accent fallbacks — must match the committed slidev-theme-teaman/styles/vars.css
+// Accent fallbacks — must match resources/slidev-theme-teaman/styles/vars.css
 // so the theme looks identical whether or not a vault sets `slides` colours.
 export const DEFAULT_SLIDE_PRIMARY = 'oklch(0.62 0.15 48)';
 export const DEFAULT_SLIDE_SECONDARY = 'oklch(0.58 0.05 196)';

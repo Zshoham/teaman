@@ -12,7 +12,7 @@ import {
   DEFAULT_SLIDE_SECONDARY,
 } from '../slides-theme.mjs';
 
-const themeDir = fileURLToPath(new URL('../../slidev-theme-teaman', import.meta.url));
+const themeDir = fileURLToPath(new URL('../../resources/slidev-theme-teaman', import.meta.url));
 
 describe('renderVarsCss', () => {
   it('substitutes the configured accents', () => {

@@ -50,7 +50,7 @@ writeFileSync(join(slidesTmpDir, 'vite.config.mts'), renderViteConfig());
 // staged copy carries the config. Applied to all decks via `--theme` below — no
 // deck frontmatter is ever touched.
 const themeDir = join(slidesTmpDir, 'theme');
-cpSync(join(engineDir, 'slidev-theme-teaman'), themeDir, { recursive: true });
+cpSync(join(engineDir, 'resources', 'slidev-theme-teaman'), themeDir, { recursive: true });
 writeFileSync(join(themeDir, 'styles', 'vars.css'), renderVarsCss(slidesConfig));
 
 const logoSrc = resolveLogoFile(slidesConfig.logo, { vaultDir, engineDir });

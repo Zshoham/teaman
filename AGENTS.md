@@ -272,7 +272,7 @@ stages writing to that one staged dir.
    unset (plain `bun run build:slides`) — because Slidev resolves themes relative to
    the deck file and needs to walk up to the engine's `node_modules`. Every
    deck is built with `--theme` pointing at a staged copy of the engine theme
-   `slidev-theme-teaman/` (in `<work dir>/theme/`); the build personalizes that
+   `resources/slidev-theme-teaman/` (in `<work dir>/theme/`); the build personalizes that
    copy from the vault's `config.slides` knobs via `scripts/slides-theme.mjs`
    (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource` +
    `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed

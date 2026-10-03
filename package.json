@@ -22,7 +22,6 @@
     "src",
     "scripts",
     "resources",
-    "slidev-theme-teaman",
     "astro.config.mjs",
     "components.json",
     "tsconfig.json"
