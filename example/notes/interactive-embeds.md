@@ -31,7 +31,9 @@ change the speed. The same file is embedded in the
 Not every embed needs to be poked. This one plays itself: a seven-step,
 looping walkthrough of how BGP moves routes between networks, with the
 moving parts carrying the story and a caption beside them saying what just
-happened. Same mechanism, same one file — `![[bgp.html|680]]`.
+happened. The only controls are a narrator's: step back, pause, step on — a
+step chosen that way plays once and holds, so it can be read. Same
+mechanism, same one file — `![[bgp.html|680]]`.
 
 ![[bgp.html|680]]
 

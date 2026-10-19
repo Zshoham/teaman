@@ -52,6 +52,14 @@ test('the self-playing BGP walkthrough embeds in the note, guide, and deck', asy
   // It advances on its own: no controls, just the caption changing.
   await expect(note.locator('#kicker')).toHaveText(/Step 1 of 7/);
   await expect(note.locator('#kicker')).toHaveText(/Step 2 of 7/, { timeout: 12_000 });
+  // The buttons jump between steps; a chosen step holds instead of looping on.
+  await note.getByRole('button', { name: 'Next step' }).click();
+  await expect(note.locator('#kicker')).toHaveText(/Step 3 of 7/);
+  await expect(note.getByRole('button', { name: 'Play' })).toBeVisible();
+  await note.getByRole('button', { name: /^Step 6:/ }).click();
+  await expect(note.locator('#title')).toHaveText('A link fails: withdraw and reroute');
+  await note.getByRole('button', { name: 'Previous step' }).click();
+  await expect(note.locator('#kicker')).toHaveText(/Step 5 of 7/);
 
   await page.goto('/guides/using-this-system/embedding-html/');
   await page.locator('iframe[src="/embeds/attachments/bgp.html#step=2"]').scrollIntoViewIfNeeded();

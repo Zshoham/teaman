@@ -9,8 +9,10 @@
   networks announce what they own, neighbours pass routes on, each network
   picks a best path, traffic follows it, and a failure reroutes it.
 
-  It plays on its own and loops; there is nothing to click. One self-contained
-  file (no network, no libraries) that teaman embeds with ![[bgp.html]].
+  It plays on its own and loops. The back/next buttons and the step markers
+  jump to a step, play just that step, and hold there so it can be read;
+  play resumes the loop. One self-contained file (no network, no libraries)
+  that teaman embeds with ![[bgp.html]].
 
   Optional: #step=4 starts on that step. It also follows the teaman frame
   protocol: says { type: 'teaman:ready' } to its parent and applies
@@ -80,9 +82,19 @@
     padding: 14px 16px; background: var(--panel); border-left: 1px solid var(--rule);
     transition: background 0.4s;
   }
-  .steps { display: flex; gap: 5px; }
-  .steps span { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; }
-  .steps span b { display: block; height: 100%; width: 0; background: var(--update); }
+  .controls { display: flex; align-items: center; gap: 6px; }
+  .controls > button {
+    flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+    border: 1px solid var(--rule); border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .controls > button:hover { background: var(--chip); }
+  button:focus-visible { outline: 2px solid var(--update); outline-offset: 2px; }
+  .steps { flex: 1; display: flex; gap: 4px; margin-left: 4px; }
+  /* Each marker is a tall, easy target around a thin progress bar. */
+  .steps button { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: none; cursor: pointer; }
+  .steps button span { display: block; height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+  .steps button:hover span { background: var(--node-stroke); }
+  .steps b { display: block; height: 100%; width: 0; background: var(--update); }
   .kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .panel > * { flex-shrink: 0; }
   .panel h2 { margin: -6px 0 0; font-size: 18px; line-height: 1.25; }
@@ -175,7 +187,16 @@
     </svg>
   </section>
   <aside class="panel">
-    <div class="steps" id="steps" aria-hidden="true"></div>
+    <div class="controls">
+      <button type="button" id="prev" aria-label="Previous step" title="Previous step">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8.5 1.5 3.5 6l5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" id="play"></button>
+      <button type="button" id="next" aria-label="Next step" title="Next step">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 1.5 8.5 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="steps" id="steps" role="group" aria-label="Steps"></div>
+    </div>
     <p class="kicker" id="kicker"></p>
     <h2 id="title"></h2>
     <p class="body" id="body"></p>
@@ -374,7 +395,15 @@
   }
 
   // --- the panel -------------------------------------------------------------------
-  for (const _ of STEPS) $('steps').appendChild(document.createElement('span')).appendChild(document.createElement('b'));
+  STEPS.forEach((step, i) => {
+    const marker = document.createElement('button');
+    marker.type = 'button';
+    marker.setAttribute('aria-label', `Step ${i + 1}: ${step.title}`);
+    marker.title = step.title;
+    marker.innerHTML = '<span><b></b></span>';
+    marker.addEventListener('click', () => goTo(i));
+    $('steps').appendChild(marker);
+  });
 
   const fmtPath = path => path.join(' ');
   function routeTable(state, T) {
@@ -426,10 +455,10 @@
       shownExtra = extra;
       $('extra').innerHTML = extra;
     }
-    [...$('steps').children].forEach((span, i) => {
+    [...$('steps').children].forEach((marker, i) => {
       const end = STEPS[i + 1]?.at ?? LOOP;
       const fill = T >= end ? 1 : T <= STEPS[i].at ? 0 : (T - STEPS[i].at) / (end - STEPS[i].at);
-      span.firstChild.style.width = `${(fill * 100).toFixed(1)}%`;
+      marker.querySelector('b').style.width = `${(fill * 100).toFixed(1)}%`;
     });
   }
 
@@ -478,26 +507,57 @@
   if (window.parent !== window) window.parent.postMessage({ type: 'teaman:ready' }, '*');
 
   // --- play -------------------------------------------------------------------------
+  // The clock only moves while frames are painted: a frame scrolled out of
+  // view gets none, so the story waits for its reader instead of running on.
+  //   play — run the whole story on a loop;
+  //   step — play the current step once, then hold its finished state;
+  //   pause — hold still.
   const startStep = Number(new URLSearchParams(location.hash.slice(1)).get('step'));
   const offset = startStep >= 1 && startStep <= STEPS.length ? STEPS[startStep - 1].at : 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (const view of Object.values(nodeViews)) if (offset === 0 && !reducedMotion) view.g.classList.add('appear');
-  // The clock starts on the first painted frame, not on load: a frame below
-  // the fold gets no animation frames until it is scrolled into view, so the
-  // story begins when a reader first sees it.
-  let began = null;
+
+  let T = offset;
+  let mode = 'play';
+  let last = null;
+
+  const stepOf = t => STEPS.reduce((current, s, k) => (t >= s.at ? k : current), 0);
+  const stepEnd = i => (STEPS[i + 1]?.at ?? LOOP) - 0.01;
+
+  const PAUSE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="1.5" width="2.5" height="9" rx="0.8" fill="currentColor"/><rect x="7" y="1.5" width="2.5" height="9" rx="0.8" fill="currentColor"/></svg>';
+  const PLAY_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 1.8v8.4L10 6z" fill="currentColor"/></svg>';
+  function setMode(next) {
+    mode = next;
+    const playing = mode === 'play';
+    $('play').innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
+    $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    $('play').title = playing ? 'Pause' : 'Play';
+  }
+
+  function goTo(i) {
+    T = STEPS[(i + STEPS.length) % STEPS.length].at;
+    setMode('step');
+  }
+
+  $('prev').addEventListener('click', () => goTo(Math.max(0, stepOf(T) - 1)));
+  $('next').addEventListener('click', () => goTo(stepOf(T) + 1));
+  $('play').addEventListener('click', () => setMode(mode === 'play' ? 'pause' : 'play'));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'ArrowRight') goTo(stepOf(T) + 1);
+    else if (event.key === 'ArrowLeft') goTo(Math.max(0, stepOf(T) - 1));
+  });
 
   function frame(now) {
-    began ??= now - offset * 1000;
-    let T = ((now - began) / 1000) % LOOP;
-    // Without motion, hold each step's finished state instead of animating it.
-    if (reducedMotion) {
-      const i = STEPS.reduce((current, s, k) => (T >= s.at ? k : current), 0);
-      T = (STEPS[i + 1]?.at ?? LOOP) - 0.01;
-    }
-    render(T);
+    // Clamp the gap so a frame that sat unpainted resumes where it was.
+    const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (mode === 'play') T = (T + dt) % LOOP;
+    else if (mode === 'step') T = Math.min(T + dt, stepEnd(stepOf(T)));
+    // Without motion, show each step's finished state instead of animating it.
+    render(reducedMotion ? stepEnd(stepOf(T)) : T);
     requestAnimationFrame(frame);
   }
+  setMode('play');
   requestAnimationFrame(frame);
 })();
 </script>
