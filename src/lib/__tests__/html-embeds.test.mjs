@@ -12,7 +12,6 @@ import {
   parseEmbedLabel,
 } from '../html-embeds.mjs';
 import { htmlEmbedEdits } from '../../../resources/slidev-theme-teaman/setup/transformers.ts';
-import { isHtmlEmbed, wikiLinks } from '../obsidian-markdown.mjs';
 
 const dirs = [];
 afterEach(() => {
@@ -149,12 +148,13 @@ describe('deck embeds (slide theme transformer)', () => {
     expect(htmlEmbedEdits('a ` b ![[viz.html]]')).toHaveLength(1);
   });
 
-  it('finds the same embeds build-slides stages, at the same paths', () => {
-    const md = '![[a.html]]\n\n![[./sub/b.htm?x=1|300]] `![[c.html]]`\n\n~~~\n![[d.html]]\n~~~\n';
-    const staged = wikiLinks(md)
-      .filter(link => link.embed && isHtmlEmbed(link.target))
-      .map(link => `embeds/${deckEmbedPath(link.target)}`);
-    const framed = htmlEmbedEdits(md).map(edit => /src="([^"?#]+)/.exec(edit.replacement)[1]);
+  it('stages every embed it frames, at the path the frame loads', () => {
+    // build-slides stages what htmlEmbedEdits finds; the frame must load the
+    // staged path — including embeds inside raw HTML wrappers.
+    const md = '![[a.html]]\n\n<div>\n![[./sub/b.htm?x=1|300]]\n</div>\n\n`![[c.html]]`\n\n~~~\n![[d.html]]\n~~~\n';
+    const edits = htmlEmbedEdits(md);
+    const staged = edits.map(edit => `embeds/${deckEmbedPath(edit.target)}`);
+    const framed = edits.map(edit => decodeURIComponent(/src="([^"?#]+)/.exec(edit.replacement)[1]));
     expect(framed).toEqual(staged);
     expect(staged).toEqual(['embeds/a.html', 'embeds/sub/b.htm']);
   });

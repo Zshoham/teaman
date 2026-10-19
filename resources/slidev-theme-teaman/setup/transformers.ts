@@ -11,6 +11,8 @@
 export interface HtmlEmbedEdit {
   start: number
   end: number
+  /** The embed target as written, e.g. `viz.html#step=2`. */
+  target: string
   replacement: string
 }
 
@@ -90,7 +92,8 @@ function componentFor(target: string, label: string | undefined): string {
 
 /**
  * Where `![[*.html]]` embeds sit in a slide's Markdown, and what replaces
- * each. Fenced code and inline code spans are left alone, so a slide can
+ * each. build-slides and `doctor` find a deck's embeds through this same
+ * scan, so every frame it writes has its file staged. Fenced code and inline code spans are left alone, so a slide can
  * still show the syntax.
  */
 export function htmlEmbedEdits(markdown: string): HtmlEmbedEdit[] {
@@ -114,7 +117,7 @@ export function htmlEmbedEdits(markdown: string): HtmlEmbedEdit[] {
       const [whole, target, label] = match
       if (!/\.html?$/i.test(embedPath(target))) continue
       if (code.some(([from, to]) => match.index >= from && match.index < to)) continue
-      edits.push({ start: start + match.index, end: start + match.index + whole.length, replacement: componentFor(target, label) })
+      edits.push({ start: start + match.index, end: start + match.index + whole.length, target, replacement: componentFor(target, label) })
     }
   }
   return edits

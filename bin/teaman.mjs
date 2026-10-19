@@ -629,9 +629,12 @@ export async function lintContent(vault) {
 
   // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
   // into a frame, and build-slides fails the deck when the file is missing.
+  // Found by the theme's own scan, so doctor checks exactly what it rewrites.
+  // Imported here, not at the top: the CLI must still load under Node far
+  // enough to say it needs Bun, and Node cannot import TypeScript.
+  const { htmlEmbedEdits } = await import('../resources/slidev-theme-teaman/setup/transformers.ts');
   for (const deck of discoverDecks(slidesRoot)) {
-    for (const { target, embed } of wikiLinks(deck.markdown)) {
-      if (!embed || !isHtmlEmbed(target)) continue;
+    for (const { target } of htmlEmbedEdits(deck.markdown)) {
       if (!index.resolveAttachment(target, deck.path)) {
         problems.push(`slides: ${deck.relativePath} embeds missing HTML file ![[${target}]]`);
       }

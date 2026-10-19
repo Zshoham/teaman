@@ -592,11 +592,12 @@ describe('lintContent', () => {
   it('accepts HTML embeds the vault has, in pages and decks, and fails missing ones', async () => {
     write('attachments/viz.html', '<!doctype html>');
     write('notes/a.md', '![[viz.html]] ![[viz.html#view=sizes|400]] ![[gone.html]]\n');
-    write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n');
+    write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n\n<div>\n![[wrapped.html]]\n</div>\n');
     const { problems } = await lintContent(vault);
     expect(problems).toEqual([
       'notes: a.md embeds missing HTML file ![[gone.html]]',
       'slides: deck.md embeds missing HTML file ![[lost.html]]',
+      'slides: deck.md embeds missing HTML file ![[wrapped.html]]',
     ]);
   });
 

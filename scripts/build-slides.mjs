@@ -6,7 +6,9 @@ import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } fr
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
-import { isHtmlEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
+// Bun runs the theme's TypeScript directly: one scan for what the theme
+// rewrites and what gets staged.
+import { htmlEmbedEdits } from '../resources/slidev-theme-teaman/setup/transformers.ts';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
@@ -79,8 +81,7 @@ writeFileSync(
 const vaultIndex = createVaultIndex(vaultDir);
 const missingEmbeds = [];
 for (const deck of decks) {
-  for (const { target, embed } of wikiLinks(deck.markdown)) {
-    if (!embed || !isHtmlEmbed(target)) continue;
+  for (const { target } of htmlEmbedEdits(deck.markdown)) {
     const found = vaultIndex.resolveAttachment(target, deck.path);
     if (!found) {
       missingEmbeds.push(`slides/${deck.relativePath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
