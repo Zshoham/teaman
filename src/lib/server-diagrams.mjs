@@ -1,15 +1,14 @@
 /**
  * Server-side SVG renderers for the diagram languages that the HTML site
  * renders in the browser. Reference PDFs cannot run that browser pass, so the
- * PDF build uses the same engines against a small jsdom surface and embeds the
- * resulting SVG bytes directly into Typst.
+ * PDF build uses Pele directly and PlantUML against a small jsdom surface,
+ * then embeds the resulting SVG bytes directly into Typst.
  */
 import { createHash } from 'crypto';
 
 const RENDER_TIMEOUT_MS = 30_000;
 
 let domWindow;
-let mermaidChain = Promise.resolve();
 let plantumlChain = Promise.resolve();
 
 function fontSize(font) {
@@ -17,7 +16,7 @@ function fontSize(font) {
   return match ? Number(match[1]) : 14;
 }
 
-// jsdom intentionally does not perform layout. Mermaid and PlantUML only need
+// jsdom intentionally does not perform layout. PlantUML only needs
 // text measurements to lay out their SVGs, so provide deterministic estimates
 // instead of pulling a native canvas implementation into the npm package.
 function measureText(value, font = '14px sans-serif') {
@@ -137,8 +136,8 @@ function svgBoundingBox(element) {
     return coordinateBox(element.getAttribute?.('points')) ?? { x: 0, y: 0, width: 1, height: 1 };
   }
   if (tag === 'path') {
-    // Exact Bézier extrema are unnecessary for Mermaid's final viewport: its
-    // generated paths already include every endpoint/control point. Including
+    // Exact Bézier extrema are unnecessary for the final viewport: generated
+    // paths already include every endpoint/control point. Including
     // all coordinate pairs gives a conservative box and prevents clipping.
     return coordinateBox(element.getAttribute?.('d')) ?? { x: 0, y: 0, width: 1, height: 1 };
   }
@@ -206,32 +205,32 @@ async function ensureDiagramDom() {
   return window;
 }
 
-function serializeRender(work, chainName) {
-  const chain = chainName === 'mermaid' ? mermaidChain : plantumlChain;
-  const run = chain.then(work, work);
-  if (chainName === 'mermaid') mermaidChain = run.catch(() => {});
-  else plantumlChain = run.catch(() => {});
+function serializeRender(work) {
+  const run = plantumlChain.then(work, work);
+  plantumlChain = run.catch(() => {});
   return run;
 }
 
 /** Render a Mermaid definition with its default appearance and SVG text for print. */
-export function renderMermaidSvg(source) {
-  return serializeRender(async () => {
-    await ensureDiagramDom();
-    const { default: mermaid } = await import('mermaid');
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'strict',
-      suppressErrorRendering: true,
-      fontFamily: 'sans-serif',
-      htmlLabels: false,
-      flowchart: { htmlLabels: false },
+export async function renderMermaidSvg(source) {
+  const { render } = await import('pele');
+  const idPrefix = `teaman-${createHash('sha256').update(source).digest('hex').slice(0, 12)}`;
+  const { svg } = render(source, { idPrefix, fontFamily: 'sans-serif', images: false });
+  // Typst does not resolve CSS variables. Freeze Pele's generated defaults,
+  // including its private aliases, to produce a standalone light SVG.
+  const variables = new Map();
+  for (const [, style] of svg.matchAll(/\bstyle="([^"]*)"/g)) {
+    for (const [, name, value] of style.matchAll(/(--[\w-]+):([^;]+)/g)) variables.set(name, value);
+  }
+  // Resolve presentation attributes only: labels may literally contain var().
+  return svg.replace(/\b(style|fill|stroke(?:-[\w-]+)?|color|stop-color|flood-color|font-[\w-]+|opacity|rx|ry)="([^"]*)"/g,
+    (_, attribute, value) => {
+      for (let pass = 0; pass < 10 && value.includes('var('); pass++) {
+        value = value.replace(/var\((--[\w-]+)(?:,([^()]*))?\)/g,
+          (_, name, fallback) => variables.get(name) ?? fallback ?? '');
+      }
+      return `${attribute}="${value}"`;
     });
-    const id = `teaman-${createHash('sha256').update(source).digest('hex').slice(0, 12)}`;
-    const { svg } = await mermaid.render(id, source);
-    if (!svg) throw new Error('Mermaid produced an empty SVG');
-    return svg;
-  }, 'mermaid');
 }
 
 /** Render a PlantUML definition to a light, print-friendly SVG. */
@@ -272,5 +271,5 @@ export function renderPlantumlSvg(source) {
     } finally {
       console.log = originalLog;
     }
-  }, 'plantuml');
+  });
 }

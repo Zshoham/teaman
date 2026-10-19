@@ -1,54 +1,27 @@
-/** Renders the `<pre class="mermaid">` blocks emitted by remark-mermaid into
- *  SVG, lazily importing mermaid only when a page actually contains a diagram,
- *  and re-rendering when the light/dark toggle flips `data-theme` on <html>. */
+/** Render Mermaid fences with Pele only on pages that contain diagrams.
+ * Colors follow the site's CSS tokens without rebuilding the SVG. */
+import { collectDiagramBlocks } from './themed-diagrams';
 
-import {
-  collectDiagramBlocks,
-  isDarkTheme,
-  observeThemeChanges,
-} from './themed-diagrams';
-
-function currentTheme(): 'dark' | 'redux-color' {
-  return isDarkTheme() ? 'dark' : 'redux-color';
-}
-
-/** Renders the page's mermaid blocks. Returns the theme-watching observer (or
- *  `undefined` when the page has no diagrams) so callers can dispose it. */
-export async function initMermaid(): Promise<MutationObserver | undefined> {
+export async function initMermaid(): Promise<void> {
   const nodes = collectDiagramBlocks('pre.mermaid');
   if (nodes.length === 0) return;
 
-  const { default: mermaid } = await import('mermaid');
-
-  const render = async () => {
-    for (const node of nodes) {
-      node.removeAttribute('data-processed');
-      node.classList.remove('mermaid-error');
-      node.textContent = node.dataset.src ?? '';
+  const { render } = await import('pele');
+  await document.fonts?.ready;
+  for (const [index, node] of nodes.entries()) {
+    node.classList.remove('mermaid-error');
+    try {
+      const style = getComputedStyle(node);
+      const { svg } = render(node.dataset.src ?? '', {
+        idPrefix: `mermaid-${index}`,
+        fontFamily: style.getPropertyValue('--font-sans').trim() || 'sans-serif',
+        fontFamilyMono: style.getPropertyValue('--font-mono').trim() || 'monospace',
+      });
+      node.innerHTML = svg;
+    } catch {
+      node.classList.add('mermaid-error');
+      node.textContent = 'Diagram could not be rendered.';
     }
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: currentTheme(),
-      securityLevel: 'strict',
-      fontFamily: 'inherit',
-      // Don't draw mermaid's default error graphic; we detect failures below
-      // and substitute our own notice. (Keeps the raw source out of the page.)
-      suppressErrorRendering: true,
-    });
-    // suppressErrors lets the batch finish (and our post-check run) even if one
-    // diagram fails to parse, instead of throwing on the first bad one.
-    await mermaid.run({ nodes, suppressErrors: true });
-
-    // A node mermaid couldn't render is left showing its raw source; replace it
-    // with a readable notice so a malformed diagram fails visibly, not silently.
-    for (const node of nodes) {
-      if (!node.querySelector('svg')) {
-        node.classList.add('mermaid-error');
-        node.textContent = 'Diagram could not be rendered.';
-      }
-    }
-  };
-
-  await render();
-  return observeThemeChanges(render);
+    node.dataset.processed = 'true';
+  }
 }

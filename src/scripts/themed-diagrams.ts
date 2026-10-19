@@ -1,7 +1,5 @@
-/** The scaffolding shared by the client-side diagram renderers (mermaid,
- *  plantuml). Both lazily import a heavy engine, turn `<pre class="lang">`
- *  blocks into SVG, and re-render when the light/dark toggle flips
- *  `data-theme` on <html> — only the rendering in the middle differs. */
+/** Source collection for client-side diagrams, plus PlantUML's theme watcher.
+ * Pele's Mermaid SVGs follow theme changes through CSS alone. */
 
 /** Whether the site is currently in dark mode. */
 export function isDarkTheme(): boolean {

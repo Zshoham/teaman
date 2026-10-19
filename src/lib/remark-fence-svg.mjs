@@ -26,7 +26,7 @@ export { themeAdaptSvg } from './svg-theme.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v7-embedded-themes-2-d2-0.1.34';
+const FORMAT_VERSION = 'v8-embedded-themes-2-d2-0.1.34-pele-1.7';
 
 // Trim to the root <svg> tag and merge our classes into it (`content-svg` for
 // the shared prose sizing, plus a per-language class for targeted styling).

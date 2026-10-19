@@ -13,7 +13,9 @@ describe('server diagram SVG rendering', () => {
     const svg = await renderMermaidSvg('flowchart LR\nInput --> Build --> PDF');
     expect(svg).toContain('<svg');
     expect(svg).toContain('flowchart');
-    expect(svg).toContain('data-look="neo"');
+    expect(svg).toContain('pele-flowchart');
+    expect(svg).toContain('Input');
+    expect(svg).not.toContain('var(');
     const viewBox = /viewBox="[^"]*?\s([\d.]+)\s([\d.]+)"/.exec(svg);
     expect(Number(viewBox?.[1])).toBeGreaterThan(250);
     expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');
@@ -24,6 +26,7 @@ describe('server diagram SVG rendering', () => {
     const viewBox = /viewBox="[^"]*?\s([\d.]+)\s([\d.]+)"/.exec(svg);
     expect(Number(viewBox?.[1])).toBeGreaterThan(200);
     expect(Number(viewBox?.[2])).toBeGreaterThan(200);
+    expect(svg).not.toContain('var(');
     expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');
   }, 30_000);
 
@@ -33,4 +36,24 @@ describe('server diagram SVG rendering', () => {
     expect(svg).toContain('Alice');
     expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');
   }, 30_000);
+
+  it('renders sequence diagrams with escaped text and printable colors', async () => {
+    const svg = await renderMermaidSvg('sequenceDiagram\nAlice->>Bob: A & B');
+    expect(svg).toContain('pele-sequence');
+    expect(svg).toContain('A &amp; B');
+    expect(svg).not.toContain('var(');
+    expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');
+  });
+
+  it('rejects invalid Mermaid without poisoning later renders', async () => {
+    await expect(renderMermaidSvg('not a diagram')).rejects.toThrow();
+    expect(await renderMermaidSvg('flowchart LR\nA --> B')).toContain('pele-flowchart');
+  });
+
+  it('preserves CSS variable syntax when it appears as label text', async () => {
+    const svg = await renderMermaidSvg('flowchart LR\nA["var(--example)"] --> B["--_fg:red"]');
+    expect(svg).toContain('var(--example)');
+    expect(svg).toContain('fill="#1f1f1f"');
+    expect(compileSvg(svg).subarray(0, 4).toString()).toBe('%PDF');
+  });
 });

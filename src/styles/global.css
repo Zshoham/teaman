@@ -796,6 +796,19 @@ body {
 }
 .prose pre.mermaid:not([data-processed]),
 .prose pre.plantuml:not([data-processed]) { visibility: hidden; }
+/* Pele resolves these at paint time, so theme changes need no JS observer. */
+.prose pre.mermaid {
+  --pele-bg: var(--background);
+  --pele-fg: var(--foreground);
+  --pele-muted: var(--muted-foreground);
+  --pele-line: var(--foreground);
+  --pele-surface: var(--muted);
+  --pele-surface-alt: var(--accent);
+  --pele-border: var(--border);
+  --pele-accent: var(--primary);
+  --pele-font: var(--font-sans);
+  --pele-font-mono: var(--font-mono);
+}
 /* Tailwind's preflight makes <svg> display:block, so the parent's text-align
    doesn't center it — margin-inline:auto does (matters for narrow diagrams that
    would otherwise hug the left edge). */

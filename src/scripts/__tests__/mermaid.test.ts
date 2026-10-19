@@ -1,135 +1,58 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock the lazily-imported mermaid module. `run` records the theme it was
-// initialised with at call time so we can assert re-renders pick up the toggle.
-const initialize = vi.fn();
-const run = vi.fn();
-vi.mock('mermaid', () => ({ default: { initialize, run } }));
-
+const { render } = vi.hoisted(() => ({ render: vi.fn() }));
+vi.mock('pele', () => ({ render }));
 import { initMermaid } from '../mermaid';
 
-function addDiagram(src: string) {
+function addDiagram(source: string) {
   const pre = document.createElement('pre');
   pre.className = 'mermaid';
-  pre.textContent = src;
+  pre.textContent = source;
   document.body.append(pre);
   return pre;
-}
-
-// Track every observer initMermaid creates so each test tears its own down —
-// a leaked theme observer would keep firing render() across later tests.
-const observers: MutationObserver[] = [];
-async function init() {
-  const observer = await initMermaid();
-  if (observer) observers.push(observer);
-  return observer;
 }
 
 beforeEach(() => {
   document.body.innerHTML = '';
   document.documentElement.removeAttribute('data-theme');
-  initialize.mockReset();
-  run.mockReset();
-});
-
-afterEach(() => {
-  observers.splice(0).forEach(o => o.disconnect());
-  document.documentElement.removeAttribute('data-theme');
+  render.mockReset().mockReturnValue({ svg: '<svg class="pele">ok</svg>' });
 });
 
 describe('initMermaid', () => {
-  it('does nothing when the page has no mermaid blocks', async () => {
-    await init();
-    expect(run).not.toHaveBeenCalled();
+  it('does nothing on pages without diagrams', async () => {
+    await initMermaid();
+    expect(render).not.toHaveBeenCalled();
   });
 
-  it('stashes the source and renders with the light theme by default', async () => {
-    const pre = addDiagram('graph TD\n  A --> B');
-    await init();
-
-    expect(pre.dataset.src).toBe('graph TD\n  A --> B');
-    expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({
-        startOnLoad: false,
-        theme: 'redux-color',
-      }),
-    );
-    const config = initialize.mock.calls[0][0];
-    expect(config).not.toHaveProperty('layout');
-    expect(config).not.toHaveProperty('look');
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls[0][0].nodes).toContain(pre);
+  it('preserves the source and reveals rendered SVG with distinct IDs', async () => {
+    const first = addDiagram('graph TD\nA --> B');
+    addDiagram('sequenceDiagram\nA->>B: Hello');
+    await initMermaid();
+    expect(first.dataset.src).toBe('graph TD\nA --> B');
+    expect(first.dataset.processed).toBe('true');
+    expect(first.querySelector('svg')).not.toBeNull();
+    expect(render.mock.calls[0][1].idPrefix).not.toBe(render.mock.calls[1][1].idPrefix);
   });
 
-  it('renders with the dark theme when data-theme is dark', async () => {
+  it('keeps the SVG intact when the theme changes', async () => {
+    const pre = addDiagram('graph TD\nA --> B');
+    await initMermaid();
+    const svg = pre.querySelector('svg');
     document.documentElement.dataset.theme = 'dark';
-    addDiagram('graph TD');
-    await init();
-
-    expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ theme: 'dark' }),
-    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(pre.querySelector('svg')).toBe(svg);
   });
 
-  it('re-renders from the stashed source when the theme toggle flips', async () => {
-    // Simulate mermaid: record the source/marker state at call time (after the
-    // pre-run restore), then replace the text with an <svg> like the real lib.
-    const seen: { text: string; processed: boolean }[] = [];
-    run.mockImplementation(async ({ nodes }: { nodes: HTMLElement[] }) => {
-      for (const n of nodes) {
-        seen.push({ text: n.textContent ?? '', processed: n.hasAttribute('data-processed') });
-        n.setAttribute('data-processed', 'true');
-        n.innerHTML = '<svg>rendered</svg>';
-      }
-    });
-
-    const pre = addDiagram('graph TD');
-    await init();
-    expect(run).toHaveBeenCalledTimes(1);
-
-    document.documentElement.dataset.theme = 'dark';
-    await new Promise(r => setTimeout(r, 0)); // let the MutationObserver fire
-
-    expect(run).toHaveBeenCalledTimes(2);
-    // On the re-render the source was restored and the processed marker cleared
-    // before mermaid ran again.
-    expect(seen[1]).toEqual({ text: 'graph TD', processed: false });
-    expect(initialize).toHaveBeenLastCalledWith(
-      expect.objectContaining({ theme: 'dark' }),
-    );
-  });
-
-  it('shows a fallback notice when a diagram fails to render', async () => {
-    // mermaid leaves a node without an <svg> when it can't parse the source.
-    run.mockImplementationOnce(async () => {});
-    const pre = addDiagram('not a real diagram');
-    await init();
-
-    expect(pre.classList.contains('mermaid-error')).toBe(true);
-    expect(pre.textContent).toBe('Diagram could not be rendered.');
-  });
-
-  it('leaves a successfully-rendered diagram untouched', async () => {
-    // Simulate mermaid replacing the source with an <svg>.
-    run.mockImplementationOnce(async ({ nodes }: { nodes: HTMLElement[] }) => {
-      for (const n of nodes) n.innerHTML = '<svg>ok</svg>';
-    });
-    const pre = addDiagram('graph TD');
-    await init();
-
-    expect(pre.classList.contains('mermaid-error')).toBe(false);
-    expect(pre.querySelector('svg')).not.toBeNull();
-  });
-
-  it('ignores attribute mutations that do not change the theme', async () => {
-    addDiagram('graph TD');
-    await init();
-    expect(run).toHaveBeenCalledTimes(1);
-
-    document.documentElement.dataset.theme = 'light'; // still resolves to 'redux-color'
-    await new Promise(r => setTimeout(r, 0));
-
-    expect(run).toHaveBeenCalledTimes(1);
+  it('reveals an error notice and continues rendering other diagrams', async () => {
+    render.mockImplementationOnce(() => { throw new Error('Invalid syntax'); });
+    const bad = addDiagram('invalid');
+    const good = addDiagram('graph TD\nA --> B');
+    await initMermaid();
+    expect(bad.textContent).toBe('Diagram could not be rendered.');
+    expect(bad.classList.contains('mermaid-error')).toBe(true);
+    expect(bad.dataset.processed).toBe('true');
+    expect(good.querySelector('svg')).not.toBeNull();
   });
 });

@@ -12,19 +12,21 @@ const NOTE = '/notes/diagrams-as-code/';
 const pageInk = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.body).color);
 
-test('Mermaid renders neo flowcharts and re-renders when the theme changes', async ({ page }) => {
+test('Pele renders Mermaid and follows the theme without replacing the SVG', async ({ page }) => {
   await page.goto('/notes/shipping-cadence/');
   const diagram = page.locator('.prose pre.mermaid').first();
   const svg = diagram.locator('svg');
   await expect(svg).toBeVisible();
   await expect(svg).toContainText('watch it land');
-  await expect(svg.locator('.node').first()).toHaveAttribute('data-look', 'neo');
+  await expect(svg).toHaveClass(/pele-flowchart/);
+  const label = svg.locator('.pele-label').first();
+  const ink = await label.evaluate(el => getComputedStyle(el).fill);
   const before = await svg.evaluate(el => el.outerHTML);
 
   await page.click('[data-theme-toggle]');
-  await expect.poll(() => svg.evaluate(el => el.outerHTML)).not.toBe(before);
+  await expect.poll(() => label.evaluate(el => getComputedStyle(el).fill)).not.toBe(ink);
+  expect(await svg.evaluate(el => el.outerHTML)).toBe(before);
   await expect(svg).toContainText('watch it land');
-  await expect(svg.locator('.node').first()).toHaveAttribute('data-look', 'neo');
   await expect(page.locator('.prose pre.mermaid-error')).toHaveCount(0);
 });
 

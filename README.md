@@ -139,6 +139,13 @@ keeps its text in a dotted, muted style. A missing image or failed diagram becom
 fallback instead of failing the whole PDF. Draft references produce neither a
 page nor a PDF.
 
+**Mermaid fences render with [Pele](https://github.com/obsidianmd/pele).** Site
+pages load the renderer only when they contain a Mermaid fence. Diagram colors
+follow the vault's theme tokens without re-rendering when the theme changes.
+Reference PDFs use the same renderer with a fixed light palette. Pele accepts
+Mermaid syntax but uses its own layout and appearance; Slidev decks continue
+to use Slidev's built-in Mermaid renderer.
+
 **SVG images are inlined and theme-aware.** A markdown image pointing at a local
 `.svg` (`![alt](attachments/diagram.svg)`) is inlined into the page at build
 time, so `currentColor` and theme tokens like `var(--primary)` resolve against

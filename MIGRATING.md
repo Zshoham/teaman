@@ -23,6 +23,12 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Mermaid rendering uses Pele** (no vault changes). Existing Mermaid fences
+  in site pages and reference PDFs use Pele's layout and appearance. Site
+  diagrams follow the theme through CSS without re-rendering. Slidev decks
+  retain Slidev's built-in Mermaid renderer. Cached PDF diagrams regenerate
+  automatically.
+
 - **Interactive HTML embeds** (minor, no vault changes). `![[viz.html]]`
   embeds a self-contained HTML page from anywhere in the vault as a sandboxed
   frame, in notes, guides, references, and slides. Built sites gain an
