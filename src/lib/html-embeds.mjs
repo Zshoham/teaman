@@ -66,9 +66,8 @@ export function htmlEmbedHref(base, relPath) {
 /**
  * Where a deck's `![[target]]` is staged under the deck's public `embeds/`
  * dir — the target as written, minus any `?query`/`#fragment` and leading
- * `./` or `/`. The slide theme's transformer computes the same path from the
- * same text (`resources/slidev-theme-teaman/setup/transformers.ts`), so decks
- * need no manifest. Decks sharing a folder share a public dir, and the same
+ * `./` or `/`. The `<HtmlEmbed>` that `deck-embeds.mjs` writes loads the same
+ * path, so decks need no manifest. Decks sharing a folder share a public dir, and the same
  * target text resolves to the same file from the same folder.
  *
  * @param {string} target

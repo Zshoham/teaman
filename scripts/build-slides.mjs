@@ -2,13 +2,11 @@ import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync, rea
 import { execFileSync } from 'child_process';
 import { join, extname, dirname } from 'path';
 import { createRequire } from 'module';
-import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
+import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, renderDeckEmbedsModule } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
-// Bun runs the theme's TypeScript directly: one scan for what the theme
-// rewrites and what gets staged.
-import { htmlEmbedEdits } from '../resources/slidev-theme-teaman/setup/transformers.ts';
+import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
@@ -72,6 +70,10 @@ writeFileSync(
   join(themeDir, 'logo.config.ts'),
   renderLogoConfig(logoFile, { footer: slidesConfig.footer !== false }),
 );
+
+// The theme's transformer reaches the engine's embed scan through
+// deck-embeds.ts; point the staged copy at this engine by absolute path.
+writeFileSync(join(themeDir, 'deck-embeds.ts'), renderDeckEmbedsModule(join(engineDir, 'src', 'lib', 'deck-embeds.mjs')));
 
 // `![[page.html]]` embeds: the theme's transformer turns each into an
 // <HtmlEmbed> frame loading `embeds/<target>` relative to the deck, so stage

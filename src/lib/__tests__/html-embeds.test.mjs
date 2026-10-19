@@ -11,7 +11,7 @@ import {
   htmlEmbeds,
   parseEmbedLabel,
 } from '../html-embeds.mjs';
-import { htmlEmbedEdits } from '../../../resources/slidev-theme-teaman/setup/transformers.ts';
+import { htmlEmbedEdits } from '../deck-embeds.mjs';
 
 const dirs = [];
 afterEach(() => {
@@ -146,6 +146,10 @@ describe('deck embeds (slide theme transformer)', () => {
       .toEqual(['<HtmlEmbed src="embeds/out.html" title="Out" />']);
     // An unclosed backtick is literal, so the embed still counts.
     expect(htmlEmbedEdits('a ` b ![[viz.html]]')).toHaveLength(1);
+    // Indented code blocks are code too, also inside lists; table cells are not.
+    expect(htmlEmbedEdits('Example:\n\n    ![[missing.html]]\n')).toEqual([]);
+    expect(htmlEmbedEdits('- item\n\n      ![[in-list-code.html]]\n')).toEqual([]);
+    expect(htmlEmbedEdits('| a |\n|---|\n| ![[cell.html]] |\n')).toHaveLength(1);
     // A span may cross lines within a paragraph, but not a blank line.
     expect(htmlEmbedEdits('`literal example\n![[missing.html]]\nend`')).toEqual([]);
     const md = 'open ` tick\n\n![[viz.html]] `x`';

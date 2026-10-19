@@ -207,9 +207,13 @@ catalog `discoverDecks`. Notes about the model:
   frames and copies just those files (scanning output, not recording renders,
   survives the content cache). `src/scripts/html-embeds.ts` speaks the
   `teaman:theme` / `teaman:ready` / `teaman:resize` postMessage protocol. In
-  decks, the theme's `setup/transformers.ts` rewrites the embed to its
-  `HtmlEmbed.vue` at `embeds/<target>` and `build-slides` stages the file
-  there (`deckEmbedPath`); a test holds the two to the same paths.
+  decks, `deck-embeds.mjs` finds embeds outside code (code blocks from
+  markdown-it, as Slidev parses; code spans across line runs) and builds the
+  `HtmlEmbed.vue` that loads `embeds/<target>`. The theme's
+  `setup/transformers.ts` rewrites with it (via the staged `deck-embeds.ts`,
+  re-pointed by absolute path), `build-slides` stages a file for each
+  (`deckEmbedPath`), and `doctor` checks each resolves — one scan, so they
+  cannot disagree.
 - Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
   `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
   every page the site renders, matched Obsidian-style (bare name or trailing
