@@ -94,8 +94,8 @@ page. Built pages serve the file from `<base>embeds/<vault path>`. The same
 embed works on a slide. An embed can follow the site's light/dark toggle and
 size its own frame by listening for `{ type: 'teaman:theme', theme }` and
 posting `{ type: 'teaman:ready' }` / `{ type: 'teaman:resize', height }` to
-its parent — the bundled vault's `attachments/solar-system.html` does the
-first two. A reference PDF shows a labelled placeholder in its place.
+its parent — the bundled vault's interactive `attachments/solar-system.html`
+and self-playing `attachments/bgp.html` both do the first two. A reference PDF shows a labelled placeholder in its place.
 
 References can be authored in either of two additive forms:
 

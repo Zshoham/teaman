@@ -44,3 +44,22 @@ test('a slide frames the same embed from the deck', async ({ page }) => {
   await expect(page.frameLocator('iframe.teaman-html-embed').getByRole('heading', { name: 'Our Solar System' }))
     .toBeVisible();
 });
+
+test('the self-playing BGP walkthrough embeds in the note, guide, and deck', async ({ page }) => {
+  await page.goto('/notes/interactive-embeds/');
+  const noteFrame = page.locator('iframe[src="/embeds/attachments/bgp.html"]');
+  await expect(noteFrame).toHaveAttribute('height', '680');
+  const note = page.frameLocator('iframe[src="/embeds/attachments/bgp.html"]');
+  await expect(note.getByRole('heading', { level: 1 })).toContainText('How BGP routes the internet');
+  // It advances on its own: no controls, just the caption changing.
+  await expect(note.locator('#kicker')).toHaveText(/Step 1 of 7/);
+  await expect(note.locator('#kicker')).toHaveText(/Step 2 of 7/, { timeout: 12_000 });
+
+  await page.goto('/guides/using-this-system/embedding-html/');
+  const guide = page.frameLocator('iframe[src="/embeds/attachments/bgp.html#step=2"]');
+  await expect(guide.locator('#kicker')).toHaveText(/Step 2 of 7/);
+
+  await page.goto('/slides/intro/#/10');
+  await expect(page.locator('iframe.teaman-html-embed')).toHaveAttribute('src', 'embeds/bgp.html');
+  await expect(page.frameLocator('iframe.teaman-html-embed').locator('#title')).not.toBeEmpty();
+});

@@ -23,8 +23,21 @@ image.
 
 Tap a planet to meet it, switch to **Sizes** for the true-to-scale line-up, or
 change the speed. The same file is embedded in the
-[[embedding-html|guide chapter on embeds]] and on the last slide of the
+[[embedding-html|guide chapter on embeds]] and near the end of the
 [[intro|teaman deck]].
+
+## Explain, don't play
+
+Not every embed needs to be poked. This one plays itself: a seven-step,
+looping walkthrough of how BGP moves routes between networks, with the
+moving parts carrying the story and a caption beside them saying what just
+happened. Same mechanism, same one file — `![[bgp.html|680]]`.
+
+![[bgp.html|680]]
+
+The two sit at opposite ends of a trade-off. The solar system rewards
+curiosity but explains only what a reader thinks to try; the BGP walkthrough
+says everything it means to say, in order, to someone who just watches.
 
 ## Why a frame
 

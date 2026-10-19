@@ -6,6 +6,11 @@ chapter, a reference, or a slide.
 
 ![[solar-system.html#view=sizes|The planets, true to scale]]
 
+Interactivity is optional. An embed can just as well play by itself — this
+one walks through how BGP routes the internet, step by step, on a loop:
+
+![[bgp.html#step=2|680]]
+
 ## 1. Build one self-contained file
 
 Write the visualization as a single `.html` file with its CSS and JavaScript
@@ -26,8 +31,9 @@ It is found the way Obsidian finds images: by file name, same folder first.
 
 After the pipe, a number fixes the height (`|560`); anything else is the
 title, shown as a caption when the embed stands on its own line. A `#fragment`
-or `?query` after the file name is passed to the page — the embed above opens
-on its size view with `#view=sizes`.
+or `?query` after the file name is passed to the page — the embeds above open
+on the solar system's size view (`#view=sizes`) and on the second step of the
+BGP walkthrough (`#step=2`).
 
 `teaman doctor` reports an embed whose file is missing, and the build fails on
 one.
