@@ -93,13 +93,30 @@ function componentFor(target: string, label: string | undefined): string {
 /**
  * Where `![[*.html]]` embeds sit in a slide's Markdown, and what replaces
  * each. build-slides and `doctor` find a deck's embeds through this same
- * scan, so every frame it writes has its file staged. Fenced code and inline code spans are left alone, so a slide can
- * still show the syntax.
+ * scan, so every frame it writes has its file staged. Fenced code and inline
+ * code spans are left alone, so a slide can still show the syntax. A code
+ * span may run across lines, as in CommonMark, but not past a blank line or
+ * a fence, so spans are matched over each run of consecutive text lines.
  */
 export function htmlEmbedEdits(markdown: string): HtmlEmbedEdit[] {
   const edits: HtmlEmbedEdit[] = []
   let fence: string | null = null
   let offset = 0
+  let block: { start: number, text: string } | null = null
+
+  const flush = () => {
+    if (!block) return
+    const { start, text } = block
+    block = null
+    const code = codeSpans(text)
+    for (const match of text.matchAll(EMBED_RE)) {
+      const [whole, target, label] = match
+      if (!/\.html?$/i.test(embedPath(target))) continue
+      if (code.some(([from, to]) => match.index >= from && match.index < to)) continue
+      edits.push({ start: start + match.index, end: start + match.index + whole.length, target, replacement: componentFor(target, label) })
+    }
+  }
+
   for (const line of markdown.split('\n')) {
     const start = offset
     offset += line.length + 1
@@ -109,17 +126,18 @@ export function htmlEmbedEdits(markdown: string): HtmlEmbedEdit[] {
       continue
     }
     if (marker) {
+      flush()
       fence = marker
       continue
     }
-    const code = codeSpans(line)
-    for (const match of line.matchAll(EMBED_RE)) {
-      const [whole, target, label] = match
-      if (!/\.html?$/i.test(embedPath(target))) continue
-      if (code.some(([from, to]) => match.index >= from && match.index < to)) continue
-      edits.push({ start: start + match.index, end: start + match.index + whole.length, target, replacement: componentFor(target, label) })
+    if (!line.trim()) {
+      flush()
+      continue
     }
+    if (block) block.text += `\n${line}`
+    else block = { start, text: line }
   }
+  flush()
   return edits
 }
 

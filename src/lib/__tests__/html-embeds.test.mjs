@@ -146,6 +146,11 @@ describe('deck embeds (slide theme transformer)', () => {
       .toEqual(['<HtmlEmbed src="embeds/out.html" title="Out" />']);
     // An unclosed backtick is literal, so the embed still counts.
     expect(htmlEmbedEdits('a ` b ![[viz.html]]')).toHaveLength(1);
+    // A span may cross lines within a paragraph, but not a blank line.
+    expect(htmlEmbedEdits('`literal example\n![[missing.html]]\nend`')).toEqual([]);
+    const md = 'open ` tick\n\n![[viz.html]] `x`';
+    const [edit] = htmlEmbedEdits(md);
+    expect(md.slice(edit.start, edit.end)).toBe('![[viz.html]]');
   });
 
   it('stages every embed it frames, at the path the frame loads', () => {
