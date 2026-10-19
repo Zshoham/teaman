@@ -659,17 +659,24 @@ body {
   }
 }
 
-@media (max-width: 479px) {
-  .brand-tagline { display: none; }
-  .section-nav { justify-content: flex-start; overflow-x: auto; }
+/* The labelled whiteboard launcher only fits in the gutter right of the
+   1180px page column on wide screens; narrower, it would sit on top of the
+   reading column (and any embed in it). Collapse it to its icon, tucked
+   against the edge, until the gutter can hold the label. */
+@media (max-width: 1439px) {
   .whiteboard-launcher {
     right: 1rem;
-    bottom: var(--floating-safe-bottom);
     width: var(--tap-target);
     height: var(--tap-target);
     padding: 0;
   }
   .whiteboard-launcher-label { display: none; }
+}
+
+@media (max-width: 479px) {
+  .brand-tagline { display: none; }
+  .section-nav { justify-content: flex-start; overflow-x: auto; }
+  .whiteboard-launcher { bottom: var(--floating-safe-bottom); }
   body { padding-bottom: calc(var(--tap-target) + var(--floating-safe-bottom)); }
   [data-week-strip] .week-strip-chips a:not([data-current='true']) { display: none; }
   [data-week-strip] .week-strip-chips { overflow: visible; mask-image: none; }
