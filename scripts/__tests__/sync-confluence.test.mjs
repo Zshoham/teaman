@@ -159,6 +159,12 @@ describe('sync-confluence markdown rendering', () => {
     expect(images).toEqual([{ absolutePath: '/vault/attachments/diagram.png', filename: 'diagram.png' }]);
   });
 
+  it('leaves a labelled note where an HTML embed sits', () => {
+    const { html, images } = markdownToStorage('![[solar-system.html|The planets]]', { filePath: '/vault/notes/page.md' });
+    expect(html).toContain('<p><em>Interactive embed: The planets — open the online version to use it.</em></p>');
+    expect(images).toEqual([]);
+  });
+
   it('refuses to sync a note embed', () => {
     expect(() => markdownToStorage('![[Some Note]]', { filePath: '/vault/notes/page.md' }))
       .toThrow('/vault/notes/page.md: ![[Some Note]] embeds a note');

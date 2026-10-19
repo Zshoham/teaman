@@ -26,6 +26,10 @@ export function initHtmlEmbeds(): MutationObserver | undefined {
 
   for (const frame of frames) {
     frame.addEventListener('load', () => postTheme(frame));
+    // A frame that loaded (and said it was ready) before this module ran
+    // fired both before anyone listened; tell it now. One still loading
+    // gets this on about:blank, harmlessly, and the theme again on load.
+    postTheme(frame);
   }
 
   window.addEventListener('message', (event) => {

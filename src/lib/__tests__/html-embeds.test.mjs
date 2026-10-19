@@ -139,6 +139,16 @@ describe('deck embeds (slide theme transformer)', () => {
     for (const { start, end } of edits) expect(md.slice(start, end)).toMatch(/^!\[\[.*\]\]$/);
   });
 
+  it('reads code spans as whole backtick runs', () => {
+    // A double-backtick span may hold single backticks; the embed after it is not code.
+    expect(htmlEmbedEdits('``a`b`` ![[viz.html]] `tail`').map(edit => edit.replacement))
+      .toEqual(['<HtmlEmbed src="embeds/viz.html" title="Viz" />']);
+    expect(htmlEmbedEdits('``code ![[in.html]]`` and `` ` `` ![[out.html]]').map(edit => edit.replacement))
+      .toEqual(['<HtmlEmbed src="embeds/out.html" title="Out" />']);
+    // An unclosed backtick is literal, so the embed still counts.
+    expect(htmlEmbedEdits('a ` b ![[viz.html]]')).toHaveLength(1);
+  });
+
   it('finds the same embeds build-slides stages, at the same paths', () => {
     const md = '![[a.html]]\n\n![[./sub/b.htm?x=1|300]] `![[c.html]]`\n\n~~~\n![[d.html]]\n~~~\n';
     const staged = wikiLinks(md)

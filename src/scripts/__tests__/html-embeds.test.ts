@@ -46,6 +46,13 @@ describe('initHtmlEmbeds', () => {
     expect(init()).toBeUndefined();
   });
 
+  it('tells an embed that loaded before the script ran the theme at once', () => {
+    document.documentElement.dataset.theme = 'dark';
+    const { contentWindow } = addFrame();
+    init();
+    expect(contentWindow.postMessage).toHaveBeenCalledWith({ type: 'teaman:theme', theme: 'dark' }, '*');
+  });
+
   it('tells an embed the theme when it loads, when it asks, and when the toggle flips', async () => {
     const { frame, contentWindow } = addFrame();
     init();

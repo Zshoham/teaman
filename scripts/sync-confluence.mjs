@@ -13,6 +13,7 @@ import {
   diagramKey,
   fenceLanguage,
   fenceSource,
+  isHtmlEmbed,
   isImageEmbed,
   obsidianDialect,
 } from '../src/lib/obsidian-markdown.mjs';
@@ -387,6 +388,13 @@ function renderCodeToken(tokens, idx, options, env) {
 // tokenized by the shared dialect.
 markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
   const { target, label: alias, embed } = tokens[idx].meta;
+  if (embed && isHtmlEmbed(target)) {
+    // Confluence cannot run the page; leave a labelled note where it sits,
+    // as the reference PDF does, instead of failing the sync. Inline, since
+    // the embed sits inside a paragraph.
+    const name = markdownRenderer.utils.escapeHtml(alias === target ? target : alias);
+    return `<em>Interactive embed: ${name} — open the online version to use it.</em>`;
+  }
   if (embed && !isImageEmbed(target)) {
     throw new Error(`${env.filePath ?? 'page'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
   }

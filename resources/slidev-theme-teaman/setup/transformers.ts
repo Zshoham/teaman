@@ -16,12 +16,54 @@ export interface HtmlEmbedEdit {
 
 const EMBED_RE = /!\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]/g
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/
-const CODE_SPAN_RE = /(`+)[^`]*?\1/g
 const SIZE_RE = /^(?:(\d+)x)?(\d+)$/
 
 /** The staged path of an embed — keep in step with `deckEmbedPath` in src/lib/html-embeds.mjs. */
 function embedPath(target: string): string {
   return target.split(/[?#]/, 1)[0].trim().replace(/^(\.\/|\/)+/, '')
+}
+
+/**
+ * Inline code spans on one line, CommonMark-style: a run of N backticks opens
+ * a span that only a run of exactly N closes, so shorter runs sit inside it
+ * (``a`b``). An opener with no closer is literal text.
+ */
+function codeSpans(line: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = []
+  const runAt = (at: number) => {
+    let n = 0
+    while (line[at + n] === '`') n++
+    return n
+  }
+  let i = 0
+  while (i < line.length) {
+    if (line[i] !== '`') {
+      i++
+      continue
+    }
+    const open = runAt(i)
+    let j = i + open
+    let close = -1
+    while (j < line.length) {
+      if (line[j] !== '`') {
+        j++
+        continue
+      }
+      const run = runAt(j)
+      if (run === open) {
+        close = j
+        break
+      }
+      j += run
+    }
+    if (close === -1) {
+      i += open
+      continue
+    }
+    spans.push([i, close + open])
+    i = close + open
+  }
+  return spans
 }
 
 const escapeAttr = (value: string) =>
@@ -67,7 +109,7 @@ export function htmlEmbedEdits(markdown: string): HtmlEmbedEdit[] {
       fence = marker
       continue
     }
-    const code = [...line.matchAll(CODE_SPAN_RE)].map(m => [m.index, m.index + m[0].length])
+    const code = codeSpans(line)
     for (const match of line.matchAll(EMBED_RE)) {
       const [whole, target, label] = match
       if (!/\.html?$/i.test(embedPath(target))) continue

@@ -770,13 +770,15 @@ body {
 .prose .html-embed { display: block; margin: 1.5rem 0; }
 .prose .html-embed iframe {
   display: block;
-  width: 100%;
+  max-width: 100%;
   margin-inline: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--card);
 }
-.prose .html-embed iframe[width] { width: auto; max-width: 100%; }
+/* An authored `|800x560` keeps its width attribute (capped by max-width
+   above); author CSS would outrank that hint, so only unsized frames fill. */
+.prose .html-embed iframe:not([width]) { width: 100%; }
 .prose figure.html-embed > figcaption { text-align: center; }
 
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
