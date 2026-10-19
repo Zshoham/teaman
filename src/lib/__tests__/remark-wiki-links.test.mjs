@@ -57,6 +57,30 @@ describe('remarkWikiLinks', () => {
     expect(html).toContain('Look: ');
   });
 
+  it('frames an HTML embed: a figure alone, a span inside text', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    mkdirSync(join(vault, 'attachments'), { recursive: true });
+    writeFileSync(join(vault, 'attachments', 'solar-system.html'), '<!doctype html>');
+
+    const block = await render('![[solar-system.html#view=sizes|The planets]]', 'notes/from.md');
+    expect(block).toBe(
+      '<figure class="html-embed"><iframe src="/embeds/attachments/solar-system.html#view=sizes" title="The planets"'
+      + ' loading="lazy" sandbox="allow-scripts allow-popups" allow="fullscreen" height="480"></iframe>'
+      + '<figcaption>The planets</figcaption></figure>',
+    );
+
+    const inline = await render('Look: ![[solar-system.html|600]] here.', 'notes/from.md');
+    expect(inline).toContain(
+      '<p>Look: <span class="html-embed"><iframe src="/embeds/attachments/solar-system.html" title="Solar system"'
+      + ' loading="lazy" sandbox="allow-scripts allow-popups" allow="fullscreen" height="600" data-fixed-height></iframe></span> here.</p>',
+    );
+  });
+
+  it('fails on a missing HTML embed', async () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
+    await expect(render('![[gone.html]]', 'notes/from.md')).rejects.toThrow(/no HTML file named “gone.html”/);
+  });
+
   it('fails on a note embed and on a missing image', async () => {
     vault = mkdtempSync(join(tmpdir(), 'teaman-wiki-'));
     await expect(render('![[Some Note]]', 'notes/from.md')).rejects.toThrow(/embeds a note/);

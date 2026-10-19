@@ -200,6 +200,20 @@ catalog `discoverDecks`. Notes about the model:
   markdown-it plugin plus `compileDiagramFences`/`wikiLinks` — shared by the
   reference PDF, Confluence sync, and `doctor`. `__tests__/obsidian-dialect.test.mjs`
   runs one case table through both; add a case there when the dialect changes.
+- **HTML embeds** (`![[viz.html]]`) live in `html-embeds.mjs`: a self-contained
+  vault `.html` file becomes a sandboxed `<iframe>` (no `allow-same-origin`)
+  loading `<base>embeds/<vault path>`. The `htmlEmbeds()` integration serves
+  that path in dev and, after `astro build`, scans the built pages for embed
+  frames and copies just those files (scanning output, not recording renders,
+  survives the content cache). `src/scripts/html-embeds.ts` speaks the
+  `teaman:theme` / `teaman:ready` / `teaman:resize` postMessage protocol. In
+  decks, `deck-embeds.mjs` finds embeds outside code (code blocks from
+  markdown-it, as Slidev parses; code spans across line runs) and builds the
+  `HtmlEmbed.vue` that loads `embeds/<target>`. The theme's
+  `setup/transformers.ts` rewrites with it (via the staged `deck-embeds.ts`,
+  re-pointed by absolute path), `build-slides` stages a file for each
+  (`deckEmbedPath`), and `doctor` checks each resolves — one scan, so they
+  cannot disagree.
 - Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
   `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
   every page the site renders, matched Obsidian-style (bare name or trailing

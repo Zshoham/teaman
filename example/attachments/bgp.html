@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How BGP Works</title>
+<!--
+  How BGP routes the internet, as a self-playing seven-step walkthrough:
+  networks announce what they own, neighbours pass routes on, each network
+  picks a best path, traffic follows it, and a failure reroutes it.
+
+  It plays on its own and loops. The back/next buttons and the step markers
+  jump to a step, play just that step, and hold there so it can be read;
+  play resumes the loop. One self-contained file (no network, no libraries)
+  that teaman embeds with ![[bgp.html]].
+
+  Optional: #step=4 starts on that step. It also follows the teaman frame
+  protocol: says { type: 'teaman:ready' } to its parent and applies
+  { type: 'teaman:theme', theme: 'light' | 'dark' }.
+
+  ASNs (64496–64511) and the prefix (203.0.113.0/24) are the ranges reserved
+  for documentation, so the example never names a real network.
+-->
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --ink: #1d2433;
+    --muted: #697080;
+    --rule: #e3e0d8;
+    --panel: #ffffff;
+    --node: #ffffff;
+    --node-stroke: #c3c8d2;
+    --link: #c9cdd6;
+    --origin: #d9622b;
+    --update: #2f6fdb;
+    --withdraw: #d23a3a;
+    --data: #16956a;
+    --chip: #f1efe9;
+    --best: #e9f0fd;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #14151a;
+    --ink: #e7e8ee;
+    --muted: #9aa0ad;
+    --rule: #2b2e37;
+    --panel: #1b1d24;
+    --node: #20232b;
+    --node-stroke: #424754;
+    --link: #3b404c;
+    --origin: #f08a55;
+    --update: #6d9dff;
+    --withdraw: #ff6b6b;
+    --data: #3ccf98;
+    --chip: #262932;
+    --best: #1f2a44;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    transition: background 0.4s, color 0.4s;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+
+  .app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 300px; }
+  .diagram { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .diagram-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 16px 0; }
+  .diagram-head h1 { margin: 0; font-size: 16px; letter-spacing: 0.01em; }
+  .diagram-head h1 span { color: var(--muted); font-weight: 500; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--muted); }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  #net { flex: 1; min-height: 0; width: 100%; display: block; }
+
+  .panel {
+    display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto;
+    padding: 14px 16px; background: var(--panel); border-left: 1px solid var(--rule);
+    transition: background 0.4s;
+  }
+  .controls { display: flex; align-items: center; gap: 6px; }
+  .controls > button {
+    flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+    border: 1px solid var(--rule); border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  .controls > button:hover { background: var(--chip); }
+  button:focus-visible { outline: 2px solid var(--update); outline-offset: 2px; }
+  .steps { flex: 1; display: flex; gap: 4px; margin-left: 4px; }
+  /* Each marker is a tall, easy target around a thin progress bar. */
+  .steps button { flex: 1; min-width: 0; padding: 8px 0; border: 0; background: none; cursor: pointer; }
+  .steps button span { display: block; height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+  .steps button:hover span { background: var(--node-stroke); }
+  .steps b { display: block; height: 100%; width: 0; background: var(--update); }
+  .kicker { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .panel > * { flex-shrink: 0; }
+  .panel h2 { margin: -6px 0 0; font-size: 18px; line-height: 1.25; }
+  .panel p { margin: 0; }
+  .body { font-size: 13.5px; }
+  .body b { font-weight: 650; }
+  .fade { animation: fade 0.5s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
+
+  .box { border: 1px solid var(--rule); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+  .box-title { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 3px 4px; vertical-align: top; }
+  td.len { text-align: right; color: var(--muted); white-space: nowrap; }
+  tr.best td { background: var(--best); }
+  tr.best td:first-child { border-radius: 6px 0 0 6px; }
+  tr.best td:last-child { border-radius: 0 6px 6px 0; }
+  tr.gone td { color: var(--withdraw); text-decoration: line-through; }
+  .empty { color: var(--muted); font-style: italic; }
+  ol.ladder { margin: 0; padding-left: 20px; }
+  ol.ladder li { padding: 1px 0; color: var(--muted); }
+  ol.ladder li.tie { color: var(--ink); }
+  ol.ladder li.win { color: var(--ink); font-weight: 650; }
+  ol.ladder li.win::after { content: "  ← decides"; color: var(--update); font-weight: 600; }
+  #extra { display: grid; gap: 8px; }
+  ul.recap { margin: 0; padding-left: 18px; font-size: 13px; }
+  ul.recap li { margin: 2px 0; }
+
+  /* --- network --- */
+  .link { stroke: var(--link); stroke-width: 3; transition: stroke 0.3s; }
+  .link.active { stroke: var(--data); stroke-width: 4; }
+  .link.down { stroke: var(--withdraw); stroke-dasharray: 7 7; }
+  .cut { stroke: var(--withdraw); stroke-width: 4; stroke-linecap: round; }
+  .node circle { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; transition: stroke 0.3s, fill 0.4s; }
+  .node.origin circle { stroke: var(--origin); stroke-width: 3; }
+  .node.focus circle { stroke: var(--update); stroke-width: 3; }
+  .node .asn { fill: var(--ink); font-size: 15px; font-weight: 700; text-anchor: middle; }
+  .node .as { fill: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-anchor: middle; }
+  .node .name { fill: var(--muted); font-size: 13px; font-weight: 600; text-anchor: middle; }
+  .chip rect { fill: var(--chip); stroke: var(--rule); transition: fill 0.4s; }
+  .chip text { fill: var(--ink); font-size: 12px; text-anchor: middle; }
+  .chip.none text { fill: var(--muted); font-style: italic; }
+  .chip.origin text { fill: var(--origin); font-weight: 650; }
+  .chip.flash rect { animation: flash 1.2s ease; }
+  @keyframes flash { 0% { fill: var(--update); } 100% { fill: var(--chip); } }
+  .appear { animation: appear 0.6s cubic-bezier(.3, 1.4, .5, 1) both; transform-box: fill-box; transform-origin: center; }
+  @keyframes appear { from { opacity: 0; transform: scale(0.6); } }
+  .msg rect { stroke: none; }
+  .msg text { fill: #fff; font-size: 12px; font-weight: 650; text-anchor: middle; }
+  .packet { fill: var(--data); }
+  .prefix { fill: var(--origin); font-size: 13px; font-weight: 700; text-anchor: middle; }
+
+  /* Narrow or tall frames: the explanation goes under the network. */
+  @media (max-width: 819px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    /* A fixed-height caption keeps the network from resizing every step. */
+    .app { grid-template-rows: minmax(0, 1fr) clamp(200px, 44%, 320px); }
+    #extra { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; align-items: start; }
+    .panel { border-left: 0; border-top: 1px solid var(--rule); overflow-y: auto; }
+    .legend { display: none; }
+  }
+  @media (max-height: 460px) and (min-width: 820px) {
+    .panel { gap: 7px; padding: 10px 14px; }
+    .panel h2 { font-size: 16px; }
+    .body { font-size: 12.5px; }
+    .box { font-size: 11.5px; padding: 6px 8px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="diagram">
+    <div class="diagram-head">
+      <h1>How BGP routes the internet <span>· one prefix, seven networks</span></h1>
+      <div class="legend" aria-hidden="true">
+        <span><i style="background:var(--update)"></i>UPDATE</span>
+        <span><i style="background:var(--withdraw)"></i>WITHDRAW</span>
+        <span><i style="background:var(--data)"></i>data</span>
+      </div>
+    </div>
+    <svg id="net" viewBox="0 50 1000 485" preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="Seven autonomous systems exchanging BGP routes for 203.0.113.0/24">
+      <g id="links"></g>
+      <g id="packets"></g>
+      <g id="nodes"></g>
+      <g id="flying"></g>
+    </svg>
+  </section>
+  <aside class="panel">
+    <div class="controls">
+      <button type="button" id="prev" aria-label="Previous step" title="Previous step">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8.5 1.5 3.5 6l5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" id="play"></button>
+      <button type="button" id="next" aria-label="Next step" title="Next step">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 1.5 8.5 6l-5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="steps" id="steps" role="group" aria-label="Steps"></div>
+    </div>
+    <p class="kicker" id="kicker"></p>
+    <h2 id="title"></h2>
+    <p class="body" id="body"></p>
+    <div id="extra"></div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // --- the network ---------------------------------------------------------
+  const PREFIX = '203.0.113.0/24';
+  const NODES = {
+    A: { asn: '64496', name: 'Origin network', x: 95, y: 290 },
+    B: { asn: '64497', name: 'Carrier', x: 310, y: 145 },
+    C: { asn: '64498', name: 'Carrier', x: 290, y: 445 },
+    D: { asn: '64499', name: 'Carrier', x: 600, y: 120 },
+    G: { asn: '64502', name: 'Regional ISP', x: 530, y: 455 },
+    E: { asn: '64500', name: 'Carrier', x: 760, y: 395 },
+    F: { asn: '64501', name: 'Your ISP', x: 900, y: 215 },
+  };
+  const LINKS = ['AB', 'AC', 'BD', 'CG', 'GE', 'DF', 'EF'];
+  const R = 38;
+
+  // --- the story: one looping timeline, in seconds -----------------------------
+  const STEPS = [
+    { at: 0, title: 'A network of networks', body:
+      'The internet is tens of thousands of independently run networks called <b>autonomous systems</b> (ASes), each identified by a number, its <b>ASN</b>. Neighbouring ASes open a <b>BGP session</b> over TCP port 179 and tell each other which addresses they can reach.' },
+    { at: 8, title: 'An origin announces its prefix', body:
+      `AS64496 holds the address block <b class="mono">${PREFIX}</b>. It sends an <b>UPDATE</b> to each neighbour — “you can reach this prefix through me” — carrying an <b>AS path</b> of just <span class="mono">64496</span>.` },
+    { at: 15, title: 'Neighbours pass it on, adding themselves', body:
+      'Each AS that accepts the route <b>prepends its own ASN</b> to the AS path and re-announces it. The path records every network the route crossed; a router that finds its own ASN already in a path rejects it, so announcements never loop.' },
+    { at: 25, title: 'Each network picks one best path', body:
+      'AS64501 now knows two ways to the prefix. BGP doesn’t measure speed or distance: it walks a fixed list of tie-breakers and installs the first winner.' },
+    { at: 34, title: 'Traffic flows the other way', body:
+      'Routes spread <b>outward</b> from the origin; data travels <b>back</b> along the chosen path. Each AS forwards packets using only its own best route — no one sees the whole map.' },
+    { at: 42, title: 'A link fails: withdraw and reroute', body:
+      'The session between AS64497 and AS64499 drops. AS64499 loses its only route and sends a <b>WITHDRAW</b>. AS64501 falls back to the route it already knew — longer, but working. Settling into the new state is called <b>convergence</b>.' },
+    { at: 54, title: 'The key ideas', body: '' },
+  ];
+  const LOOP = 63;
+
+  // Messages: an UPDATE or WITHDRAW crossing one link; the receiver learns
+  // (or forgets) the route when it lands.
+  const HOP = 1.8;
+  const MESSAGES = [
+    { t: 9, from: 'A', to: 'B', path: ['64496'] },
+    { t: 9, from: 'A', to: 'C', path: ['64496'] },
+    { t: 15.5, from: 'B', to: 'D', path: ['64497', '64496'] },
+    { t: 15.5, from: 'C', to: 'G', path: ['64498', '64496'] },
+    { t: 18.2, from: 'D', to: 'F', path: ['64499', '64497', '64496'] },
+    { t: 18.2, from: 'G', to: 'E', path: ['64502', '64498', '64496'] },
+    { t: 21, from: 'E', to: 'F', path: ['64500', '64502', '64498', '64496'] },
+    { t: 43.6, from: 'D', to: 'F', withdraw: true },
+  ];
+  const LINK_DOWN = { link: 'BD', t: 43 };
+  // Data packets: a stream along the best path, hop by hop.
+  const FLOWS = [
+    { from: 35, to: 43, path: ['F', 'D', 'B', 'A'] },
+    { from: 46.5, to: 54, path: ['F', 'E', 'G', 'C', 'A'] },
+  ];
+  const PACKET_EVERY = 0.55;
+  const PACKET_HOP = 0.75;
+
+  const RECAP = [
+    'ASes <b>announce</b> the prefixes they hold.',
+    'Every hop <b>prepends</b> its ASN to the AS path.',
+    'Each AS keeps <b>one best route</b>: policy first, then the shortest AS path.',
+    'Traffic follows the announcements <b>in reverse</b>.',
+    '<b>Withdrawals</b> move traffic onto backup paths.',
+    'BGP trusts what neighbours say; <b>RPKI</b> lets networks check who may originate a prefix.',
+  ];
+
+  // --- state at time T: pure function of the timeline ----------------------------
+  function stateAt(T) {
+    const routes = Object.fromEntries(Object.keys(NODES).map(k => [k, []]));
+    const withdrawnAtF = [];
+    for (const m of MESSAGES) {
+      if (m.t + HOP > T) continue;
+      if (m.withdraw) {
+        if (m.to === 'F') withdrawnAtF.push(...routes.F.filter(r => r.via === m.from));
+        routes[m.to] = routes[m.to].filter(r => r.via !== m.from);
+      } else {
+        routes[m.to].push({ via: m.from, path: m.path });
+      }
+    }
+    // When the session drops, both ends forget what it carried at once;
+    // everyone further away hears about it only when a WITHDRAW arrives.
+    const linkDown = T >= LINK_DOWN.t;
+    if (linkDown) {
+      const [a, b] = LINK_DOWN.link;
+      routes[a] = routes[a].filter(r => r.via !== b);
+      routes[b] = routes[b].filter(r => r.via !== a);
+    }
+    for (const list of Object.values(routes)) list.sort(compareRoutes);
+    return { routes, withdrawnAtF: T < STEPS[6].at ? withdrawnAtF : [], linkDown };
+  }
+
+  function compareRoutes(a, b) {
+    return a.path.length - b.path.length || Number(NODES[a.via]?.asn ?? 0) - Number(NODES[b.via]?.asn ?? 0);
+  }
+
+  // --- drawing ---------------------------------------------------------------------
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}, text) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const $ = id => document.getElementById(id);
+
+  const linkNodes = {};
+  for (const key of LINKS) {
+    const [a, b] = [NODES[key[0]], NODES[key[1]]];
+    const line = el('line', { class: 'link', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    $('links').appendChild(line);
+    linkNodes[key] = line;
+  }
+  const cut = el('g', { visibility: 'hidden' });
+  {
+    const [a, b] = [NODES.B, NODES.D];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    cut.append(el('line', { class: 'cut', x1: mx - 11, y1: my - 11, x2: mx + 11, y2: my + 11 }),
+               el('line', { class: 'cut', x1: mx - 11, y1: my + 11, x2: mx + 11, y2: my - 11 }));
+  }
+  $('links').appendChild(cut);
+
+  const nodeViews = {};
+  Object.entries(NODES).forEach(([key, n], i) => {
+    const g = el('g', { class: `node${key === 'A' ? ' origin' : ''}` });
+    g.append(
+      el('text', { class: 'name', x: n.x, y: n.y - R - 10 }, n.name),
+      el('circle', { cx: n.x, cy: n.y, r: R }),
+      el('text', { class: 'as', x: n.x, y: n.y - 6 }, 'AS'),
+      el('text', { class: 'asn mono', x: n.x, y: n.y + 12 }, n.asn),
+    );
+    const chip = el('g', { class: 'chip' });
+    const rect = el('rect', { rx: 7, height: 22, y: n.y + R + 8 });
+    const label = el('text', { class: 'mono', x: n.x, y: n.y + R + 23 });
+    chip.append(rect, label);
+    g.appendChild(chip);
+    g.style.animationDelay = `${i * 0.18}s`;
+    $('nodes').appendChild(g);
+    nodeViews[key] = { g, chip, rect, label, text: null };
+  });
+  const prefixTag = el('text', { class: 'prefix mono', x: NODES.A.x, y: NODES.A.y + R + 52 }, PREFIX);
+  $('nodes').appendChild(prefixTag);
+
+  function setChip(key, text, kind) {
+    const view = nodeViews[key];
+    if (view.text === text) return;
+    const changed = view.text !== null && kind === 'route';
+    view.text = text;
+    view.label.textContent = text;
+    view.chip.setAttribute('class', `chip ${kind}`);
+    const width = Math.max(64, text.length * 7.4 + 16);
+    view.rect.setAttribute('width', width);
+    view.rect.setAttribute('x', NODES[key].x - width / 2);
+    if (changed) {
+      view.chip.classList.remove('flash');
+      void view.chip.getBBox();
+      view.chip.classList.add('flash');
+    }
+  }
+
+  function messageView(m, T) {
+    const p = (T - m.t) / HOP;
+    if (p < 0 || p > 1) return null;
+    const [a, b] = [NODES[m.from], NODES[m.to]];
+    const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+    const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
+    const text = m.withdraw ? `WITHDRAW ${PREFIX}` : m.path.join(' ');
+    const width = text.length * 7.3 + 18;
+    const g = el('g', { class: 'msg', opacity: Math.min(1, p * 6, (1 - p) * 6) });
+    g.append(
+      el('rect', { x: x - width / 2, y: y - 12, width, height: 24, rx: 12, fill: m.withdraw ? 'var(--withdraw)' : 'var(--update)' }),
+      el('text', { class: 'mono', x, y: y + 4 }, text),
+    );
+    return g;
+  }
+
+  function packetViews(flow, T) {
+    const views = [];
+    const hops = flow.path.length - 1;
+    for (let start = flow.from; start < flow.to; start += PACKET_EVERY) {
+      const age = T - start;
+      if (age < 0 || age > hops * PACKET_HOP) continue;
+      const hop = Math.min(hops - 1, Math.floor(age / PACKET_HOP));
+      const p = (age - hop * PACKET_HOP) / PACKET_HOP;
+      const [a, b] = [NODES[flow.path[hop]], NODES[flow.path[hop + 1]]];
+      views.push(el('circle', { class: 'packet', r: 5.5, cx: a.x + (b.x - a.x) * p, cy: a.y + (b.y - a.y) * p }));
+    }
+    return views;
+  }
+
+  // --- the panel -------------------------------------------------------------------
+  STEPS.forEach((step, i) => {
+    const marker = document.createElement('button');
+    marker.type = 'button';
+    marker.setAttribute('aria-label', `Step ${i + 1}: ${step.title}`);
+    marker.title = step.title;
+    marker.innerHTML = '<span><b></b></span>';
+    marker.addEventListener('click', () => goTo(i));
+    $('steps').appendChild(marker);
+  });
+
+  const fmtPath = path => path.join(' ');
+  function routeTable(state, T) {
+    const rows = state.routes.F;
+    const gone = state.withdrawnAtF;
+    if (rows.length === 0 && gone.length === 0) return '<p class="empty">No route yet.</p>';
+    const decided = T >= STEPS[3].at;
+    return `<table class="mono">${[
+      ...rows.map((r, i) => `<tr class="${i === 0 && decided ? 'best' : ''}"><td>${i === 0 && decided ? '★ ' : ''}${fmtPath(r.path)}</td><td class="len">${r.path.length} ASes</td></tr>`),
+      ...gone.map(r => `<tr class="gone"><td>${fmtPath(r.path)}</td><td class="len">withdrawn</td></tr>`),
+    ].join('')}</table>`;
+  }
+
+  function ladder() {
+    const rules = [
+      ['tie', 'Highest local preference (business policy)'],
+      ['win', 'Shortest AS path'],
+      ['', 'Lowest origin type, then lowest MED'],
+      ['', 'Prefer eBGP over iBGP, then the closest exit'],
+      ['', 'Oldest route, then lowest router ID'],
+    ];
+    return `<ol class="ladder">${rules.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join('')}</ol>`;
+  }
+
+  let shownStep = -1;
+  let shownExtra = '';
+  function renderPanel(step, T, state) {
+    if (step !== shownStep) {
+      shownStep = step;
+      const s = STEPS[step];
+      $('kicker').textContent = `Step ${step + 1} of ${STEPS.length}`;
+      $('title').textContent = s.title;
+      $('body').innerHTML = s.body;
+      $('body').hidden = !s.body;
+      for (const node of [$('title'), $('body')]) {
+        node.classList.remove('fade');
+        void node.offsetWidth;
+        node.classList.add('fade');
+      }
+    }
+    let extra = '';
+    if (step === 6) {
+      extra = `<ul class="recap">${RECAP.map(item => `<li>${item}</li>`).join('')}</ul>`;
+    } else if (step >= 2) {
+      extra = `<div class="box"><p class="box-title">Routes to <span class="mono">${PREFIX}</span> at AS64501</p>${routeTable(state, T)}</div>`;
+      if (step === 3) extra += `<div class="box"><p class="box-title">BGP best-path order (simplified)</p>${ladder()}</div>`;
+    }
+    if (extra !== shownExtra) {
+      shownExtra = extra;
+      $('extra').innerHTML = extra;
+    }
+    [...$('steps').children].forEach((marker, i) => {
+      const end = STEPS[i + 1]?.at ?? LOOP;
+      const fill = T >= end ? 1 : T <= STEPS[i].at ? 0 : (T - STEPS[i].at) / (end - STEPS[i].at);
+      marker.querySelector('b').style.width = `${(fill * 100).toFixed(1)}%`;
+    });
+  }
+
+  // --- each frame --------------------------------------------------------------------
+  function render(T) {
+    const step = STEPS.reduce((current, s, i) => (T >= s.at ? i : current), 0);
+    const state = stateAt(T);
+
+    for (const [key, view] of Object.entries(nodeViews)) {
+      if (key === 'A') setChip(key, 'originates', 'origin');
+      else {
+        const best = state.routes[key][0];
+        setChip(key, best ? fmtPath(best.path) : 'no route', best ? 'route' : 'none');
+      }
+      view.g.classList.toggle('focus', key === 'F' && step >= 3 && step <= 5);
+    }
+    prefixTag.style.opacity = step >= 1 ? 1 : 0;
+
+    const activePath = FLOWS.find(f => T >= f.from && T < f.to + 4)?.path ?? [];
+    for (const [key, line] of Object.entries(linkNodes)) {
+      const onPath = activePath.some((n, i) => i > 0 && [activePath[i - 1] + n, n + activePath[i - 1]].includes(key));
+      line.classList.toggle('active', onPath && !(key === LINK_DOWN.link && state.linkDown));
+      line.classList.toggle('down', key === LINK_DOWN.link && state.linkDown);
+    }
+    cut.setAttribute('visibility', state.linkDown ? 'visible' : 'hidden');
+
+    // Packets pass under the networks; messages float above them.
+    $('packets').replaceChildren(...FLOWS.flatMap(f => packetViews(f, T)));
+    $('flying').replaceChildren(...MESSAGES.map(m => messageView(m, T)).filter(Boolean));
+    renderPanel(step, T, state);
+  }
+
+  // --- theme: follow the embedding page, else the system ---------------------------
+  const systemDark = matchMedia('(prefers-color-scheme: dark)');
+  let themeFromParent = false;
+  const applyTheme = theme => { document.documentElement.dataset.theme = theme; };
+  applyTheme(systemDark.matches ? 'dark' : 'light');
+  systemDark.addEventListener('change', e => { if (!themeFromParent) applyTheme(e.matches ? 'dark' : 'light'); });
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (event.source === window.parent && data && data.type === 'teaman:theme' && (data.theme === 'dark' || data.theme === 'light')) {
+      themeFromParent = true;
+      applyTheme(data.theme);
+    }
+  });
+  if (window.parent !== window) window.parent.postMessage({ type: 'teaman:ready' }, '*');
+
+  // --- play -------------------------------------------------------------------------
+  // The clock only moves while frames are painted: a frame scrolled out of
+  // view gets none, so the story waits for its reader instead of running on.
+  //   play — run the whole story on a loop;
+  //   step — play the current step once, then hold its finished state;
+  //   pause — hold still.
+  const startStep = Number(new URLSearchParams(location.hash.slice(1)).get('step'));
+  const offset = startStep >= 1 && startStep <= STEPS.length ? STEPS[startStep - 1].at : 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (const view of Object.values(nodeViews)) if (offset === 0 && !reducedMotion) view.g.classList.add('appear');
+
+  let T = offset;
+  let mode = 'play';
+  let last = null;
+
+  const stepOf = t => STEPS.reduce((current, s, k) => (t >= s.at ? k : current), 0);
+  const stepEnd = i => (STEPS[i + 1]?.at ?? LOOP) - 0.01;
+
+  const PAUSE_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="1.5" width="2.5" height="9" rx="0.8" fill="currentColor"/><rect x="7" y="1.5" width="2.5" height="9" rx="0.8" fill="currentColor"/></svg>';
+  const PLAY_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 1.8v8.4L10 6z" fill="currentColor"/></svg>';
+  function setMode(next) {
+    mode = next;
+    const playing = mode === 'play';
+    $('play').innerHTML = playing ? PAUSE_ICON : PLAY_ICON;
+    $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    $('play').title = playing ? 'Pause' : 'Play';
+  }
+
+  function goTo(i) {
+    T = STEPS[(i + STEPS.length) % STEPS.length].at;
+    setMode('step');
+  }
+
+  $('prev').addEventListener('click', () => goTo(Math.max(0, stepOf(T) - 1)));
+  $('next').addEventListener('click', () => goTo(stepOf(T) + 1));
+  $('play').addEventListener('click', () => setMode(mode === 'play' ? 'pause' : 'play'));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'ArrowRight') goTo(stepOf(T) + 1);
+    else if (event.key === 'ArrowLeft') goTo(Math.max(0, stepOf(T) - 1));
+  });
+
+  function frame(now) {
+    // Clamp the gap so a frame that sat unpainted resumes where it was.
+    const dt = last === null ? 0 : Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (mode === 'play') T = (T + dt) % LOOP;
+    else if (mode === 'step') T = Math.min(T + dt, stepEnd(stepOf(T)));
+    // Without motion, show each step's finished state instead of animating it.
+    render(reducedMotion ? stepEnd(stepOf(T)) : T);
+    requestAnimationFrame(frame);
+  }
+  setMode('play');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

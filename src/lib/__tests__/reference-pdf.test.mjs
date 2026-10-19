@@ -214,6 +214,11 @@ describe('reference PDF rendering', () => {
       .toThrow('/v/references/r.md: ![[Some Note]] embeds a note');
   });
 
+  it('leaves a labelled box where an HTML embed sits', () => {
+    expect(markdownToTypst('![[solar-system.html|The planets]]', { sourcePath: '/v/references/r.md' }))
+      .toContain('#text("Interactive embed: The planets — open the online version to use it")');
+  });
+
   it('finds an embedded image anywhere in the vault', () => {
     const source = renderReferenceTypst({
       template,

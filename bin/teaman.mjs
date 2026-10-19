@@ -25,7 +25,8 @@ import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import matter from 'gray-matter';
 import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
-import { isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
+import { isHtmlEmbed, isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
+import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
@@ -596,14 +597,14 @@ export async function lintContent(vault) {
         warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
       }
       // Parsed with the dialect the PDF and Confluence render with, so code
-      // is never linted. An embed must be an image the vault has: every
-      // renderer fails the build on a note embed or a missing image.
+      // is never linted. An embed must be an image or HTML page the vault
+      // has: every renderer fails the build on a note embed or a missing file.
       for (const { target, embed } of wikiLinks(source)) {
         if (embed) {
-          if (!isImageEmbed(target)) {
+          if (!isImageEmbed(target) && !isHtmlEmbed(target)) {
             problems.push(`${where} embeds ![[${target}]]: note embeds are not supported; link it with [[${target}]]`);
           } else if (!index.resolveAttachment(target, file)) {
-            problems.push(`${where} embeds missing image ![[${target}]]`);
+            problems.push(`${where} embeds missing ${isHtmlEmbed(target) ? 'HTML file' : 'image'} ![[${target}]]`);
           }
           continue;
         }
@@ -623,6 +624,17 @@ export async function lintContent(vault) {
         if (alternatives.length > 0) {
           warnings.push(`${where} ${link} matches ${alternatives.length + 1} pages; linking ${entry.path} (qualify it as [[${entry.path}]])`);
         }
+      }
+    }
+  }
+
+  // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
+  // into a frame, and build-slides fails the deck when the file is missing.
+  // Found by the slide theme's own scan, so doctor checks exactly what it rewrites.
+  for (const deck of discoverDecks(slidesRoot)) {
+    for (const { target } of htmlEmbedEdits(deck.markdown)) {
+      if (!index.resolveAttachment(target, deck.path)) {
+        problems.push(`slides: ${deck.relativePath} embeds missing HTML file ![[${target}]]`);
       }
     }
   }

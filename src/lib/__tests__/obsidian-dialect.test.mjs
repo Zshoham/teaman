@@ -16,7 +16,7 @@ import remarkRehype from 'remark-rehype';
 import rehypeStringify from 'rehype-stringify';
 import remarkWikiLink from 'remark-wiki-link';
 import { rehypeFlexibleCallouts } from '../rehype-flexible-callouts.mjs';
-import { compileDiagramFences, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
+import { compileDiagramFences, isHtmlEmbed, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
 import { remarkFenceSvg, fenceLanguages } from '../remark-fence-svg.mjs';
 
 const CASES = [
@@ -86,6 +86,13 @@ describe.each(CASES)('$name', ({ md, links, callouts }) => {
 });
 
 describe('embeds', () => {
+  it('tells HTML embeds from images and notes', () => {
+    expect(isHtmlEmbed('viz.html')).toBe(true);
+    expect(isHtmlEmbed('Viz.HTM#planet=mars')).toBe(true);
+    expect(isHtmlEmbed('viz.html.png')).toBe(false);
+    expect(isHtmlEmbed('Some Note')).toBe(false);
+  });
+
   it('marks ![[embeds]] and tells images from notes', () => {
     expect(wikiLinks('![[pic.png]] ![[Some Note]]')).toEqual([
       { target: 'pic.png', label: 'pic.png', embed: true },

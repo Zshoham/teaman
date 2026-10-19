@@ -26,6 +26,11 @@ export function isImageEmbed(target) {
   return IMAGE_EMBED_RE.test(target.split(/[?#]/, 1)[0]);
 }
 
+/** Whether an `![[embed]]` target is a self-contained HTML page (see `html-embeds.mjs`). */
+export function isHtmlEmbed(target) {
+  return /\.html?$/i.test(target.split(/[?#]/, 1)[0]);
+}
+
 function wikiLinkRule(state, silent) {
   let pos = state.pos;
   const embed = state.src.charCodeAt(pos) === 0x21; /* ! */

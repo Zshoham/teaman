@@ -2,9 +2,12 @@ import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync, rea
 import { execFileSync } from 'child_process';
 import { join, extname, dirname } from 'path';
 import { createRequire } from 'module';
-import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
+import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, renderDeckEmbedsModule } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
+import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
+import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
 // Slidev's own JS entry, run by the runtime running this script — not `npx`,
@@ -67,6 +70,35 @@ writeFileSync(
   join(themeDir, 'logo.config.ts'),
   renderLogoConfig(logoFile, { footer: slidesConfig.footer !== false }),
 );
+
+// The theme's transformer reaches the engine's embed scan through
+// deck-embeds.ts; point the staged copy at this engine by absolute path.
+writeFileSync(join(themeDir, 'deck-embeds.ts'), renderDeckEmbedsModule(join(engineDir, 'src', 'lib', 'deck-embeds.mjs')));
+
+// `![[page.html]]` embeds: the theme's transformer turns each into an
+// <HtmlEmbed> frame loading `embeds/<target>` relative to the deck, so stage
+// the file Obsidian would find into that deck folder's public dir (Slidev
+// serves `public/` beside the deck file). A missing file fails the build,
+// as it does on the site.
+const vaultIndex = createVaultIndex(vaultDir);
+const missingEmbeds = [];
+for (const deck of decks) {
+  for (const { target } of htmlEmbedEdits(deck.markdown)) {
+    const found = vaultIndex.resolveAttachment(target, deck.path);
+    if (!found) {
+      missingEmbeds.push(`slides/${deck.relativePath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
+      continue;
+    }
+    const dest = join(slidesTmpDir, dirname(deck.relativePath), 'public', EMBEDS_DIR, deckEmbedPath(target));
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(found, dest);
+  }
+}
+if (missingEmbeds.length > 0) {
+  console.error(`Missing embeds:\n${missingEmbeds.map(line => `  ${line}`).join('\n')}`);
+  rmSync(slidesTmpDir, { recursive: true, force: true });
+  process.exit(1);
+}
 
 try {
   for (const deck of decks) {

@@ -659,17 +659,24 @@ body {
   }
 }
 
-@media (max-width: 479px) {
-  .brand-tagline { display: none; }
-  .section-nav { justify-content: flex-start; overflow-x: auto; }
+/* The labelled whiteboard launcher only fits in the gutter right of the
+   1180px page column on wide screens; narrower, it would sit on top of the
+   reading column (and any embed in it). Collapse it to its icon, tucked
+   against the edge, until the gutter can hold the label. */
+@media (max-width: 1439px) {
   .whiteboard-launcher {
     right: 1rem;
-    bottom: var(--floating-safe-bottom);
     width: var(--tap-target);
     height: var(--tap-target);
     padding: 0;
   }
   .whiteboard-launcher-label { display: none; }
+}
+
+@media (max-width: 479px) {
+  .brand-tagline { display: none; }
+  .section-nav { justify-content: flex-start; overflow-x: auto; }
+  .whiteboard-launcher { bottom: var(--floating-safe-bottom); }
   body { padding-bottom: calc(var(--tap-target) + var(--floating-safe-bottom)); }
   [data-week-strip] .week-strip-chips a:not([data-current='true']) { display: none; }
   [data-week-strip] .week-strip-chips { overflow: visible; mask-image: none; }
@@ -754,6 +761,25 @@ body {
    --tw-prose-captions, we just center the pair and drop the doubled margin. */
 .prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
 .prose figure.content-figure > svg.content-svg { margin: 0 auto; }
+
+/* `![[viz.html]]` frames (src/lib/html-embeds.mjs). The embed paints its own
+   content, so the page only frames it: full column width unless the author
+   capped it, a quiet border, and the theme radius. The height comes from the
+   iframe's own attribute, or from src/scripts/html-embeds.ts once the embed
+   reports its content height. */
+.prose .html-embed { display: block; margin: 1.5rem 0; }
+.prose .html-embed iframe {
+  display: block;
+  max-width: 100%;
+  margin-inline: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+/* An authored `|800x560` keeps its width attribute (capped by max-width
+   above); author CSS would outrank that hint, so only unsized frames fill. */
+.prose .html-embed iframe:not([width]) { width: 100%; }
+.prose figure.html-embed > figcaption { text-align: center; }
 
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
    diagrams both render client-side into these blocks, so they share the same

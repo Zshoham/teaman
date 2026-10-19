@@ -8,6 +8,7 @@ import {
   renderLogoConfig,
   slidevBuildArgs,
   renderViteConfig,
+  renderDeckEmbedsModule,
   DEFAULT_SLIDE_PRIMARY,
   DEFAULT_SLIDE_SECONDARY,
 } from '../slides-theme.mjs';
@@ -56,6 +57,16 @@ describe('renderLogoConfig', () => {
     expect(renderLogoConfig('logo.svg', { footer: false })).toContain(
       'export const showFooter: boolean = false',
     );
+  });
+});
+
+describe('renderDeckEmbedsModule', () => {
+  it('re-exports the engine scan by absolute path, as the committed module does relatively', () => {
+    expect(renderDeckEmbedsModule('/engine/src/lib/deck-embeds.mjs'))
+      .toContain('export { htmlEmbedEdits } from "/engine/src/lib/deck-embeds.mjs"');
+    expect(renderDeckEmbedsModule('C:\\engine\\src\\lib\\deck-embeds.mjs')).toContain('"C:/engine/src/lib/deck-embeds.mjs"');
+    const committed = readFileSync(join(themeDir, 'deck-embeds.ts'), 'utf8');
+    expect(committed).toContain("export { htmlEmbedEdits } from '../../src/lib/deck-embeds.mjs'");
   });
 });
 
