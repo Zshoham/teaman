@@ -482,9 +482,13 @@
   const offset = startStep >= 1 && startStep <= STEPS.length ? STEPS[startStep - 1].at : 0;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   for (const view of Object.values(nodeViews)) if (offset === 0 && !reducedMotion) view.g.classList.add('appear');
-  const began = performance.now() - offset * 1000;
+  // The clock starts on the first painted frame, not on load: a frame below
+  // the fold gets no animation frames until it is scrolled into view, so the
+  // story begins when a reader first sees it.
+  let began = null;
 
   function frame(now) {
+    began ??= now - offset * 1000;
     let T = ((now - began) / 1000) % LOOP;
     // Without motion, hold each step's finished state instead of animating it.
     if (reducedMotion) {

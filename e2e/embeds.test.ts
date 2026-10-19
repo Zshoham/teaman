@@ -9,11 +9,10 @@ import { test, expect } from '@playwright/test';
 
 test('a note frames the embed, which follows the theme toggle', async ({ page }) => {
   await page.goto('/notes/interactive-embeds/');
-  const frame = page.locator('figure.html-embed iframe');
-  await expect(frame).toHaveAttribute('src', '/embeds/attachments/solar-system.html');
+  const frame = page.locator('figure.html-embed iframe[src="/embeds/attachments/solar-system.html"]');
   await expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-popups');
 
-  const embed = page.frameLocator('figure.html-embed iframe');
+  const embed = page.frameLocator('iframe[src="/embeds/attachments/solar-system.html"]');
   await expect(embed.getByRole('heading', { name: 'Our Solar System' })).toBeVisible();
   const theme = () => embed.locator('html').getAttribute('data-theme');
   const before = await page.evaluate(() => document.documentElement.dataset.theme);
@@ -30,25 +29,24 @@ test('a note frames the embed, which follows the theme toggle', async ({ page })
 
 test('a guide chapter passes the fragment through to the embed', async ({ page }) => {
   await page.goto('/guides/using-this-system/embedding-html/');
-  await expect(page.locator('figure.html-embed iframe'))
-    .toHaveAttribute('src', '/embeds/attachments/solar-system.html#view=sizes');
-  await expect(page.locator('figure.html-embed figcaption')).toHaveText('The planets, true to scale');
-  const embed = page.frameLocator('figure.html-embed iframe');
+  const figure = page.locator('figure.html-embed', { has: page.locator('iframe[src="/embeds/attachments/solar-system.html#view=sizes"]') });
+  await expect(figure.locator('figcaption')).toHaveText('The planets, true to scale');
+  const embed = page.frameLocator('iframe[src="/embeds/attachments/solar-system.html#view=sizes"]');
   await expect(embed.getByRole('button', { name: 'Sizes' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('a slide frames the same embed from the deck', async ({ page }) => {
+  // Slidev keeps neighbouring slides mounted, so select the embed by its file.
   await page.goto('/slides/intro/#/9');
-  const frame = page.locator('iframe.teaman-html-embed');
-  await expect(frame).toHaveAttribute('src', 'embeds/solar-system.html');
-  await expect(page.frameLocator('iframe.teaman-html-embed').getByRole('heading', { name: 'Our Solar System' }))
-    .toBeVisible();
+  await expect(page.frameLocator('iframe.teaman-html-embed[src="embeds/solar-system.html"]')
+    .getByRole('heading', { name: 'Our Solar System' })).toBeVisible();
 });
 
 test('the self-playing BGP walkthrough embeds in the note, guide, and deck', async ({ page }) => {
   await page.goto('/notes/interactive-embeds/');
   const noteFrame = page.locator('iframe[src="/embeds/attachments/bgp.html"]');
   await expect(noteFrame).toHaveAttribute('height', '680');
+  await noteFrame.scrollIntoViewIfNeeded();
   const note = page.frameLocator('iframe[src="/embeds/attachments/bgp.html"]');
   await expect(note.getByRole('heading', { level: 1 })).toContainText('How BGP routes the internet');
   // It advances on its own: no controls, just the caption changing.
@@ -56,10 +54,10 @@ test('the self-playing BGP walkthrough embeds in the note, guide, and deck', asy
   await expect(note.locator('#kicker')).toHaveText(/Step 2 of 7/, { timeout: 12_000 });
 
   await page.goto('/guides/using-this-system/embedding-html/');
+  await page.locator('iframe[src="/embeds/attachments/bgp.html#step=2"]').scrollIntoViewIfNeeded();
   const guide = page.frameLocator('iframe[src="/embeds/attachments/bgp.html#step=2"]');
   await expect(guide.locator('#kicker')).toHaveText(/Step 2 of 7/);
 
   await page.goto('/slides/intro/#/10');
-  await expect(page.locator('iframe.teaman-html-embed')).toHaveAttribute('src', 'embeds/bgp.html');
-  await expect(page.frameLocator('iframe.teaman-html-embed').locator('#title')).not.toBeEmpty();
+  await expect(page.frameLocator('iframe.teaman-html-embed[src="embeds/bgp.html"]').locator('#title')).not.toBeEmpty();
 });
