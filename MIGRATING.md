@@ -23,6 +23,13 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Interactive HTML embeds** (minor, no vault changes). `![[viz.html]]`
+  embeds a self-contained HTML page from anywhere in the vault as a sandboxed
+  frame, in notes, guides, references, and slides. Built sites gain an
+  `embeds/` folder holding the embedded files; `teaman doctor` and the build
+  now fail on a missing HTML embed (previously any `.html` embed was reported
+  as an unsupported note embed).
+
 - **Compiled diagrams follow the theme** (patch, no vault changes). TikZ and
   Typst SVGs now embed dark-mode colors for explicit fills and strokes as well
   as inherited default ink. D2 embeds both native palettes. The site toggle

@@ -85,6 +85,18 @@ image. Notes cannot be embedded: `![[Some Note]]` (and an embed naming an
 image the vault doesn't have) fails `teaman doctor` and the build — link the
 note with `[[Some Note]]` instead.
 
+`![[visualization.html]]` embeds an interactive page: a self-contained `.html`
+file (CSS and JavaScript inline) found the same way, rendered in a sandboxed
+frame that runs its scripts but cannot touch the site. After the pipe, a number
+fixes the frame's height (`|560`, `|800x560` also caps the width) and anything
+else titles it; a `#fragment` or `?query` after the file name is passed to the
+page. Built pages serve the file from `<base>embeds/<vault path>`. The same
+embed works on a slide. An embed can follow the site's light/dark toggle and
+size its own frame by listening for `{ type: 'teaman:theme', theme }` and
+posting `{ type: 'teaman:ready' }` / `{ type: 'teaman:resize', height }` to
+its parent — the bundled vault's `attachments/solar-system.html` does the
+first two. A reference PDF shows a labelled placeholder in its place.
+
 References can be authored in either of two additive forms:
 
 - `references/system.md` is one standalone document at `/references/system/`.
@@ -325,6 +337,10 @@ the build applies it to all of them. The only knobs are project-wide, under
 - `footer` — show the footer logo (default `true`); set `false` to hide it.
 
 These flow into the theme at build time, so decks stay pure content.
+
+`![[visualization.html]]` on a slide embeds an interactive page exactly as on
+the site (see wiki-links above), at a fixed height — 360px, or the `|height`
+you give — since a slide is a fixed canvas.
 
 ## Versioning & upgrades
 

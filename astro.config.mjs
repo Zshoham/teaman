@@ -17,6 +17,7 @@ import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
 import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
 import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
+import { htmlEmbeds } from './src/lib/html-embeds.mjs';
 import {
   engineDir,
   outDir,
@@ -59,6 +60,8 @@ export default defineConfig({
       logDiagnostics: true,
     } }),
     excalidrawAssets({ base }),
+    // `![[viz.html]]` frames load `${base}embeds/<vault path>`.
+    htmlEmbeds({ vaultDir, base }),
     failOnEmbedErrors(),
   ],
   vite: {

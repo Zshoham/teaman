@@ -5,6 +5,9 @@ import { createRequire } from 'module';
 import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
+import { isHtmlEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
+import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
 // Slidev's own JS entry, run by the runtime running this script — not `npx`,
@@ -67,6 +70,32 @@ writeFileSync(
   join(themeDir, 'logo.config.ts'),
   renderLogoConfig(logoFile, { footer: slidesConfig.footer !== false }),
 );
+
+// `![[page.html]]` embeds: the theme's transformer turns each into an
+// <HtmlEmbed> frame loading `embeds/<target>` relative to the deck, so stage
+// the file Obsidian would find into that deck folder's public dir (Slidev
+// serves `public/` beside the deck file). A missing file fails the build,
+// as it does on the site.
+const vaultIndex = createVaultIndex(vaultDir);
+const missingEmbeds = [];
+for (const deck of decks) {
+  for (const { target, embed } of wikiLinks(deck.markdown)) {
+    if (!embed || !isHtmlEmbed(target)) continue;
+    const found = vaultIndex.resolveAttachment(target, deck.path);
+    if (!found) {
+      missingEmbeds.push(`slides/${deck.relativePath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
+      continue;
+    }
+    const dest = join(slidesTmpDir, dirname(deck.relativePath), 'public', EMBEDS_DIR, deckEmbedPath(target));
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(found, dest);
+  }
+}
+if (missingEmbeds.length > 0) {
+  console.error(`Missing embeds:\n${missingEmbeds.map(line => `  ${line}`).join('\n')}`);
+  rmSync(slidesTmpDir, { recursive: true, force: true });
+  process.exit(1);
+}
 
 try {
   for (const deck of decks) {

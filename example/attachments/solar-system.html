@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Our Solar System</title>
+<!--
+  An interactive tour of the solar system for children.
+
+  One self-contained file: no network, no libraries, so it works offline, in a
+  sandboxed frame, and opened straight from disk. teaman embeds it with
+  ![[solar-system.html]] in notes, guides, and slides.
+
+  Optional extras it understands:
+    #planet=mars   open on a planet's card      #view=sizes   start on the size line-up
+    #paused        start with the planets still
+  and the teaman frame protocol: it says { type: 'teaman:ready' } to its parent
+  and follows { type: 'teaman:theme', theme: 'light' | 'dark' } messages.
+-->
+<style>
+  :root {
+    --sky-top: #2b2f77;
+    --sky-bottom: #6b4fa3;
+    --star: #fff8d6;
+    --orbit: rgba(255, 255, 255, 0.28);
+    --orbit-active: #ffe066;
+    --label: rgba(255, 255, 255, 0.92);
+    --panel: #fffaf0;
+    --panel-ink: #2a2350;
+    --panel-muted: #6d6690;
+    --chip: #f1e9ff;
+    --accent: #ff7a59;
+    --accent-ink: #ffffff;
+    --button: rgba(255, 255, 255, 0.16);
+    --button-ink: #ffffff;
+    --button-on: #ffe066;
+    --button-on-ink: #2a2350;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --sky-top: #070a1f;
+    --sky-bottom: #1b1446;
+    --orbit: rgba(180, 200, 255, 0.22);
+    --label: rgba(230, 236, 255, 0.9);
+    --panel: #1d1a3a;
+    --panel-ink: #f4f1ff;
+    --panel-muted: #aaa3d6;
+    --chip: #2c2858;
+    --button: rgba(255, 255, 255, 0.1);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    overflow: hidden;
+    font-family: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    color: var(--label);
+    background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+    transition: background 0.6s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; }
+
+  .app { position: relative; height: 100%; min-height: 260px; display: flex; flex-direction: column; }
+
+  #stars { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #stars circle { fill: var(--star); animation: twinkle var(--t, 3s) ease-in-out infinite; animation-delay: var(--d, 0s); }
+  @keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+  .shooting { stroke: var(--star); stroke-width: 2; stroke-linecap: round; opacity: 0; animation: shoot 9s linear infinite 3s; }
+  @keyframes shoot {
+    0%, 92% { opacity: 0; transform: translate(0, 0); }
+    93% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-260px, 120px); }
+  }
+
+  /* ---- top bar ---------------------------------------------------------- */
+  .bar {
+    position: relative; z-index: 2;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 6px 12px; padding: 8px 12px 0;
+  }
+  h1 { margin: 0; font-size: clamp(16px, 3.4vw, 24px); letter-spacing: 0.01em; color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); white-space: nowrap; }
+  h1 span { display: inline-block; animation: bob 3s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-3px) rotate(-8deg); } }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .seg { display: inline-flex; background: var(--button); border-radius: 999px; padding: 3px; }
+  .seg button, .round {
+    border: 0; cursor: pointer; color: var(--button-ink); background: transparent;
+    border-radius: 999px; padding: 4px 11px; font-size: 14px; font-weight: 700; line-height: 1.4;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+  }
+  .seg button[aria-pressed="true"] { background: var(--button-on); color: var(--button-on-ink); }
+  .seg button:hover, .round:hover { transform: translateY(-1px); }
+  .round { background: var(--button); min-width: 34px; padding: 4px 9px; display: inline-grid; place-items: center; }
+  button:focus-visible, .body:focus-visible { outline: 3px solid var(--button-on); outline-offset: 2px; }
+
+  /* ---- scene ------------------------------------------------------------- */
+  .stage { position: relative; flex: 1; min-height: 0; }
+  #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .view { transition: opacity 0.5s, visibility 0s; }
+  /* visibility (after the fade) also takes the hidden view out of the tab order */
+  .view.hidden { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.5s, visibility 0s 0.5s; }
+  #world { transition: transform 0.6s cubic-bezier(.3, .7, .3, 1); }
+
+  .orbit { fill: none; stroke: var(--orbit); stroke-width: 1.5; stroke-dasharray: 3 6; transition: stroke 0.3s; }
+  .orbit.active { stroke: var(--orbit-active); stroke-dasharray: none; stroke-width: 2; }
+
+  .body { cursor: pointer; outline: none; }
+  .body .hit { fill: transparent; }
+  .body .halo { fill: none; stroke: var(--orbit-active); stroke-width: 3; opacity: 0; transition: opacity 0.3s; }
+  .body.selected .halo { opacity: 1; animation: pulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  .body:hover .art, .body:focus-visible .art { filter: brightness(1.15); }
+  @keyframes pulse { 50% { transform: scale(1.12); opacity: 0.55; } }
+  .name { fill: var(--label); font-size: 11px; font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 8, 40, 0.45); stroke-width: 3px; pointer-events: none; }
+  .body.selected .name { fill: var(--orbit-active); }
+
+  .eye { transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; animation-delay: var(--blink, 0s); }
+  @keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+  .rays { transform-box: fill-box; transform-origin: center; animation: spin 40s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pop { animation: pop 0.5s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: var(--delay, 0s); transform-box: fill-box; transform-origin: center; }
+  @keyframes pop { from { transform: scale(0); opacity: 0; } }
+
+  .counter, .hint {
+    position: absolute; z-index: 1; margin: 0; font-size: 12px; font-weight: 700;
+    background: rgba(0, 0, 0, 0.22); border-radius: 999px; padding: 4px 10px; pointer-events: none;
+  }
+  .counter { left: 12px; bottom: 10px; }
+  .hint { right: 12px; bottom: 10px; transition: opacity 0.5s; animation: nudge 2.4s ease-in-out infinite; }
+  .hint.gone { opacity: 0; }
+  @keyframes nudge { 50% { transform: translateY(-3px); } }
+  .caption { fill: var(--label); font-size: 12px; font-weight: 700; text-anchor: middle; opacity: 0.85; }
+
+  /* ---- planet card ------------------------------------------------------- */
+  #card {
+    position: absolute; z-index: 3; top: 8px; right: 8px; bottom: 8px; width: 290px;
+    display: flex; flex-direction: column;
+    background: var(--panel); color: var(--panel-ink); border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(10, 5, 40, 0.35);
+    transform: translateX(calc(100% + 16px)); transition: transform 0.45s cubic-bezier(.3, .7, .3, 1), background 0.6s;
+    overflow: hidden;
+  }
+  #card.open { transform: none; }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 6px 14px; }
+  .card-head svg { flex: none; }
+  .card-head h2 { margin: 0; font-size: 22px; line-height: 1.1; }
+  .card-head p { margin: 2px 0 0; font-size: 13px; color: var(--panel-muted); font-weight: 700; }
+  .card-head .round { margin-left: auto; align-self: flex-start; background: var(--chip); color: var(--panel-ink); }
+  .card-body { flex: 1; overflow-y: auto; padding: 4px 14px 8px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 10px; }
+  .fact { background: var(--chip); border-radius: 12px; padding: 6px 8px; font-size: 12px; line-height: 1.3; }
+  .fact b { display: block; font-size: 14px; }
+  .fact.wide { grid-column: 1 / -1; }
+  .fun { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+  .compare { display: block; width: 100%; height: 76px; }
+  .compare text { fill: var(--panel-muted); font-size: 11px; font-weight: 700; text-anchor: middle; }
+  .card-nav { display: flex; gap: 8px; padding: 8px 12px 12px; }
+  .card-nav button { flex: 1; border: 0; border-radius: 12px; padding: 7px; cursor: pointer; font-weight: 800; background: var(--accent); color: var(--accent-ink); }
+  .card-nav button:first-child { background: var(--chip); color: var(--panel-ink); }
+
+  /* narrow frames: the card becomes a bottom sheet */
+  @media (max-width: 600px) {
+    #card { top: auto; left: 8px; width: auto; max-height: 72%; transform: translateY(calc(100% + 16px)); }
+    .hint { display: none; }
+  }
+  /* short frames (a slide): tighter card */
+  @media (max-height: 420px) {
+    .card-head h2 { font-size: 18px; }
+    .fun { font-size: 13px; }
+    .compare { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <svg id="stars" aria-hidden="true"></svg>
+
+  <header class="bar">
+    <h1><span aria-hidden="true">🚀</span> Our Solar System</h1>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="What to show">
+        <button type="button" data-view="orbits" aria-pressed="true">Orbits</button>
+        <button type="button" data-view="sizes" aria-pressed="false">Sizes</button>
+      </div>
+      <button type="button" class="round" id="play" aria-label="Pause"></button>
+      <div class="seg" role="group" aria-label="Speed">
+        <button type="button" data-speed="8" aria-pressed="false" aria-label="Slow" title="Slow">🐢</button>
+        <button type="button" data-speed="45" aria-pressed="true" aria-label="Fast" title="Fast">🐇</button>
+        <button type="button" data-speed="365" aria-label="Super fast" aria-pressed="false" title="Super fast">⚡</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage">
+    <svg id="scene" role="group" aria-label="The Sun and its eight planets. Choose one to learn about it.">
+      <defs id="defs"></defs>
+      <g id="world" class="view"></g>
+      <g id="lineup" class="view hidden"></g>
+    </svg>
+    <p class="counter" id="counter" aria-live="off"></p>
+    <p class="hint" id="hint">👆 Tap a planet to say hello!</p>
+
+    <aside id="card" aria-live="polite" aria-hidden="true">
+      <div class="card-head">
+        <svg id="card-art" width="54" height="54" viewBox="-1.25 -1.25 2.5 2.5" aria-hidden="true"></svg>
+        <div>
+          <h2 id="card-name"></h2>
+          <p id="card-tag"></p>
+        </div>
+        <button type="button" class="round" id="card-close" aria-label="Close">✕</button>
+      </div>
+      <div class="card-body">
+        <p class="fun" id="card-fun"></p>
+        <div class="facts" id="card-facts"></div>
+        <svg class="compare" id="card-compare" aria-hidden="true"></svg>
+      </div>
+      <div class="card-nav">
+        <button type="button" id="card-prev">◀ Back</button>
+        <button type="button" id="card-next">Next ▶</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // --- the facts ------------------------------------------------------------
+  // period: days for one trip around the Sun · size: diameter in Earths ·
+  // gravity: compared with Earth. Orbit gaps and planet sizes in the Orbits
+  // view are squeezed to fit; the Sizes view is true to scale.
+  const SUN = {
+    id: 'sun', name: 'The Sun', tag: 'Our very own star',
+    size: 109, gravity: 28,
+    facts: [['🌡️ Surface', '5,500 °C'], ['📏 Size', '109 Earths wide'], ['🪐 Family', '8 planets'], ['⏳ Age', '4.6 billion years']],
+    fun: 'The Sun is a star — a giant ball of glowing gas. It is so big that about 1.3 million Earths could fit inside it!',
+  };
+  const PLANETS = [
+    { id: 'mercury', name: 'Mercury', tag: 'The speedy little one', period: 88, size: 0.38, gravity: 0.38, moons: '0', temp: '−180 to 430 °C',
+      fun: 'Mercury is the smallest planet and the closest to the Sun. It races around the Sun faster than any other planet.' },
+    { id: 'venus', name: 'Venus', tag: 'The hottest planet', period: 225, size: 0.95, gravity: 0.91, moons: '0', temp: '465 °C',
+      fun: 'Venus is wrapped in thick clouds that trap heat like a blanket. And it spins backwards, so the Sun rises in the west!' },
+    { id: 'earth', name: 'Earth', tag: 'Our home!', period: 365.25, size: 1, gravity: 1, moons: '1', temp: '15 °C',
+      fun: 'Earth is the only planet we know of with oceans of liquid water and living things — like you!' },
+    { id: 'mars', name: 'Mars', tag: 'The red planet', period: 687, size: 0.53, gravity: 0.38, moons: '2', temp: '−65 °C',
+      fun: 'Mars is red because its dust is rusty. It has the tallest volcano we know of, Olympus Mons — nearly three times as tall as Mount Everest.' },
+    { id: 'jupiter', name: 'Jupiter', tag: 'The giant', period: 4333, size: 11.2, gravity: 2.5, moons: '90+', temp: '−110 °C',
+      fun: 'All the other planets could fit inside Jupiter. Its Great Red Spot is a storm that is bigger than the whole Earth!' },
+    { id: 'saturn', name: 'Saturn', tag: 'The one with rings', period: 10759, size: 9.45, gravity: 1.07, moons: '270+', temp: '−140 °C',
+      fun: 'Saturn’s rings are billions of chunks of ice and rock. Saturn is so light that it would float in a giant bathtub!' },
+    { id: 'uranus', name: 'Uranus', tag: 'The sideways spinner', period: 30687, size: 4, gravity: 0.89, moons: '28+', temp: '−195 °C',
+      fun: 'Uranus is tipped over on its side, so it rolls around the Sun like a ball.' },
+    { id: 'neptune', name: 'Neptune', tag: 'The windy one', period: 60190, size: 3.88, gravity: 1.14, moons: '16', temp: '−200 °C',
+      fun: 'Neptune has the fastest winds in the solar system — faster than a jet plane. It takes 165 Earth years to go around the Sun once!' },
+  ];
+  const BODIES = [SUN, ...PLANETS];
+  const KID_KG = 30;
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const svg = (tag, attrs = {}, html = '') => {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    if (html) node.innerHTML = html;
+    return node;
+  };
+  const fmt = n => n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 1 : 0 });
+
+  // --- art: every body drawn at radius 1, scaled into place -----------------
+  const GRADIENTS = {
+    sun: ['#fff6a8', '#ffc93c', '#ff8c1a'],
+    mercury: ['#d9d4cf', '#a59d97', '#6f6762'],
+    venus: ['#fff0b8', '#f2c46d', '#c98a3a'],
+    earth: ['#8fd3ff', '#3a8ee6', '#1d4fa8'],
+    mars: ['#ffb08a', '#e0623a', '#9c3418'],
+    jupiter: ['#fbe7c6', '#e0b17f', '#a8713f'],
+    saturn: ['#fff3c4', '#ecd08a', '#b99347'],
+    uranus: ['#d8fbff', '#8de3ec', '#4aaebd'],
+    neptune: ['#9cc0ff', '#3f6fe0', '#21379c'],
+  };
+  const defs = $('defs');
+  defs.innerHTML = Object.entries(GRADIENTS).map(([id, [a, b, c]]) => `
+    <radialGradient id="g-${id}" cx="35%" cy="32%" r="75%">
+      <stop offset="0" stop-color="${a}"/><stop offset="0.55" stop-color="${b}"/><stop offset="1" stop-color="${c}"/>
+    </radialGradient>`).join('') + `
+    <radialGradient id="g-glow"><stop offset="0.45" stop-color="#ffd23f" stop-opacity="0.7"/><stop offset="1" stop-color="#ff8c1a" stop-opacity="0"/></radialGradient>
+    <clipPath id="unit"><circle r="1"/></clipPath>`;
+
+  const face = (blink, { glasses = false } = {}) => glasses ? `
+      <g fill="#2a2350"><rect x="-0.62" y="-0.32" width="0.5" height="0.3" rx="0.12"/><rect x="0.12" y="-0.32" width="0.5" height="0.3" rx="0.12"/></g>
+      <path d="M-0.12 -0.22 H0.12" stroke="#2a2350" stroke-width="0.07"/>
+      <path d="M-0.3 0.22 Q0 0.48 0.3 0.22" fill="none" stroke="#7a3a10" stroke-width="0.08" stroke-linecap="round"/>` : `
+      <g class="eye" style="--blink:${blink}s"><circle cx="-0.32" cy="-0.12" r="0.12" fill="#2a2350"/><circle cx="-0.28" cy="-0.16" r="0.04" fill="#fff"/></g>
+      <g class="eye" style="--blink:${blink}s"><circle cx="0.32" cy="-0.12" r="0.12" fill="#2a2350"/><circle cx="0.36" cy="-0.16" r="0.04" fill="#fff"/></g>
+      <ellipse cx="-0.52" cy="0.14" rx="0.13" ry="0.07" fill="#ff6f91" opacity="0.55"/>
+      <ellipse cx="0.52" cy="0.14" rx="0.13" ry="0.07" fill="#ff6f91" opacity="0.55"/>
+      <path d="M-0.2 0.16 Q0 0.36 0.2 0.16" fill="none" stroke="#2a2350" stroke-width="0.07" stroke-linecap="round"/>`;
+
+  const DETAILS = {
+    mercury: `<g fill="#5f5853" opacity="0.45"><circle cx="0.45" cy="0.5" r="0.18"/><circle cx="-0.55" cy="0.45" r="0.12"/><circle cx="0.1" cy="-0.6" r="0.14"/></g>`,
+    venus: `<g fill="none" stroke="#fff6d8" stroke-width="0.12" opacity="0.45"><path d="M-1 -0.4 Q-0.3 -0.6 0.2 -0.35 T1 -0.45"/><path d="M-1 0.55 Q-0.2 0.35 0.3 0.6 T1 0.5"/></g>`,
+    earth: `<g fill="#5ccf6b"><path d="M-0.9 -0.5 Q-0.6 -0.85 -0.2 -0.7 Q0 -0.45 -0.35 -0.35 Q-0.55 -0.1 -0.85 -0.15 Z"/><path d="M0.25 0.35 Q0.6 0.2 0.85 0.45 Q0.7 0.85 0.35 0.8 Q0.15 0.6 0.25 0.35 Z"/><path d="M0.45 -0.75 Q0.75 -0.6 0.7 -0.35 Q0.5 -0.4 0.45 -0.75 Z"/></g>
+           <g fill="#fff" opacity="0.7"><ellipse cx="-0.1" cy="0.62" rx="0.35" ry="0.07"/><ellipse cx="0.35" cy="-0.5" rx="0.25" ry="0.05"/></g>`,
+    mars: `<g fill="#9c3418" opacity="0.4"><ellipse cx="-0.4" cy="0.45" rx="0.3" ry="0.16"/><ellipse cx="0.5" cy="0.1" rx="0.2" ry="0.3"/></g><ellipse cx="0" cy="-0.95" rx="0.45" ry="0.16" fill="#fff"/>`,
+    jupiter: `<g fill="#b9784a" opacity="0.55"><rect x="-1" y="-0.62" width="2" height="0.14"/><rect x="-1" y="-0.32" width="2" height="0.1"/><rect x="-1" y="0.42" width="2" height="0.16"/><rect x="-1" y="0.7" width="2" height="0.1"/></g>
+             <ellipse cx="0.45" cy="0.5" rx="0.22" ry="0.12" fill="#d2452c"/>`,
+    saturn: `<g fill="#c9a050" opacity="0.5"><rect x="-1" y="-0.55" width="2" height="0.12"/><rect x="-1" y="0.45" width="2" height="0.14"/></g>`,
+    uranus: `<g fill="none" stroke="#fff" stroke-width="0.06" opacity="0.35"><path d="M-0.6 -0.9 Q-0.4 0 -0.6 0.9"/></g>`,
+    neptune: `<g fill="none" stroke="#c9dcff" stroke-width="0.09" opacity="0.5"><path d="M-0.9 -0.45 Q0 -0.6 0.9 -0.4"/><path d="M-0.7 0.6 Q0 0.5 0.8 0.65"/></g><ellipse cx="-0.35" cy="0.35" rx="0.2" ry="0.11" fill="#162a78"/>`,
+  };
+
+  // Rings sit partly behind the planet and partly in front of it.
+  const RING_BACK = {
+    saturn: `<path d="M-2.1 0 A2.1 0.55 0 0 1 2.1 0" fill="none" stroke="#e8d398" stroke-width="0.32" opacity="0.9"/>`,
+    uranus: `<path d="M0 -1.6 A0.35 1.6 0 0 1 0 1.6" fill="none" stroke="#bff3f8" stroke-width="0.08" opacity="0.7"/>`,
+  };
+  const RING_FRONT = {
+    saturn: `<path d="M2.1 0 A2.1 0.55 0 0 1 -2.1 0" fill="none" stroke="#f3e2ae" stroke-width="0.32"/>`,
+    uranus: `<path d="M0 1.6 A0.35 1.6 0 0 1 0 -1.6" fill="none" stroke="#bff3f8" stroke-width="0.08" opacity="0.9"/>`,
+  };
+
+  function bodyArt(body, { faces = true } = {}) {
+    if (body.id === 'sun') {
+      const rays = Array.from({ length: 12 }, (_, i) =>
+        `<path d="M-0.12 -1.18 L0 -1.5 L0.12 -1.18 Z" fill="#ffc93c" transform="rotate(${i * 30})"/>`).join('');
+      return `<circle r="1.9" fill="url(#g-glow)"/><g class="rays">${rays}</g>
+        <circle r="1" fill="url(#g-sun)"/>${faces ? face(0, { glasses: true }) : ''}`;
+    }
+    const blink = (body.period % 5).toFixed(1);
+    return `${RING_BACK[body.id] ?? ''}
+      <circle r="1" fill="url(#g-${body.id})"/>
+      <g clip-path="url(#unit)">${DETAILS[body.id]}</g>
+      ${faces ? face(blink) : ''}
+      ${RING_FRONT[body.id] ?? ''}`;
+  }
+
+  // --- stars ------------------------------------------------------------------
+  function drawStars() {
+    const sky = $('stars');
+    const { width, height } = sky.getBoundingClientRect();
+    const count = Math.round((width * height) / 3500);
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      const r = Math.random() < 0.15 ? 1.6 : Math.random() * 0.9 + 0.4;
+      html += `<circle cx="${(Math.random() * width).toFixed(1)}" cy="${(Math.random() * height).toFixed(1)}" r="${r.toFixed(2)}"
+        style="--t:${(2 + Math.random() * 3).toFixed(1)}s;--d:${(-Math.random() * 5).toFixed(1)}s"/>`;
+    }
+    const x = width * 0.85;
+    html += `<line class="shooting" x1="${x}" y1="30" x2="${x + 40}" y2="12"/>`;
+    sky.innerHTML = html;
+  }
+
+  // --- state --------------------------------------------------------------------
+  const params = new URLSearchParams(location.hash.slice(1));
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const state = {
+    view: params.get('view') === 'sizes' ? 'sizes' : 'orbits',
+    playing: !reducedMotion && !params.has('paused'),
+    speed: 45, // Earth days per second
+    days: 0,
+    selected: null,
+    phase: PLANETS.map((_, i) => (i * 2.39996) % (Math.PI * 2)), // golden-angle start spread
+  };
+
+  // --- orbits view ----------------------------------------------------------------
+  const world = $('world');
+  const scene = $('scene');
+  let layout = null;
+  const orbitNodes = new Map();
+  const bodyNodes = new Map();
+
+  function makeBody(body, parent, { label = true } = {}) {
+    const g = svg('g', {
+      class: 'body', tabindex: '0', role: 'button',
+      'aria-label': body.id === 'sun' ? 'The Sun' : `${body.name}, ${body.tag.toLowerCase()}`,
+      'data-id': body.id,
+    });
+    g.innerHTML = `<circle class="hit"/><circle class="halo"/><g class="art">${bodyArt(body)}</g>${label ? `<text class="name">${body.name}</text>` : ''}`;
+    g.addEventListener('click', () => select(body.id));
+    g.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        select(body.id);
+      }
+    });
+    parent.appendChild(g);
+    return g;
+  }
+
+  function computeLayout() {
+    const { width: W, height: H } = scene.getBoundingClientRect();
+    const sunR = Math.max(16, Math.min(H * 0.11, W * 0.06, 42));
+    const maxRx = W / 2 - 18;
+    const maxRy = H / 2 - 22;
+    const tilt = Math.min(0.75, maxRy / maxRx);
+    // The innermost orbit must clear the Sun even after the tilt squashes it.
+    const inner = Math.max(sunR * 1.5, (sunR + 12) / tilt);
+    const radii = PLANETS.map((_, i) => inner + (maxRx - inner) * Math.pow(i / (PLANETS.length - 1), 0.92));
+    const scale = Math.max(0.65, Math.min(1.25, Math.min(W, H * 1.8) / 760));
+    const sizes = { mercury: 5, venus: 8, earth: 8.5, mars: 6.5, jupiter: 17, saturn: 13, uranus: 10, neptune: 10 };
+    return { W, H, cx: W / 2, cy: H / 2 + 6, sunR, tilt, radii, size: id => sizes[id] * scale };
+  }
+
+  function buildWorld() {
+    const next = computeLayout();
+    // A frame that is not laid out yet (a slide waiting off-screen) has no
+    // size to fit; the ResizeObserver builds the scene once it does.
+    if (next.W < 120 || next.H < 120) return;
+    layout = next;
+    world.innerHTML = '';
+    orbitNodes.clear();
+    bodyNodes.clear();
+    PLANETS.forEach((planet, i) => {
+      const rx = layout.radii[i];
+      const orbit = svg('ellipse', { class: 'orbit', cx: layout.cx, cy: layout.cy, rx, ry: rx * layout.tilt });
+      world.appendChild(orbit);
+      orbitNodes.set(planet.id, orbit);
+    });
+    const sun = makeBody(SUN, world, { label: false });
+    sun.setAttribute('transform', `translate(${layout.cx} ${layout.cy})`);
+    sun.querySelector('.art').setAttribute('transform', `scale(${layout.sunR})`);
+    sun.querySelector('.hit').setAttribute('r', layout.sunR * 1.3);
+    sun.querySelector('.halo').setAttribute('r', layout.sunR * 1.25);
+    bodyNodes.set('sun', sun);
+    PLANETS.forEach(planet => {
+      const r = layout.size(planet.id);
+      const node = makeBody(planet, world);
+      node.querySelector('.art').setAttribute('transform', `scale(${r})`);
+      node.querySelector('.hit').setAttribute('r', Math.max(r * 1.6, 14));
+      node.querySelector('.halo').setAttribute('r', r * (planet.id === 'saturn' ? 2.3 : 1.45));
+      const name = node.querySelector('.name');
+      name.setAttribute('y', r * (planet.id === 'uranus' ? 1.7 : 1) + 13);
+      bodyNodes.set(planet.id, node);
+    });
+    markSelected();
+    placePlanets();
+    shiftForCard();
+  }
+
+  function placePlanets() {
+    if (!layout) return;
+    PLANETS.forEach((planet, i) => {
+      const node = bodyNodes.get(planet.id);
+      if (!node) return;
+      const angle = state.phase[i] + (2 * Math.PI * state.days) / planet.period;
+      const rx = layout.radii[i];
+      const x = layout.cx + Math.cos(angle) * rx;
+      const y = layout.cy + Math.sin(angle) * rx * layout.tilt;
+      // Planets on the near side of the orbit look a little bigger.
+      const depth = 1 + 0.12 * Math.sin(angle);
+      node.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${depth.toFixed(3)})`);
+    });
+  }
+
+  // --- sizes view: true to scale --------------------------------------------------
+  const lineup = $('lineup');
+  function buildLineup() {
+    const { width: W, height: H } = scene.getBoundingClientRect();
+    if (W < 120 || H < 120) return;
+    lineup.innerHTML = '';
+    const gap = Math.max(6, W * 0.014);
+    const sunEdge = Math.max(26, W * 0.06);
+    // Width each planet needs, in Earth diameters (Saturn's rings are wide).
+    const span = p => p.size * (p.id === 'saturn' ? 2.2 : 1);
+    const total = PLANETS.reduce((sum, p) => sum + span(p), 0);
+    const earthD = Math.min((W - sunEdge - gap * (PLANETS.length + 2)) / total, (H - 90) / 11.2);
+    const cy = H / 2 - 6;
+
+    // The Sun is far too big to fit: only the edge of it peeks in.
+    const sunR = (earthD * SUN.size) / 2;
+    const sun = makeBody(SUN, lineup, { label: false });
+    sun.setAttribute('transform', `translate(${sunEdge - sunR} ${cy})`);
+    sun.querySelector('.art').innerHTML = `<circle r="1" fill="url(#g-sun)"/>`;
+    sun.querySelector('.art').setAttribute('transform', `scale(${sunR})`);
+    sun.querySelector('.hit').setAttribute('r', sunR);
+    sun.querySelector('.halo').setAttribute('r', sunR + 4);
+
+    let x = sunEdge + gap;
+    PLANETS.forEach((planet, i) => {
+      const w = span(planet) * earthD;
+      const r = (planet.size * earthD) / 2;
+      const node = makeBody(planet, lineup);
+      node.setAttribute('transform', `translate(${(x + w / 2).toFixed(1)} ${cy})`);
+      const art = node.querySelector('.art');
+      if (r < 6) art.innerHTML = bodyArt(planet, { faces: false });
+      art.setAttribute('transform', `scale(${r})`);
+      art.classList.add('pop');
+      art.style.setProperty('--delay', `${i * 0.07}s`);
+      node.querySelector('.hit').setAttribute('r', Math.max(r * 1.2, 12));
+      node.querySelector('.halo').setAttribute('r', Math.max(r * 1.25, 8));
+      const name = node.querySelector('.name');
+      if (r < 12 || planet.name.length * 6.5 > w + gap) {
+        // Small or crowded planets: their names lean up and away.
+        name.setAttribute('transform', `translate(0 ${-Math.max(r, 3) - 6}) rotate(-62)`);
+        name.setAttribute('text-anchor', 'start');
+        name.style.textAnchor = 'start';
+      } else {
+        name.setAttribute('y', r + 14);
+      }
+      x += w + gap;
+    });
+    const caption = svg('text', { class: 'caption', x: W / 2, y: 18 });
+    caption.textContent = earthD < 4
+      ? 'Real sizes! Earth is the tiny blue dot.'
+      : 'Real sizes! The giant on the left is just the edge of the Sun.';
+    lineup.appendChild(caption);
+    markSelected();
+  }
+
+  // --- the card ------------------------------------------------------------------------
+  const card = $('card');
+
+  function compareSvg(body) {
+    const box = $('card-compare');
+    const W = box.getBoundingClientRect().width || 260;
+    const H = box.getBoundingClientRect().height || 70;
+    const maxR = H / 2 - 9;
+    let html;
+    if (body.id === 'sun') {
+      const earthR = 2;
+      html = `<circle cx="${W * 0.3}" cy="${H * 2.6}" r="${H * 2.3}" fill="url(#g-sun)"/>
+        <text x="${W * 0.3}" y="${H - 6}" style="fill:#7a3a10">Sun</text>
+        <circle cx="${W - 34}" cy="${H * 0.55}" r="${earthR}" fill="url(#g-earth)"/>
+        <text x="${W - 34}" y="${H * 0.55 + 16}">Earth</text>`;
+    } else {
+      const ratio = body.size;
+      const big = Math.max(ratio, 1);
+      const earthR = (maxR / big);
+      const bodyR = earthR * ratio;
+      html = `<circle cx="${W * 0.32}" cy="${H / 2 - 6}" r="${Math.max(earthR, 1.5)}" fill="url(#g-earth)"/>
+        <text x="${W * 0.32}" y="${H - 2}">Earth</text>
+        <circle cx="${W * 0.68}" cy="${H / 2 - 6}" r="${Math.max(bodyR, 1.5)}" fill="url(#g-${body.id})"/>
+        <text x="${W * 0.68}" y="${H - 2}">${body.name}</text>`;
+    }
+    // url(#g-…) reaches the gradients in the scene's <defs>: same document.
+    box.innerHTML = html;
+  }
+
+  function sizeWords(body) {
+    if (body.id === 'sun') return '109 Earths wide';
+    if (body.id === 'earth') return 'Just right!';
+    return body.size > 1 ? `${fmt(body.size)}× wider than Earth` : `${Math.round(body.size * 100)}% of Earth`;
+  }
+
+  function fillCard(body) {
+    const art = $('card-art');
+    const reach = body.id === 'saturn' || body.id === 'uranus' ? 2.3 : body.id === 'sun' ? 1.95 : 1.25;
+    art.setAttribute('viewBox', `${-reach} ${-reach} ${reach * 2} ${reach * 2}`);
+    art.innerHTML = bodyArt(body);
+    $('card-name').textContent = body.name;
+    $('card-tag').textContent = body.tag;
+    const facts = body.id === 'sun' ? [...SUN.facts] : [
+      ['🗓️ One year', body.period < 1000 ? `${fmt(body.period)} days` : `${fmt(body.period / 365.25)} Earth years`],
+      ['📏 Size', sizeWords(body)],
+      ['🌡️ Temperature', body.temp],
+      ['🌙 Moons', body.moons],
+    ];
+    facts.push(['⚖️ A 30 kg kid would weigh', `${fmt(KID_KG * body.gravity)} kg here`]);
+    $('card-facts').innerHTML = facts
+      .map(([k, v], i) => `<div class="fact${i === 4 ? ' wide' : ''}">${k}<b>${v}</b></div>`).join('');
+    $('card-fun').textContent = body.fun;
+    compareSvg(body);
+  }
+
+  function select(id) {
+    state.selected = id;
+    const body = BODIES.find(b => b.id === id);
+    fillCard(body);
+    card.classList.add('open');
+    card.setAttribute('aria-hidden', 'false');
+    $('hint').classList.add('gone');
+    markSelected();
+    shiftForCard();
+  }
+
+  function closeCard() {
+    state.selected = null;
+    card.classList.remove('open');
+    card.setAttribute('aria-hidden', 'true');
+    markSelected();
+    shiftForCard();
+  }
+
+  function step(delta) {
+    const index = BODIES.findIndex(b => b.id === state.selected);
+    const next = BODIES[(index + delta + BODIES.length) % BODIES.length];
+    select(next.id);
+    const node = scene.querySelector(`.view:not(.hidden) .body[data-id="${next.id}"]`);
+    if (document.activeElement?.closest?.('.body')) node?.focus();
+  }
+
+  function markSelected() {
+    for (const node of scene.querySelectorAll('.body')) node.classList.toggle('selected', node.dataset.id === state.selected);
+    for (const [id, orbit] of orbitNodes) orbit.classList.toggle('active', id === state.selected);
+  }
+
+  // On wide frames the card covers the right edge: slide the orbits left.
+  function shiftForCard() {
+    if (!layout) return;
+    const wide = layout.W > 600;
+    const open = state.selected !== null && wide;
+    const free = layout.W - 306;
+    const k = open ? Math.min(1, free / layout.W + 0.08) : 1;
+    world.style.transform = open
+      ? `translate(${(free / 2 - layout.cx * k).toFixed(1)}px, ${(layout.cy * (1 - k)).toFixed(1)}px) scale(${k.toFixed(3)})`
+      : 'none';
+  }
+
+  // --- controls ------------------------------------------------------------------------
+  function setView(view) {
+    state.view = view;
+    for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    world.classList.toggle('hidden', view !== 'orbits');
+    lineup.classList.toggle('hidden', view !== 'sizes');
+    if (view === 'sizes') buildLineup();
+    $('counter').style.visibility = view === 'orbits' ? 'visible' : 'hidden';
+  }
+
+  function setPlaying(playing) {
+    state.playing = playing;
+    const play = $('play');
+    play.innerHTML = playing
+      ? '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" fill="currentColor"/><rect x="7" y="1" width="3" height="10" rx="1" fill="currentColor"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" fill="currentColor"/></svg>';
+    play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  }
+
+  function setSpeed(speed) {
+    state.speed = speed;
+    for (const b of document.querySelectorAll('[data-speed]')) b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === speed));
+    if (!state.playing) setPlaying(true);
+  }
+
+  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => setView(b.dataset.view));
+  for (const b of document.querySelectorAll('[data-speed]')) b.addEventListener('click', () => setSpeed(Number(b.dataset.speed)));
+  $('play').addEventListener('click', () => setPlaying(!state.playing));
+  $('card-close').addEventListener('click', closeCard);
+  $('card-prev').addEventListener('click', () => step(-1));
+  $('card-next').addEventListener('click', () => step(1));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && state.selected) closeCard();
+    else if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && state.selected) step(event.key === 'ArrowRight' ? 1 : -1);
+    else if (event.key === 'p' || event.key === 'P') setPlaying(!state.playing);
+  });
+
+  function updateCounter() {
+    const year = Math.floor(state.days / 365.25) + 1;
+    const day = Math.floor(state.days % 365.25) + 1;
+    $('counter').textContent = `🌍 Earth year ${year} · day ${day}`;
+  }
+
+  // --- theme: follow the page that embeds us, else the system ---------------------------
+  const systemDark = matchMedia('(prefers-color-scheme: dark)');
+  let themeFromParent = false;
+  const applyTheme = theme => { document.documentElement.dataset.theme = theme; };
+  applyTheme(systemDark.matches ? 'dark' : 'light');
+  systemDark.addEventListener('change', e => { if (!themeFromParent) applyTheme(e.matches ? 'dark' : 'light'); });
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (event.source === window.parent && data && data.type === 'teaman:theme' && (data.theme === 'dark' || data.theme === 'light')) {
+      themeFromParent = true;
+      applyTheme(data.theme);
+    }
+  });
+  if (window.parent !== window) window.parent.postMessage({ type: 'teaman:ready' }, '*');
+
+  // --- go! --------------------------------------------------------------------------------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    if (state.playing && state.view === 'orbits') {
+      state.days += dt * state.speed;
+      placePlanets();
+      updateCounter();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  let resizeTimer;
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      drawStars();
+      buildWorld();
+      if (state.view === 'sizes') buildLineup();
+    }, 60);
+  }).observe(scene);
+
+  drawStars();
+  buildWorld();
+  setPlaying(state.playing);
+  setView(state.view);
+  updateCounter();
+  const start = params.get('planet');
+  if (start && BODIES.some(b => b.id === start)) select(start);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

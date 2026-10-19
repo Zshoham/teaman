@@ -8,3 +8,4 @@ tags: [teaman, guide]
 - [Adding Notes](./adding-notes.md)
 - [Creating Slides](./creating-slides.md)
 - [Writing Guides](./writing-guides.md)
+- [Embedding Interactive HTML](./embedding-html.md)

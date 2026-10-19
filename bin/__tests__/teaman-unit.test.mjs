@@ -589,6 +589,17 @@ describe('lintContent', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('accepts HTML embeds the vault has, in pages and decks, and fails missing ones', async () => {
+    write('attachments/viz.html', '<!doctype html>');
+    write('notes/a.md', '![[viz.html]] ![[viz.html#view=sizes|400]] ![[gone.html]]\n');
+    write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toEqual([
+      'notes: a.md embeds missing HTML file ![[gone.html]]',
+      'slides: deck.md embeds missing HTML file ![[lost.html]]',
+    ]);
+  });
+
   it('warns that slug has no effect where the path carries meaning', async () => {
     write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nslug: x\n---\n');
     write('notes/n.md', '---\nslug: fine\n---\n');

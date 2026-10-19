@@ -96,3 +96,9 @@ npm run build:slides
 ```
 
 Commit. Push. Done.
+
+---
+
+# Interactive Embeds
+
+![[solar-system.html|380]]

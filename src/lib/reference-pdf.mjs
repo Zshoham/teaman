@@ -7,6 +7,7 @@ import {
   compileDiagramFences,
   diagramKey,
   fenceLanguage,
+  isHtmlEmbed,
   isImageEmbed,
   obsidianDialect,
 } from './obsidian-markdown.mjs';
@@ -222,6 +223,11 @@ function renderInline(tokens, context) {
         break;
       case 'wiki_link': {
         const { target, label, embed } = token.meta;
+        if (embed && isHtmlEmbed(target)) {
+          // A PDF cannot run the page; leave a labelled box where it sits.
+          out += `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Interactive embed: ${label === target ? target : label} — open the online version to use it`)}]`;
+          break;
+        }
         if (embed && !isImageEmbed(target)) {
           throw new Error(`${context.sourcePath ?? 'reference'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
         }

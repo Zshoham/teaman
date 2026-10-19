@@ -755,6 +755,23 @@ body {
 .prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
 .prose figure.content-figure > svg.content-svg { margin: 0 auto; }
 
+/* `![[viz.html]]` frames (src/lib/html-embeds.mjs). The embed paints its own
+   content, so the page only frames it: full column width unless the author
+   capped it, a quiet border, and the theme radius. The height comes from the
+   iframe's own attribute, or from src/scripts/html-embeds.ts once the embed
+   reports its content height. */
+.prose .html-embed { display: block; margin: 1.5rem 0; }
+.prose .html-embed iframe {
+  display: block;
+  width: 100%;
+  margin-inline: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.prose .html-embed iframe[width] { width: auto; max-width: 100%; }
+.prose figure.html-embed > figcaption { text-align: center; }
+
 /* Mermaid (src/scripts/mermaid.ts) and PlantUML (src/scripts/plantuml.ts)
    diagrams both render client-side into these blocks, so they share the same
    chrome: drop the code-block styling and center the SVG; hide the raw

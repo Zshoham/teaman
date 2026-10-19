@@ -13,13 +13,15 @@
  *
  * `remarkWikiEmbeds` handles `![[embed]]`, which the parser leaves as text. An
  * image embed becomes an ordinary image of the attachment Obsidian would find
- * (so remark-inline-svg and Astro's image pipeline treat it like any other); a
- * note embed fails the build — the site does not transclude notes.
+ * (so remark-inline-svg and Astro's image pipeline treat it like any other); an
+ * `.html` embed becomes a sandboxed frame (see `html-embeds.mjs`); a note
+ * embed fails the build — the site does not transclude notes.
  */
 import { dirname, relative } from 'path';
 import { cachedVaultIndex } from './vault-index.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
-import { isImageEmbed } from './obsidian-markdown.mjs';
+import { isHtmlEmbed, isImageEmbed } from './obsidian-markdown.mjs';
+import { htmlEmbedElement, htmlEmbedHref } from './html-embeds.mjs';
 
 const indexes = new Map();
 
@@ -97,6 +99,29 @@ function embedImage(target, label, file, node, vaultDir, base) {
   };
 }
 
+/**
+ * `![[page.html|label]]` as an mdast node carrying its frame's hast. It starts
+ * inline; `remarkWikiEmbeds` promotes it to a figure when it is alone in its
+ * paragraph.
+ */
+function embedHtml(target, label, file, node, vaultDir, base) {
+  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, file?.path);
+  if (!found) fail(file, `![[${target}]]: no HTML file named “${target}” in the vault`, node);
+  const relPath = relative(vaultDir, found).split('\\').join('/');
+  // `![[viz.html#planet=mars]]`: a query or fragment rides along to the embed.
+  const cut = target.search(/[?#]/);
+  const embed = { src: htmlEmbedHref(base, relPath) + (cut === -1 ? '' : target.slice(cut)), file: found, label };
+  return { type: 'htmlEmbed', embed, data: hastData(htmlEmbedElement(embed)) };
+}
+
+const hastData = element => ({
+  hName: element.tagName,
+  hProperties: element.properties,
+  hChildren: element.children,
+});
+
+const isBlank = node => node.type === 'text' && node.value.trim() === '';
+
 /** @param {{ vaultDir: string, base: string }} options */
 export function remarkWikiEmbeds({ vaultDir, base }) {
   return (tree, file) => {
@@ -115,11 +140,14 @@ export function remarkWikiEmbeds({ vaultDir, base }) {
           const pipe = inner.indexOf('|');
           const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim();
           const label = pipe === -1 ? undefined : inner.slice(pipe + 1).trim();
-          if (!isImageEmbed(target)) {
+          const html = isHtmlEmbed(target);
+          if (!html && !isImageEmbed(target)) {
             fail(file, `![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`, node);
           }
           if (match.index > last) out.push({ type: 'text', value: node.value.slice(last, match.index) });
-          out.push(embedImage(target, label, file, node, vaultDir, base));
+          out.push(html
+            ? embedHtml(target, label, file, node, vaultDir, base)
+            : embedImage(target, label, file, node, vaultDir, base));
           last = match.index + whole.length;
         }
         if (last < node.value.length) out.push({ type: 'text', value: node.value.slice(last) });
@@ -127,5 +155,14 @@ export function remarkWikiEmbeds({ vaultDir, base }) {
       });
     };
     visit(tree);
+
+    // A paragraph that is exactly one HTML embed is a block figure.
+    replaceChildren(tree, node => {
+      if (node.type !== 'paragraph') return undefined;
+      const content = node.children.filter(child => !isBlank(child));
+      if (content.length !== 1 || content[0].type !== 'htmlEmbed') return null;
+      const { embed } = content[0];
+      return { type: 'htmlEmbed', embed, data: hastData(htmlEmbedElement({ ...embed, block: true })) };
+    });
   };
 }
