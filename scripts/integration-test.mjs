@@ -90,6 +90,12 @@ try {
   if (missing.length) {
     throw new Error(`missing build artifacts:\n  ${missing.join('\n  ')}`);
   }
+  // Engine inputs under resources/ are not site content.
+  const leaked = ['slidev-theme-teaman', 'typst-packages', 'reference-template.typ']
+    .filter((rel) => existsSync(join(dist, rel)));
+  if (leaked.length) {
+    throw new Error(`engine resources leaked into the build:\n  ${leaked.join('\n  ')}`);
+  }
 
   // The generator meta proves the page came from the *installed* engine at the
   // version we just packed — not a stale in-repo build.

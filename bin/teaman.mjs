@@ -18,7 +18,7 @@ import { tmpdir } from 'os';
 import semver from 'semver';
 import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
-import { checkVaultConfig, resolveLogoFile } from '../src/lib/vault-config.mjs';
+import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
 import matter from 'gray-matter';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
@@ -146,14 +146,14 @@ async function openVault(vaultArg, opts = {}, { check = true } = {}) {
   return { vault, config, path, base: opts.base ?? config.base ?? '/' };
 }
 
-// Stage static assets into a dir handed to Astro as publicDir: engine defaults
-// (teacup fallback) + optional vault/public + the configured logo (rewritten to
-// a bare filename so the site references it by name under `base`).
-// Returns the staged dir and the config the build should see: the logo is
-// found wherever `resolveLogoFile` finds it and served from the site root.
-function stageStatic(vault, config, stageDir) {
+// Stage static assets into a dir handed to Astro as publicDir: the engine's
+// public assets (teacup fallback) + optional vault/public + the configured logo
+// (rewritten to a bare filename so the site references it by name under
+// `base`). Returns the staged dir and the config the build should see: the logo
+// is found wherever `resolveLogoFile` finds it and served from the site root.
+export function stageStatic(vault, config, stageDir) {
   mkdirSync(stageDir, { recursive: true });
-  cpSync(join(engineDir, 'resources'), stageDir, { recursive: true });
+  cpSync(enginePublicDir(engineDir), stageDir, { recursive: true });
 
   const vaultStatic = join(vault, 'public');
   if (existsSync(vaultStatic)) cpSync(vaultStatic, stageDir, { recursive: true });

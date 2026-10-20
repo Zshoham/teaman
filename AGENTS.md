@@ -119,6 +119,12 @@ never hardcode a path:
 The one exception is `TEAMAN_SLIDES_WORK` (Slidev work dir), read directly by
 `scripts/build-slides.mjs`, which falls back to `<engine>/.slides-build/`.
 
+The staged static dir is the engine's `resources/public/` (the default
+`teacup.svg` logo) plus the vault's `public/`, and with no CLI it is
+`resources/public/` alone (`enginePublicDir`). Everything else under
+`resources/` — the Slidev theme, the Typst template and packages — is engine
+input and must never be served; keep site assets in `resources/public/`.
+
 Consequences when changing things:
 - `build-env.mjs` resolves at module load, so a test that needs a different vault
   must set the env and then `vi.resetModules()` — see `build-env.test.mjs`.

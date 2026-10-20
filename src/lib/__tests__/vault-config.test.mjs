@@ -45,7 +45,7 @@ describe('resolveLogoFile', () => {
   it('looks in the vault root, then public/, then the engine resources', () => {
     expect(resolveLogoFile('logo.svg', dirs(['/vault/logo.svg', '/vault/public/logo.svg']))).toBe('/vault/logo.svg');
     expect(resolveLogoFile('logo.svg', dirs(['/vault/public/logo.svg']))).toBe('/vault/public/logo.svg');
-    expect(resolveLogoFile('teacup.svg', dirs(['/engine/resources/teacup.svg']))).toBe('/engine/resources/teacup.svg');
+    expect(resolveLogoFile('teacup.svg', dirs(['/engine/resources/public/teacup.svg']))).toBe('/engine/resources/public/teacup.svg');
   });
 
   it('honours an absolute path only when it exists, and nothing for no logo', () => {
