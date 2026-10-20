@@ -12,14 +12,14 @@ import {
   mkdtempSync, renameSync, symlinkSync,
 } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { resolve, join, dirname, basename, isAbsolute, parse, relative, sep } from 'path';
+import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'path';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
-import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
+import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { lintVault } from '../src/lib/vault-lint.mjs';
-import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
+import { isInside } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
 const engineDir = fileURLToPath(new URL('..', import.meta.url));
