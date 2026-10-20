@@ -82,4 +82,34 @@ describe('buildReferences', () => {
     await expect(build(vault, createCompiler)).rejects.toThrow('book/SUMMARY.md points at missing chapter gone.md');
     expect(compiled).toEqual([]);
   });
+
+  // The wiki-link index reads every type, decks included; `teaman dev` runs
+  // this stage on every start.
+  it('reads nothing past the references when none is published', async () => {
+    const { vault, write } = setup();
+    write('references/draft.md', '---\ndraft: true\n---\n# Draft\n');
+    write('notes/n.md', '# N\n');
+    write('slides/deck.md', '# Deck\n');
+    const catalog = openVaultCatalog(vault);
+    const asked = new Set();
+    const watched = {
+      ...catalog,
+      all: type => (asked.add(type), catalog.all(type)),
+      published: type => (asked.add(type), catalog.published(type)),
+      files: type => (asked.add(type), catalog.files(type)),
+    };
+    const { compiled, createCompiler } = fakeCompiler();
+
+    expect(await buildReferences({
+      catalog: watched,
+      outDir: join(scratch, 'out'),
+      template: '// template',
+      diagramCacheDir: join(scratch, 'diagrams'),
+      pdfCacheDir: join(scratch, 'pdfs'),
+      createCompiler,
+      log: () => {},
+    })).toEqual({ rendered: [], reused: [] });
+    expect([...asked]).toEqual(['reference']);
+    expect(compiled).toEqual([]);
+  });
 });
