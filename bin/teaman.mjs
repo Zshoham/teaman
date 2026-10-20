@@ -22,7 +22,7 @@ import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/v
 import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
 import matter from 'gray-matter';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
-import { bookProblems } from '../src/lib/reference-documents.mjs';
+import { bookProblems } from '../src/lib/books.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
 import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';

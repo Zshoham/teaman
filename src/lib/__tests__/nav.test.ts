@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
+// Guides come from the vault catalog, not a collection.
+vi.mock('../guides', () => ({ listGuides: vi.fn() }));
 
 import { getCollection } from 'astro:content';
+import { listGuides } from '../guides';
 import { isSectionActive, loadNavSections, type NavSection } from '../nav';
 
 const mockGetCollection = vi.mocked(getCollection);
@@ -11,7 +14,7 @@ interface Fixture {
   notes?: { id: string; draft?: boolean }[];
   references?: { id: string; draft?: boolean }[];
   slides?: { id: string; draft?: boolean }[];
-  /** Guide slugs; each becomes a `guideSummaries` entry with one chapter. */
+  /** Guide slugs; each becomes a published guide with one chapter. */
   guides?: string[];
   /** ISO dates for daily notes. */
   dailies?: string[];
@@ -19,6 +22,12 @@ interface Fixture {
 }
 
 function stubCollections(fixture: Fixture) {
+  vi.mocked(listGuides).mockResolvedValue((fixture.guides ?? []).map(slug => ({
+    slug,
+    title: slug,
+    chapters: [{ slug: 'intro', title: 'Intro' }],
+    problems: [],
+  })));
   mockGetCollection.mockImplementation(((name: string) => {
     switch (name) {
       case 'notes':
@@ -32,13 +41,6 @@ function stubCollections(fixture: Fixture) {
       case 'slides':
         return Promise.resolve(
           (fixture.slides ?? []).map(s => ({ id: s.id, data: { draft: s.draft ?? false } })),
-        );
-      case 'guideSummaries':
-        return Promise.resolve(
-          (fixture.guides ?? []).map(slug => ({
-            id: `${slug}/summary`,
-            body: `# ${slug}\n\n- [Intro](./intro.md)\n`,
-          })),
         );
       case 'dailies':
         return Promise.resolve(

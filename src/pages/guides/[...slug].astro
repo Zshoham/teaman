@@ -12,6 +12,10 @@ import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
 export async function getStaticPaths() {
   const guides = await listGuides();
+  // A SUMMARY.md listing a chapter the guide cannot serve fails the build, as
+  // a broken reference book does and as `doctor` reports.
+  const problems = guides.flatMap(guide => guide.problems.map(problem => `guides: ${problem}`));
+  if (problems.length > 0) throw new Error(problems.join('\n'));
   const paths: Array<{
     params: { slug: string };
     props: { guideSlug: string; chapterSlug: string };

@@ -1,4 +1,5 @@
-import { bookProblems, discoverReferenceDocuments } from './reference-documents.mjs';
+import { bookProblems } from './books.mjs';
+import { discoverReferenceDocuments } from './reference-documents.mjs';
 import { vaultLoader } from './vault-loader.mjs';
 
 /** Astro content loader that exposes one rendered entry per reference book. */

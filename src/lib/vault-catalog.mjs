@@ -1,13 +1,14 @@
-import { existsSync, readFileSync, statSync } from 'fs';
-import { basename, dirname, join, relative, resolve, sep } from 'path';
+import { readFileSync } from 'fs';
+import { dirname, join, relative, resolve, sep } from 'path';
 import matter from 'gray-matter';
 import { collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
 import { entryId } from './entry-identity.mjs';
-import { isInside, walkMarkdown } from './fs-walk.mjs';
+import { walkMarkdown } from './fs-walk.mjs';
 import { isPublished } from './publication.mjs';
-import { discoverReferenceDocuments, parseReferenceSummary } from './reference-documents.mjs';
+import { discoverReferenceDocuments } from './reference-documents.mjs';
+import { isSummaryFile, readBook } from './books.mjs';
 
 /**
  * The vault catalog: every entry a vault holds, discovered once per type, with
@@ -69,36 +70,31 @@ function frontmatterOf(path) {
 }
 
 /**
- * Every guide under `guidesRoot`: one per SUMMARY.md, with the chapters it
- * lists in order. A listed chapter that is missing, or outside the guide's
- * directory, is reported in `missing` / `invalid` instead — the site cannot
- * serve it, so `doctor` fails it.
+ * Every guide under `guidesRoot`: one per SUMMARY.md, read as a book
+ * (`books.mjs`) — its chapters in order, plus the listed ones the site cannot
+ * serve in `missing` / `invalid`.
  *
  * @param {string} guidesRoot
  */
 function discoverGuides(guidesRoot) {
-  const summaries = walkMarkdown(guidesRoot).filter(path => basename(path).toLowerCase() === 'summary.md');
-  return summaries.map(summaryPath => {
+  return walkMarkdown(guidesRoot).filter(isSummaryFile).map(summaryPath => {
     const record = readEntryFile('guide', guidesRoot, summaryPath);
-    const dir = dirname(summaryPath);
-    const chapters = [];
-    const missing = [];
-    const invalid = [];
-    for (const { path, title } of parseReferenceSummary(record.body, { rootRelative: true })) {
-      const sourcePath = resolve(dir, path);
-      if (!isInside(dir, sourcePath)) invalid.push(path);
-      else if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) missing.push(path);
-      else {
-        chapters.push({
-          path,
-          title,
-          sourcePath,
-          relPath: posix(relative(guidesRoot, sourcePath)),
-          data: frontmatterOf(sourcePath),
-        });
-      }
-    }
-    return { ...record, id: record.id.replace(/\/summary$/, ''), dir, chapters, missing, invalid };
+    const id = record.id.replace(/\/summary$/, '');
+    if (record.error) return { ...record, id, dir: dirname(summaryPath), chapters: [], missing: [], invalid: [] };
+    // Guides have always accepted `/chapter.md` for a chapter in their folder.
+    const { dir, chapters, missing, invalid } = readBook(summaryPath, { rootRelative: true });
+    return {
+      ...record,
+      id,
+      dir,
+      chapters: chapters.map(chapter => ({
+        ...chapter,
+        relPath: posix(relative(guidesRoot, chapter.sourcePath)),
+        data: frontmatterOf(chapter.sourcePath),
+      })),
+      missing,
+      invalid,
+    };
   });
 }
 
