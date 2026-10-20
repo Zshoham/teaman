@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { isInside, walkMarkdown } from '../fs-walk.mjs';
+import { isAttachmentPath, isInside, walkMarkdown } from '../fs-walk.mjs';
 
 describe('isInside', () => {
   it('is true for a descendant and for the root itself', () => {
@@ -84,5 +84,15 @@ describe('walkMarkdown', () => {
     write('_partials/x.md');
     write('keep.md');
     expect(found({ skipUnderscore: true })).toEqual(['keep.md']);
+  });
+});
+
+describe('isAttachmentPath', () => {
+  it('excludes dotted entries and build output at any depth', () => {
+    expect(isAttachmentPath('attachments/viz.html')).toBe(true);
+    expect(isAttachmentPath('notes/distant/x.png')).toBe(true);
+    for (const path of ['.obsidian/x.html', 'a/.git/x', 'dist/x.html', 'a/node_modules/b.png', 'a\\dist\\x.png']) {
+      expect(isAttachmentPath(path), path).toBe(false);
+    }
   });
 });

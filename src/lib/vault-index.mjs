@@ -10,6 +10,7 @@ import {
   guideChapterHref,
   guideHref,
 } from './entry-identity.mjs';
+import { isAttachmentPath } from './fs-walk.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 
 /**
@@ -111,16 +112,12 @@ function decisionEntries(catalog, base) {
   }));
 }
 
-// Directories that hold no vault attachments: tooling state and build output
-// (a vault built in place writes `dist/`, full of copies of its own images).
-const NOT_ATTACHMENTS = new Set(['node_modules', 'dist']);
-
 /** Every non-Markdown file in the vault, as `{ path, sourcePath }`. */
 function attachmentFiles(vaultDir) {
   const files = [];
   const walk = dir => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name.startsWith('.') || NOT_ATTACHMENTS.has(entry.name)) continue;
+      if (!isAttachmentPath(entry.name)) continue;
       const sourcePath = join(dir, entry.name);
       if (entry.isDirectory()) walk(sourcePath);
       else if (entry.isFile() && !/\.md$/i.test(entry.name)) {

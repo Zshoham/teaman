@@ -20,8 +20,8 @@
 import { dirname, relative } from 'path';
 import { cachedVaultIndex } from './vault-index.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
-import { isHtmlEmbed, isImageEmbed } from './obsidian-markdown.mjs';
-import { htmlEmbedElement, htmlEmbedHref } from './html-embeds.mjs';
+import { isImageEmbed } from './obsidian-markdown.mjs';
+import { htmlEmbedElement, htmlEmbedHref, isHtmlEmbed, parseHtmlEmbed } from './html-embeds.mjs';
 
 const indexes = new Map();
 
@@ -109,8 +109,7 @@ function embedHtml(target, label, file, node, vaultDir, base) {
   if (!found) fail(file, `![[${target}]]: no HTML file named “${target}” in the vault`, node);
   const relPath = relative(vaultDir, found).split('\\').join('/');
   // `![[viz.html#planet=mars]]`: a query or fragment rides along to the embed.
-  const cut = target.search(/[?#]/);
-  const embed = { src: htmlEmbedHref(base, relPath) + (cut === -1 ? '' : target.slice(cut)), file: found, label };
+  const embed = { src: htmlEmbedHref(base, relPath) + parseHtmlEmbed(target).suffix, target, label };
   return { type: 'htmlEmbed', embed, data: hastData(htmlEmbedElement(embed)) };
 }
 
