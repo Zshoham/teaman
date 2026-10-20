@@ -28,6 +28,12 @@ describe('lintVault', () => {
     expect(problems).toEqual(['guides: g/SUMMARY.md points at missing chapter gone.md']);
   });
 
+  it('lets a drafted guide list chapters not yet written, as the build does', () => {
+    write('guides/g/SUMMARY.md', '---\ndraft: true\n---\n# G\n\n- [Here](here.md)\n- [Later](later.md)\n');
+    write('guides/g/here.md', '# Here\n');
+    expect(lintVault(vault).problems).toEqual([]);
+  });
+
   it('requires a date on every daily', () => {
     write('dailies/2026-05-04.md', '# no frontmatter\n');
     const { problems } = lintVault(vault);
@@ -67,6 +73,13 @@ describe('lintVault', () => {
       'guides: g/a.md: title: Invalid input: expected string, received number',
       'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
       'slides: deck.md: tags.0: Invalid input: expected string, received number',
+    ]);
+  });
+
+  it('checks drafted decks, which the slides collection still validates', () => {
+    write('slides/draft.md', '---\ndraft: true\ntags: [1]\n---\n# Deck\n');
+    expect(lintVault(vault).problems).toEqual([
+      'slides: draft.md: tags.0: Invalid input: expected string, received number',
     ]);
   });
 
