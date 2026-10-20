@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildLinkTitles, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, storageBody } from '../sync-confluence.mjs';
+import { openVaultCatalog } from '../../src/lib/vault-catalog.mjs';
+import { buildLinkTitles, compileFenceSvgs, folderPages, markdownToStorage, pageTitle, parseArgs, storageBody } from '../sync-confluence.mjs';
 
 const confluenceEnv = [
   'CONFLUENCE_BASE_URL',
@@ -427,6 +428,31 @@ describe('sync-confluence tikz/typst fences', () => {
     expect(images).toHaveLength(1);
     expect(images[0].absolutePath.startsWith(cacheDir)).toBe(true);
     expect(images[0].filename).toMatch(/^tikz-[0-9a-f]{16}\.svg$/);
+  });
+});
+
+describe('sync-confluence page selection', () => {
+  let vault;
+  afterEach(() => rmSync(vault, { recursive: true, force: true }));
+
+  it('syncs exactly the files of pages the site publishes', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-pages-'));
+    const write = (path, content = '# x\n') => {
+      mkdirSync(join(vault, path, '..'), { recursive: true });
+      writeFileSync(join(vault, path), content);
+    };
+    write('notes/live.md');
+    write('notes/draft.md', '---\ndraft: true\n---\n# Draft\n');
+    write('notes/_templates/tpl.md');
+    write('guides/intro/SUMMARY.md', '# Intro\n\n- [One](one.md)\n- [Two](two.md)\n');
+    write('guides/intro/one.md');
+    write('guides/intro/two.md', '---\ndraft: true\n---\n# Two\n');
+    write('guides/intro/unlisted.md');
+    const catalog = openVaultCatalog(vault);
+    const rel = paths => paths.map(path => path.slice(vault.length + 1));
+
+    expect(rel(folderPages(catalog, 'notes'))).toEqual(['notes/live.md']);
+    expect(rel(folderPages(catalog, 'guides'))).toEqual(['guides/intro/one.md']);
   });
 });
 

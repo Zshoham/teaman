@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pathToFileURL } from 'url';
 
 const discoverReferenceDocuments = vi.fn();
-vi.mock('../reference-documents.mjs', () => ({ discoverReferenceDocuments }));
+vi.mock('../reference-documents.mjs', async importOriginal => ({ ...await importOriginal(), discoverReferenceDocuments }));
 
 const { referenceLoader } = await import('../reference-loader.mjs');
 
@@ -56,7 +56,7 @@ describe('referenceLoader', () => {
     const context = createContext();
 
     await expect(referenceLoader({ base: '/vault/references' }).load(context))
-      .rejects.toThrow(/lists missing chapters/);
+      .rejects.toThrow(/points at missing chapter/);
   });
 
   it('reports a failed reload instead of rejecting unobserved', async () => {

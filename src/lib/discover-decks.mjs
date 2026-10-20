@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { extname, join, relative } from 'node:path';
+import { extname, join, relative, sep } from 'node:path';
 import matter from 'gray-matter';
 import { parseSync } from '@slidev/parser/core';
 import { entryId } from './entry-identity.mjs';
-import { isPublished, isPublishedPath } from './publication.mjs';
+import { isPublishedPath } from './publication.mjs';
 
 /** `tags: a, b` and `tags: [a, b]` both mean two tags, as in the collection schema. */
 function tagList(value) {
@@ -12,12 +12,14 @@ function tagList(value) {
 }
 
 /**
- * The deck catalog: every publishable Slidev deck under `slidesRoot`, parsed
- * once with Slidev's own parser. The slides collection, the deck build, search,
- * and the wiki-link index all read decks here, so they agree on which decks
- * exist, what each is called, and where it is served.
+ * Every Slidev deck under `slidesRoot`, parsed once with Slidev's own parser.
+ * The slides collection reads decks here; everything else reads them through
+ * the vault catalog (`vault-catalog.mjs`), which applies the publish rule. So
+ * the deck cards, the deck build, search, and the wiki-link index agree on
+ * which decks exist, what each is called, and where it is served.
  *
- * Only published decks (see `publication.mjs`).
+ * Drafts are included; `_`-prefixed paths are pruned (they can never be
+ * published, and a `_templates/` folder need not parse).
  *
  * @param {string} slidesRoot
  */
@@ -41,14 +43,13 @@ export function discoverDecks(slidesRoot) {
       if (!entry.isFile() || extname(entry.name) !== '.md') continue;
       const markdown = readFileSync(path, 'utf8');
       const { data } = matter(markdown);
-      if (!isPublished({ data, relPath: rel })) continue;
       const id = entryId('slides', rel, data);
       const { slides } = parseSync(markdown, path);
       decks.push({
         // The site's name for the deck — its URL and build directory.
         id,
-        path,
-        relativePath: rel,
+        sourcePath: path,
+        relPath: rel.split(sep).join('/'),
         markdown,
         data,
         title: typeof data.title === 'string' && data.title ? data.title : id.replace(/-/g, ' '),

@@ -369,6 +369,30 @@ function standaloneDocument(referencesRoot, sourcePath) {
   };
 }
 
+/**
+ * What keeps a SUMMARY-indexed book — a reference book, or a guide from the
+ * vault catalog — from building: an unusable SUMMARY.md, no chapters, or a
+ * listed chapter that is missing or outside the book's directory. The loader,
+ * the PDF build, and `doctor` all report through this, so they agree.
+ *
+ * @param {{ id?: string, kind?: string, error?: string, chapters?: unknown[], missing?: string[], invalid?: string[] }} book
+ * @returns {string[]}
+ */
+export function bookProblems(book) {
+  if (book.error) return [book.error];
+  const problems = [];
+  if (book.kind === 'book' && book.chapters.length === 0) {
+    problems.push(`${book.id}/SUMMARY.md lists no Markdown chapters`);
+  }
+  for (const chapter of book.missing ?? []) {
+    problems.push(`${book.id}/SUMMARY.md points at missing chapter ${chapter}`);
+  }
+  for (const chapter of book.invalid ?? []) {
+    problems.push(`${book.id}/SUMMARY.md points outside its directory (${chapter})`);
+  }
+  return problems;
+}
+
 /** Discover standalone .md references and SUMMARY.md-backed reference books. */
 export function discoverReferenceDocuments(referencesRoot) {
   const files = walkMarkdown(referencesRoot, { skipUnderscore: true });

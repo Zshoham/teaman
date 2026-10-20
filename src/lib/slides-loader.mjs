@@ -2,9 +2,10 @@ import { discoverDecks } from './discover-decks.mjs';
 import { vaultLoader } from './vault-loader.mjs';
 
 /**
- * Astro content loader over the deck catalog, so the deck cards list exactly
- * the decks the build produces. Decks are built by Slidev, not rendered here;
- * an entry's body is its slides' visible text.
+ * Astro content loader over deck discovery, so the deck cards list exactly
+ * the decks the build produces. Drafts are stored like any glob collection's;
+ * `getPublished` keeps them off the site. Decks are built by Slidev, not
+ * rendered here; an entry's body is its slides' visible text.
  */
 export function slidesLoader({ base }) {
   return vaultLoader({
@@ -14,7 +15,7 @@ export function slidesLoader({ base }) {
       id: deck.id,
       data: { ...deck.data, title: deck.title, tags: deck.tags, slideCount: deck.slideCount },
       body: deck.text,
-      sourcePath: deck.path,
+      sourcePath: deck.sourcePath,
     })),
   });
 }

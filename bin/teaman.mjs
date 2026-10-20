@@ -16,14 +16,13 @@ import { resolve, join, dirname, basename, isAbsolute, parse, relative, sep } fr
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
-import { discoverReferenceDocuments } from '../src/lib/reference-documents.mjs';
 import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
 import { checkVaultConfig, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
-import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import matter from 'gray-matter';
-import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
+import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
+import { bookProblems } from '../src/lib/reference-documents.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
 import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
@@ -537,15 +536,14 @@ export async function lintContent(vault) {
   }
   // Decks and references reach their collections through the engine's own
   // discovery, so validate what it hands over.
-  const slidesRoot = join(vault, 'slides');
-  for (const deck of discoverDecks(slidesRoot)) checkFrontmatter('slides', slidesRoot, deck.path, 'deck', deck.data);
-  const referencesRoot = join(vault, 'references');
-  for (const document of discoverReferenceDocuments(referencesRoot)) {
-    if (!document.error) checkFrontmatter('references', referencesRoot, document.sourcePath, 'reference', document.data);
+  const catalog = openVaultCatalog(vault);
+  for (const deck of catalog.published('slides')) checkFrontmatter('slides', join(vault, 'slides'), deck.sourcePath, 'deck', deck.data);
+  for (const document of catalog.all('reference')) {
+    if (!document.error) checkFrontmatter('references', join(vault, 'references'), document.sourcePath, 'reference', document.data);
   }
 
   // Lineage pointers should resolve to an ADR that exists in the vault.
-  const records = discoverDecisions(join(vault, 'decisions'));
+  const records = catalog.all('decision');
   const nums = new Set(records.map(record => record.num));
   for (const { sourcePath, data } of records) {
     for (const key of ['supersedes', 'supersededBy']) {
@@ -565,29 +563,18 @@ export async function lintContent(vault) {
     }
   }
 
-  const referencesDir = join(vault, 'references');
-  if (existsSync(referencesDir)) {
-    for (const document of discoverReferenceDocuments(referencesDir)) {
-      if (document.error) {
-        problems.push(`references: ${document.error}`);
-        continue;
-      }
-      if (document.kind !== 'book') continue;
-      if (document.chapters.length === 0) {
-        problems.push(`references: ${document.id}/SUMMARY.md lists no Markdown chapters`);
-      }
-      for (const chapter of document.missing) {
-        problems.push(`references: ${document.id}/SUMMARY.md points at missing chapter ${chapter}`);
-      }
-      for (const chapter of document.invalid) {
-        problems.push(`references: ${document.id}/SUMMARY.md points outside its directory (${chapter})`);
-      }
-    }
+  // A guide or reference book is a SUMMARY.md and the chapters it lists; the
+  // build fails on a chapter it cannot serve. A guide's only error is
+  // unreadable YAML, which the frontmatter check above has reported.
+  for (const document of [...catalog.all('guide'), ...catalog.all('reference')]) {
+    if (document.type === 'guide' && document.error) continue;
+    const { dir } = collectionFor(document.type);
+    for (const problem of bookProblems(document)) problems.push(`${dir}: ${problem}`);
   }
 
   // Wiki-links, resolved exactly as the site resolves them. Decks are Slidev,
   // not the site's Markdown pipeline, so their links are never rendered.
-  const index = createVaultIndex(vault);
+  const index = createVaultIndex(vault, { catalog });
   for (const { type, dir } of COLLECTIONS.filter(c => c.type !== 'slides')) {
     const root = join(vault, dir);
     for (const file of walkMarkdown(root)) {
@@ -631,10 +618,10 @@ export async function lintContent(vault) {
   // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
   // into a frame, and build-slides fails the deck when the file is missing.
   // Found by the slide theme's own scan, so doctor checks exactly what it rewrites.
-  for (const deck of discoverDecks(slidesRoot)) {
+  for (const deck of catalog.published('slides')) {
     for (const { target } of htmlEmbedEdits(deck.markdown)) {
-      if (!index.resolveAttachment(target, deck.path)) {
-        problems.push(`slides: ${deck.relativePath} embeds missing HTML file ![[${target}]]`);
+      if (!index.resolveAttachment(target, deck.sourcePath)) {
+        problems.push(`slides: ${deck.relPath} embeds missing HTML file ![[${target}]]`);
       }
     }
   }

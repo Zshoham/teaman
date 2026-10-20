@@ -222,8 +222,10 @@ VM). `[vault]` defaults to the current directory.
 
 `sync-confluence` takes its own flags (run `teaman sync-confluence --help`);
 the essentials are `--content-dir <vault>`, `--base-url`, credentials
-(`--user`/`--token` or `--pat`), and `--roots folder=pageId,…`. Each can also
-come from a `CONFLUENCE_*` env var. Local `.svg` images resolve the same way
+(`--user`/`--token` or `--pat`), and `--roots folder=pageId,…` (content
+folders only — `notes`, `guides`, …). Each can also come from a `CONFLUENCE_*`
+env var. It syncs exactly what the site publishes: drafts, `_`-prefixed
+paths, and `SUMMARY.md` indexes stay behind. Local `.svg` images resolve the same way
 the site build does (note's directory, then the vault root, then `public/`)
 and upload as attachments; since Confluence Server/DC won't preview those
 inline, `--svg-macro <name>` (e.g. the stock `html` macro) inlines the svg

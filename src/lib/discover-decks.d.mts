@@ -1,8 +1,9 @@
 export interface DiscoveredDeck {
   /** The site's name for the deck: its URL segment and build directory. */
   id: string;
-  path: string;
-  relativePath: string;
+  sourcePath: string;
+  /** Under `slidesRoot`, `/`-separated. */
+  relPath: string;
   markdown: string;
   data: Record<string, unknown>;
   title: string;
@@ -12,5 +13,5 @@ export interface DiscoveredDeck {
   text: string;
 }
 
-/** Every publishable Slidev deck under `slidesRoot`, parsed once. */
+/** Every Slidev deck under `slidesRoot` (drafts included), parsed once. */
 export function discoverDecks(slidesRoot: string): DiscoveredDeck[];

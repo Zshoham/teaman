@@ -479,6 +479,13 @@ describe('lintContent', () => {
     expect(await lintContent(vault)).toEqual({ problems: [], warnings: [] });
   });
 
+  it('fails a guide chapter the build cannot serve, as for reference books', async () => {
+    write('guides/g/SUMMARY.md', '# G\n\n- [Here](here.md)\n- [Gone](gone.md)\n');
+    write('guides/g/here.md', '# Here\n');
+    const { problems } = await lintContent(vault);
+    expect(problems).toEqual(['guides: g/SUMMARY.md points at missing chapter gone.md']);
+  });
+
   it('requires a date on every daily', async () => {
     write('dailies/2026-05-04.md', '# no frontmatter\n');
     const { problems } = await lintContent(vault);
