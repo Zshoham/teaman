@@ -53,7 +53,7 @@ describe('reference PDF rendering', () => {
   });
 
   it('rewrites local and cross-chapter book links to destinations in the assembled PDF', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'Linked book',
       body: '',
@@ -92,7 +92,7 @@ describe('reference PDF rendering', () => {
   });
 
   it('resolves declared rule and grammar-production links inside a book PDF', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'Language guide',
       body: '',
@@ -128,7 +128,7 @@ describe('reference PDF rendering', () => {
   });
 
   it('uses collision-disambiguated chapter anchors in PDF labels and links', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'Colliding paths',
       body: '',
@@ -220,7 +220,7 @@ describe('reference PDF rendering', () => {
   });
 
   it('finds an embedded image anywhere in the vault', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'Embeds',
       body: '![[pic.png|A picture]]',
@@ -232,7 +232,7 @@ describe('reference PDF rendering', () => {
   });
 
   it('compiles both wiki-link styles through the bundled template', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'Links',
       body: '## Target\n\nSee [[target]] and [[missing]].',
@@ -334,7 +334,7 @@ describe('reference PDF rendering', () => {
       expect(diagrams).toHaveLength(3);
       for (const value of diagrams.values()) expect(value.svg).toContain('<svg');
 
-      const source = renderReferenceTypst({
+      const { typst: source } = renderReferenceTypst({
         template,
         title: 'Generated diagram reference',
         body,
@@ -350,7 +350,7 @@ describe('reference PDF rendering', () => {
   }, 30_000);
 
   it('fills the bundled template and compiles a real PDF', () => {
-    const source = renderReferenceTypst({
+    const { typst: source } = renderReferenceTypst({
       template,
       title: 'System reference',
       summary: 'A durable system map.',
@@ -384,7 +384,7 @@ describe('reference PDF rendering', () => {
       expect(resolveReferenceImage('../../outside.png', { sourcePath, vaultDir: vault }))
         .toBeNull();
 
-      const source = renderReferenceTypst({
+      const { typst: source } = renderReferenceTypst({
         template,
         title: 'Reference with image',
         body: '## Diagram\n\n![[diagram.svg|System diagram]]',
@@ -407,7 +407,7 @@ describe('reference PDF rendering', () => {
       mkdirSync(chapterDir, { recursive: true });
       writeFileSync(join(chapterDir, 'diagram.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20"/></svg>');
 
-      const source = renderReferenceTypst({
+      const { typst: source } = renderReferenceTypst({
         template,
         title: 'Language reference',
         body: '',
@@ -431,31 +431,40 @@ describe('reference PDF rendering', () => {
 });
 
 describe('referencePdfCacheKey', () => {
+  const render = (vault, body) => renderReferenceTypst({
+    template: '',
+    title: 'T',
+    body,
+    sourcePath: join(vault, 'references', 'r.md'),
+    vaultDir: vault,
+  });
+
   it('changes with the Typst source and is stable for identical input', () => {
     const vault = mkdtempSync(join(tmpdir(), 'teaman-key-'));
     try {
-      expect(referencePdfCacheKey('#text("a")', vault)).toBe(referencePdfCacheKey('#text("a")', vault));
-      expect(referencePdfCacheKey('#text("a")', vault)).not.toBe(referencePdfCacheKey('#text("b")', vault));
+      expect(referencePdfCacheKey(render(vault, 'a'), vault)).toBe(referencePdfCacheKey(render(vault, 'a'), vault));
+      expect(referencePdfCacheKey(render(vault, 'a'), vault)).not.toBe(referencePdfCacheKey(render(vault, 'b'), vault));
     } finally {
       rmSync(vault, { recursive: true, force: true });
     }
   });
 
-  it('tracks the bytes of referenced images, which the source only names by path', () => {
+  it('tracks the bytes of the images the render names, which the source only names by path', () => {
     const vault = mkdtempSync(join(tmpdir(), 'teaman-key-'));
     try {
       mkdirSync(join(vault, 'references'), { recursive: true });
       const image = join(vault, 'references', 'chart.png');
-      const source = '#image("/references/chart.png", width: 100%)';
       writeFileSync(image, 'first');
-      const before = referencePdfCacheKey(source, vault);
+      const rendered = render(vault, '![Chart](chart.png)');
+      expect(rendered.images).toEqual(['references/chart.png']);
+      const before = referencePdfCacheKey(rendered, vault);
       writeFileSync(image, 'second');
-      expect(referencePdfCacheKey(source, vault)).not.toBe(before);
+      expect(referencePdfCacheKey(rendered, vault)).not.toBe(before);
 
       // An image that cannot be read must not throw — the renderer already
       // degrades those to a placeholder box rather than failing the build.
       rmSync(image);
-      expect(referencePdfCacheKey(source, vault)).toEqual(expect.any(String));
+      expect(referencePdfCacheKey(rendered, vault)).toEqual(expect.any(String));
     } finally {
       rmSync(vault, { recursive: true, force: true });
     }
