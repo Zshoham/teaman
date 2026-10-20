@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { COLLECTIONS, CONTENT_DIRS, collectionFor, pagefindGlob } from '../collections.mjs';
+import { assertCoversTypes, COLLECTIONS, CONTENT_DIRS, collectionFor, pagefindGlob } from '../collections.mjs';
 
 describe('COLLECTIONS', () => {
   it('covers every content type the engine ships', () => {
@@ -66,5 +66,19 @@ describe('pagefindGlob', () => {
     expect(recursive).not.toContain('slides');
     expect(recursive).not.toContain('decisions');
     expect(glob).not.toMatch(/decisions/);
+  });
+});
+
+describe('assertCoversTypes', () => {
+  const every = Object.fromEntries(COLLECTIONS.map(c => [c.type, true]));
+
+  it('accepts a table with exactly the registry types', () => {
+    expect(() => assertCoversTypes(every, 'table')).not.toThrow();
+  });
+
+  it('names what is missing and what it does not know', () => {
+    const { note, ...rest } = every;
+    expect(() => assertCoversTypes({ ...rest, bookmark: true }, 'the table'))
+      .toThrow('the table must cover every content type: missing note, unknown bookmark');
   });
 });

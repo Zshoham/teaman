@@ -163,9 +163,21 @@ order (`collection-index.ts`), the header sections (`nav.ts`), `CONTENT_DIRS`
 (`bin/teaman.mjs`), the Pagefind glob (`scripts/build-search.mjs`), and the four
 index pages (`components/collection/CollectionPage.astro`).
 
-Adding a content type means: an entry in the registry, a schema in
-`content.config.ts`, a loader in `ENTRY_LOADERS` (`entries.ts`), and the route
-pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
+It is `.mjs` because the CLI reads it and cannot import TypeScript.
+
+Behavior stays per-type, in tables keyed by type, and every such table is held
+to the registry, so a new type cannot be half-wired:
+- TypeScript tables are `Record<EntryType, …>` (`ENTRY_LOADERS` in
+  `entries.ts`, nav's `hasContent`, `TYPE_OF` in `published.ts`), so the
+  typecheck fails on a missing type. `EntryType` itself is written out in
+  `collections.d.mts`; `__tests__/entry-type.test.ts` ties it to the registry.
+- The untyped `.mjs` tables — the catalog's `DISCOVER`, the wiki-link index's
+  `PAGES`, doctor's `FRONTMATTER` — call `assertCoversTypes` at load, so the
+  engine refuses to start without them.
+
+Adding a type means: the registry row and its `EntryType` member, a schema in
+`frontmatter-schemas.mjs`, a collection in `content.config.ts`, the route
+pages, and whatever those checks then name.
 
 `src/content.config.ts` defines seven Astro collections — `notes`, `references`,
 `guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — rooted at the matching

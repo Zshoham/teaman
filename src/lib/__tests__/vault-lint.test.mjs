@@ -63,10 +63,10 @@ describe('lintVault', () => {
     const { problems } = lintVault(vault);
     expect(problems).toEqual([
       'notes: n.md: tags: Invalid input: expected array, received number',
+      'references: r.md: date: not a valid date',
       'guides: g/a.md: title: Invalid input: expected string, received number',
       'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
       'slides: deck.md: tags.0: Invalid input: expected string, received number',
-      'references: r.md: date: not a valid date',
     ]);
   });
 

@@ -135,6 +135,28 @@ export function collectionFor(type) {
 }
 
 /**
+ * Throw unless `table` has an entry for every registry type and nothing else.
+ * Per-type tables in the untyped `.mjs` modules check themselves with this at
+ * load, so a type added here fails loudly everywhere it is missing instead of
+ * silently going undiscovered, unlinkable, or unlinted. (TypeScript does the
+ * same for `Record<EntryType, …>` tables.)
+ *
+ * @param {Record<string, unknown>} table
+ * @param {string} name  what the table is, for the error
+ */
+export function assertCoversTypes(table, name) {
+  const types = COLLECTIONS.map(collection => collection.type);
+  const missing = types.filter(type => !(type in table));
+  const extra = Object.keys(table).filter(key => !types.includes(key));
+  if (missing.length || extra.length) {
+    throw new Error(`${name} must cover every content type: ${[
+      ...missing.map(type => `missing ${type}`),
+      ...extra.map(key => `unknown ${key}`),
+    ].join(', ')}`);
+  }
+}
+
+/**
  * The Pagefind `addDirectory` glob over the built site: the home page plus
  * whatever each collection exposes as crawlable HTML.
  */

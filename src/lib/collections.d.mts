@@ -34,5 +34,8 @@ export const CONTENT_DIRS: readonly string[];
 /** Look up one collection by its entry type; throws on an unknown type. */
 export function collectionFor(type: EntryType): CollectionMeta;
 
+/** Throw unless `table` has an entry for every registry type and nothing else. */
+export function assertCoversTypes(table: Record<string, unknown>, name: string): void;
+
 /** The Pagefind `addDirectory` glob over the built site. */
 export function pagefindGlob(): string;
