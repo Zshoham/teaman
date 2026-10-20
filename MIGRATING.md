@@ -23,6 +23,12 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Dot-prefixed files and folders are ignored everywhere** (patch). Notes,
+  guides, dailies, and ADRs under a `.`-prefixed path (`notes/.archive/`)
+  were never on the site; references and decks there were still built, and
+  Confluence sync uploaded such notes. Now nothing reads them: move a
+  reference or deck out of a dot folder to keep publishing it.
+
 - **`/daily/` redirects instantly** (patch, no vault changes). The built
   `/daily/` page used to wait 2 seconds before moving on to the latest week;
   it now redirects immediately.

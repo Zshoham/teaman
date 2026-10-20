@@ -1,13 +1,11 @@
 import { readFileSync } from 'fs';
-import { basename, dirname, relative, sep } from 'path';
+import { basename, dirname, relative } from 'path';
 import matter from 'gray-matter';
 import { isSummaryFile, readBook } from './books.mjs';
 import { entryId } from './entry-identity.mjs';
-import { isInside, walkMarkdown } from './fs-walk.mjs';
+import { isInside, toPosix, walkMarkdown } from './fs-walk.mjs';
 
 const MARKER_PREFIX = 'teaman-reference-chapter:';
-
-const posix = value => value.replaceAll(sep, '/');
 
 function markdownTitle(source, fallback) {
   const match = source.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/m);
@@ -194,7 +192,7 @@ function documentData(data, title) {
 
 function bookDocument(referencesRoot, summaryPath) {
   const dir = dirname(summaryPath);
-  const relDir = posix(relative(referencesRoot, dir));
+  const relDir = toPosix(relative(referencesRoot, dir));
   // A book is named by its directory; `.md` stands in for the extension
   // `entryId` strips, so a dotted directory name keeps its last segment.
   const id = relDir && entryId('reference', `${relDir}.md`);
@@ -235,7 +233,7 @@ function bookDocument(referencesRoot, summaryPath) {
 
 function standaloneDocument(referencesRoot, sourcePath) {
   const parsed = matter(readFileSync(sourcePath, 'utf8'));
-  const id = entryId('reference', posix(relative(referencesRoot, sourcePath)), parsed.data);
+  const id = entryId('reference', toPosix(relative(referencesRoot, sourcePath)), parsed.data);
   const fallback = basename(sourcePath, '.md').replace(/-/g, ' ');
   const title = parsed.data.title ?? markdownTitle(parsed.content, fallback);
   return {

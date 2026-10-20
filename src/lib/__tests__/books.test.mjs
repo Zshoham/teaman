@@ -186,4 +186,10 @@ describe('isSummaryFile', () => {
     expect(['SUMMARY.md', 'a/summary.md', 'Summary.MD'].map(isSummaryFile)).toEqual([true, true, true]);
     expect(isSummaryFile('summary-notes.md')).toBe(false);
   });
+
+  // What the guideSummaries collection's `**/SUMMARY.md` glob matches.
+  it('matches only SUMMARY.md when case-sensitive', () => {
+    const caseSensitive = path => isSummaryFile(path, { caseSensitive: true });
+    expect(['g/SUMMARY.md', 'g/summary.md', 'g/Summary.MD'].map(caseSensitive)).toEqual([true, false, false]);
+  });
 });

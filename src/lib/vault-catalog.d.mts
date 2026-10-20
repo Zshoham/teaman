@@ -17,8 +17,21 @@ export interface CatalogRecord {
   [field: string]: unknown;
 }
 
+/** One Markdown file in a type's vault directory, read once. */
+export interface CatalogFile {
+  id: string;
+  sourcePath: string;
+  relPath: string;
+  data: Record<string, unknown>;
+  body: string;
+  /** Why its frontmatter cannot be read. */
+  error?: string;
+}
+
 export interface VaultCatalog {
   vaultDir: string;
+  /** Every Markdown file in the directory of `type`, as its glob would see it. */
+  files(type: EntryType): CatalogFile[];
   /** Every record of `type`, drafts and unreadable files included. */
   all(type: EntryType): CatalogRecord[];
   /** What the site publishes of `type`. */

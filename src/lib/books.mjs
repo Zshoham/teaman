@@ -7,18 +7,24 @@
  * Publication (drafted chapters) is the vault catalog's.
  */
 import { existsSync, readFileSync, statSync } from 'fs';
-import { basename, dirname, relative, resolve, sep } from 'path';
+import { basename, dirname, relative, resolve } from 'path';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
-import { isInside } from './fs-walk.mjs';
+import { isInside, toPosix } from './fs-walk.mjs';
 
 const summaryMarkdown = new MarkdownIt();
 
-const posix = value => value.split(sep).join('/');
-
-/** Is this file a book's chapter index? */
-export function isSummaryFile(path) {
-  return basename(path).toLowerCase() === 'summary.md';
+/**
+ * Is this file a book's chapter index? A reference book's may be spelled in
+ * any case; a guide's must be `SUMMARY.md` (`caseSensitive`), which is what
+ * the `guideSummaries` collection globs for.
+ *
+ * @param {string} path
+ * @param {{ caseSensitive?: boolean }} [options]
+ */
+export function isSummaryFile(path, { caseSensitive = false } = {}) {
+  const name = basename(path);
+  return caseSensitive ? name === 'SUMMARY.md' : name.toLowerCase() === 'summary.md';
 }
 
 function cleanSummaryTarget(value) {
@@ -138,7 +144,7 @@ export function readBook(summaryPath, { rootRelative = false } = {}) {
       invalid.push(item.path);
       continue;
     }
-    const path = posix(relative(dir, sourcePath));
+    const path = toPosix(relative(dir, sourcePath));
     if (seen.has(path)) continue;
     seen.add(path);
     if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) missing.push(item.path);

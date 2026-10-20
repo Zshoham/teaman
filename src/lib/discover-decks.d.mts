@@ -11,6 +11,8 @@ export interface DiscoveredDeck {
   slideCount: number;
   /** Every slide's visible content, for excerpts and search. */
   text: string;
+  /** Why its headmatter cannot be read; `data` is then empty. */
+  error?: string;
 }
 
 /** Every Slidev deck under `slidesRoot` (drafts included), parsed once. */
