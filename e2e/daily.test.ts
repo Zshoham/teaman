@@ -82,6 +82,11 @@ test.describe('daily notes', () => {
         scrollbar: getComputedStyle(el).scrollbarWidth,
       }));
 
+    // The edge state is set by the WeekStrip island once it hydrates, which can
+    // land well after the URL settles: the server-rendered strip is already in
+    // place, and on a machine with many system fonts the first layout alone
+    // takes a few hundred milliseconds. Read nothing before the island is up.
+    await expect(strip).toHaveAttribute('data-more-after', /^(true|false)$/);
     const start = await metrics();
     test.skip(start.max <= 0, 'example vault has too few weeks to overflow the strip');
     expect(start.scrollbar).toBe('none');
