@@ -2,7 +2,7 @@
 // entrypoint check, so importing it here runs no commands — only parseArgs and
 // satisfies are exercised.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, lintContent, stageStatic } from '../teaman.mjs';
+import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, stageStatic, runBuildPipeline } from '../teaman.mjs';
 import { resolve, join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -336,6 +336,55 @@ describe('serverArgs', () => {
   });
 });
 
+describe('runBuildPipeline', () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-pipeline-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  // A build in progress: the previous site at `out`, Astro's cache, a staged
+  // out dir, and a scratch dir, with stages that each write one file.
+  function setup() {
+    const out = join(dir, 'dist');
+    mkdirSync(out);
+    writeFileSync(join(out, 'index.html'), 'previous');
+    const astroCache = join(dir, '.astro');
+    mkdirSync(astroCache);
+    const stagedRoot = join(dir, '.teaman-out-1-x');
+    const stagedOut = join(stagedRoot, 'dist');
+    const workDir = join(dir, 'work');
+    mkdirSync(workDir);
+    const ran = [];
+    const stage = (name, fail = false) => [name, fail ? 'fail' : 'ok'];
+    const run = async ([name, outcome]) => {
+      ran.push(name);
+      expect(existsSync(astroCache), 'cache dropped first').toBe(false);
+      if (outcome === 'fail') throw new Error(`${name} exited with code 1`);
+      mkdirSync(stagedOut, { recursive: true });
+      writeFileSync(join(stagedOut, `${name}.html`), name);
+    };
+    const pipeline = stages => runBuildPipeline({ stages, run, stagedOut, out, removeAfter: [stagedRoot, workDir], astroCache });
+    return { out, stagedRoot, workDir, ran, stage, pipeline };
+  }
+
+  it('runs every stage in order into the staged dir, then swaps the site into place', async () => {
+    const { out, stagedRoot, workDir, ran, stage, pipeline } = setup();
+    await pipeline([stage('astro'), stage('references'), stage('slides'), stage('search')]);
+    expect(ran).toEqual(['astro', 'references', 'slides', 'search']);
+    expect(readdirSync(out).sort()).toEqual(['astro.html', 'references.html', 'search.html', 'slides.html']);
+    expect(readdirSync(dir).sort()).toEqual(['dist']);
+    expect(existsSync(stagedRoot) || existsSync(workDir)).toBe(false);
+  });
+
+  it('stops at a failing stage, leaving the previous site and no scratch dirs', async () => {
+    const { out, ran, stage, pipeline } = setup();
+    await expect(pipeline([stage('astro'), stage('references', true), stage('slides')]))
+      .rejects.toThrow('references exited with code 1');
+    expect(ran).toEqual(['astro', 'references']);
+    expect(readFileSync(join(out, 'index.html'), 'utf8')).toBe('previous');
+    expect(readdirSync(dir)).toEqual(['dist']);
+  });
+});
+
 describe('commitBuild', () => {
   let dir;
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-commit-')); });
@@ -382,9 +431,8 @@ describe('commitBuild', () => {
   });
 });
 
-// `doctor` used to be 160 lines of straight-line validation; these two are the
-// pieces it now composes, testable without a vault on disk (validateConfig) or
-// against a scratch one (lintContent).
+// `doctor` composes validateConfig, testable without a vault on disk, and
+// lintVault (src/lib/vault-lint.mjs), tested there against scratch vaults.
 describe('validateConfig', () => {
   const ok = { hasConfigFile: true, themeTokens: new Set(['--primary']) };
 
@@ -450,6 +498,8 @@ describe('validateConfig', () => {
     );
     expect(warnings).toContain('config: unknown key "smartLinks.nope"');
     expect(problems).toContain('config: smartLinks.jira: Invalid input: expected array, received string');
+    expect(validateConfig({ brand: 'x', smartLinks: { gitlab: ['not a host!'] } }, ok).warnings)
+      .toEqual([expect.stringContaining("doesn't look like a hostname")]);
   });
 
   it('warns on theme tokens the stylesheet does not define', () => {
@@ -476,159 +526,5 @@ describe('stageStatic', () => {
     expect(publicDir).toBe(staged);
     expect(config.logo).toBe('teacup.svg');
     expect(readdirSync(staged).sort()).toEqual(['robots.txt', 'teacup.svg']);
-  });
-});
-
-describe('lintContent', () => {
-  let vault;
-  beforeEach(() => {
-    vault = mkdtempSync(join(tmpdir(), 'teaman-lint-'));
-  });
-  afterEach(() => rmSync(vault, { recursive: true, force: true }));
-
-  const write = (rel, body) => {
-    const path = join(vault, rel);
-    mkdirSync(join(path, '..'), { recursive: true });
-    writeFileSync(path, body);
-  };
-
-  it('reports nothing for an empty vault', async () => {
-    expect(await lintContent(vault)).toEqual({ problems: [], warnings: [] });
-  });
-
-  it('fails a guide chapter the build cannot serve, as for reference books', async () => {
-    write('guides/g/SUMMARY.md', '# G\n\n- [Here](here.md)\n- [Gone](gone.md)\n');
-    write('guides/g/here.md', '# Here\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toEqual(['guides: g/SUMMARY.md points at missing chapter gone.md']);
-  });
-
-  it('requires a date on every daily', async () => {
-    write('dailies/2026-05-04.md', '# no frontmatter\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toContain('dailies: 2026-05-04.md: date: required');
-  });
-
-  it('requires a date and a valid status on every decision', async () => {
-    write('decisions/adr-0001.md', '---\nstatus: sideways\n---\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toEqual([
-      'decisions: adr-0001.md: title: required',
-      'decisions: adr-0001.md: date: required',
-      'decisions: adr-0001.md: status: must be one of accepted | proposed | superseded',
-    ]);
-  });
-
-  it('rejects an unquoted ADR number in lineage, and accepts file names', async () => {
-    write('decisions/adr-0001.md', '---\ntitle: A\ndate: 2026-01-01\nstatus: accepted\nsupersedes: 0002\n---\n');
-    write('decisions/adr-0002.md', '---\ntitle: B\ndate: 2026-01-01\nstatus: superseded\nsupersededBy: adr-0001\n---\n');
-    const { problems, warnings } = await lintContent(vault);
-    expect(problems).toEqual([
-      'decisions: adr-0001.md: supersedes: must name an ADR as a string — write adr-0002 (or quote the number)',
-    ]);
-    expect(warnings).toEqual([]);
-  });
-
-  it('checks every kind of file against its collection schema', async () => {
-    write('notes/n.md', '---\ntags: 3\n---\n');
-    write('guides/g/SUMMARY.md', '---\ndraft: maybe\n---\n- [A](a.md)\n');
-    write('guides/g/a.md', '---\ntitle: 7\n---\n');
-    write('references/r.md', '---\ndate: someday\n---\n');
-    write('slides/deck.md', '---\ntags: [1]\n---\n# Deck\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toEqual([
-      'notes: n.md: tags: Invalid input: expected array, received number',
-      'guides: g/a.md: title: Invalid input: expected string, received number',
-      'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
-      'slides: deck.md: tags.0: Invalid input: expected string, received number',
-      'references: r.md: date: not a valid date',
-    ]);
-  });
-
-  it('accepts comma-separated tags on every type', async () => {
-    write('notes/n.md', '---\ntags: a, b\n---\n');
-    write('dailies/2026-01-01.md', '---\ndate: 2026-01-01\ntags: a, b\n---\n');
-    write('references/r.md', '---\ntags: a, b\n---\n');
-    expect((await lintContent(vault)).problems).toEqual([]);
-  });
-
-  it('warns when ADR lineage points at a missing record', async () => {
-    write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nsupersededBy: adr-0009\n---\n');
-    const { warnings } = await lintContent(vault);
-    expect(warnings).toContain('decisions: adr-0001.md supersededBy points at missing adr-0009');
-  });
-
-  it('requires a SUMMARY.md in every guide directory', async () => {
-    write('guides/rust/intro.md', '# intro\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toContain('guides: rust/ has no SUMMARY.md (chapter index)');
-  });
-
-  it('warns on a wiki-link with no matching note', async () => {
-    write('notes/a.md', 'see [[Missing Note]]\n');
-    const { warnings } = await lintContent(vault);
-    expect(warnings).toContain('notes: a.md links to missing [[Missing Note]]');
-  });
-
-  it('resolves a wiki-link to a note whose filename has spaces', async () => {
-    write('notes/Missing Note.md', '# x\n');
-    write('notes/a.md', 'see [[Missing Note]]\n');
-    expect((await lintContent(vault)).warnings).toEqual([]);
-  });
-
-  it('checks wiki-links in references too', async () => {
-    write('references/r.md', 'see [[Nope]]\n');
-    const { warnings } = await lintContent(vault);
-    expect(warnings).toContain('references: r.md links to missing [[Nope]]');
-  });
-
-  it('resolves links across every rendered type and nested folders', async () => {
-    write('notes/sub/deep.md', '# deep\n');
-    write('decisions/adr-0002.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\n---\n');
-    write('dailies/2026-03-12.md', '---\ndate: 2026-03-12\n---\nsee [[deep]] and [[adr-0002]]\n');
-    expect((await lintContent(vault)).warnings).toEqual([]);
-  });
-
-  it('warns when a link needs the legacy slug match, a heading, or a tie-break', async () => {
-    write('notes/Shipping Cadence.md', '# x\n');
-    write('notes/a/intro.md', '# x\n');
-    write('notes/b/intro.md', '# x\n');
-    write('notes/c.md', 'see [[shipping-cadence]], [[Shipping Cadence#Why]], [[intro]]\n');
-    const { warnings } = await lintContent(vault);
-    expect(warnings).toEqual([
-      'notes: c.md [[shipping-cadence]] only matches notes/Shipping Cadence by slug; Obsidian will not resolve it',
-      'notes: c.md [[Shipping Cadence#Why]]: heading links are not supported; linking the page',
-      'notes: c.md [[intro]] matches 2 pages; linking notes/a/intro (qualify it as [[notes/a/intro]])',
-    ]);
-  });
-
-  it('fails note embeds and missing images, and ignores code', async () => {
-    write('attachments/pic.png', '');
-    write('notes/a.md', '![[Gone]] ![[pic.png]] ![[nope.png]] `![[in code]]`\n\n```\n[[fenced]]\n```\n');
-    const { problems, warnings } = await lintContent(vault);
-    expect(problems).toEqual([
-      'notes: a.md embeds ![[Gone]]: note embeds are not supported; link it with [[Gone]]',
-      'notes: a.md embeds missing image ![[nope.png]]',
-    ]);
-    expect(warnings).toEqual([]);
-  });
-
-  it('accepts HTML embeds the vault has, in pages and decks, and fails missing ones', async () => {
-    write('attachments/viz.html', '<!doctype html>');
-    write('notes/a.md', '![[viz.html]] ![[viz.html#view=sizes|400]] ![[gone.html]]\n');
-    write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n\n<div>\n![[wrapped.html]]\n</div>\n');
-    const { problems } = await lintContent(vault);
-    expect(problems).toEqual([
-      'notes: a.md embeds missing HTML file ![[gone.html]]',
-      'slides: deck.md embeds missing HTML file ![[lost.html]]',
-      'slides: deck.md embeds missing HTML file ![[wrapped.html]]',
-    ]);
-  });
-
-  it('warns that slug has no effect where the path carries meaning', async () => {
-    write('decisions/adr-0001.md', '---\ntitle: T\ndate: 2026-01-01\nstatus: accepted\nslug: x\n---\n');
-    write('notes/n.md', '---\nslug: fine\n---\n');
-    const { warnings } = await lintContent(vault);
-    expect(warnings).toEqual(['decisions: adr-0001.md sets "slug", which has no effect on decisions']);
   });
 });
