@@ -141,9 +141,11 @@ function withPublication(type, record) {
  * asked for and then kept: a catalog is a snapshot, so open a new one to see
  * later edits.
  *
- * @param {string} vaultDir
+ * @param {string} vaultDir  resolved, so every record's `sourcePath` is
+ *   absolute however the vault was named (`--content-dir ./vault`)
  */
 export function openVaultCatalog(vaultDir) {
+  vaultDir = resolve(vaultDir);
   const found = new Map();
   const visible = new Map();
 

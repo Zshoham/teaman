@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { COLLECTIONS } from '../collections.mjs';
 import { openVaultCatalog } from '../vault-catalog.mjs';
 
@@ -97,6 +97,15 @@ describe('openVaultCatalog', () => {
     const [broken] = openVaultCatalog(vault).all('note');
     expect(broken.error).toMatch(/frontmatter is not valid YAML/);
     expect(broken.published).toBe(false);
+  });
+
+  it('resolves a relative vault path, so records and lookups agree', () => {
+    fixture();
+    const catalog = openVaultCatalog(relative(process.cwd(), vault));
+    expect(catalog.vaultDir).toBe(vault);
+    expect(catalog.published('note').map(note => note.sourcePath)).toEqual([join(vault, 'notes/live.md')]);
+    expect(catalog.isPublishedFile(join(vault, 'notes/live.md'))).toBe(true);
+    expect(catalog.isPublishedFile(join(vault, 'dailies/2026-03-12.md'))).toBe(true);
   });
 
   it('knows which files are parts of published pages', () => {
