@@ -1,7 +1,7 @@
 import { bookProblems } from './books.mjs';
 import { contentRoot } from './content-paths';
 import { entryId, guideChapterHref } from './entry-identity.mjs';
-import { openVaultCatalog } from './vault-catalog.mjs';
+import { openVaultCatalog, type VaultCatalog } from './vault-catalog.mjs';
 
 export interface GuideChapter {
   /** Entry id within the guide — the chapter's URL segment. */
@@ -28,6 +28,18 @@ export function guideSlugFromSummaryId(id: string): string {
   return id.replace(/\/summary$/i, '');
 }
 
+// A build renders a snapshot of the vault, and the header lists guides on every
+// page, so a build reads the guides once per vault. The dev server re-reads
+// them per call, so an edit shows on the next request.
+const buildCatalogs = new Map<string, VaultCatalog>();
+
+function guideCatalog(vaultDir: string): VaultCatalog {
+  if (import.meta.env.DEV) return openVaultCatalog(vaultDir);
+  let catalog = buildCatalogs.get(vaultDir);
+  if (!catalog) buildCatalogs.set(vaultDir, catalog = openVaultCatalog(vaultDir));
+  return catalog;
+}
+
 /**
  * Every published guide, with its published chapters in SUMMARY order — the
  * vault catalog's guides, so the site lists exactly what the wiki-link index,
@@ -38,7 +50,7 @@ export function guideSlugFromSummaryId(id: string): string {
  * `problems`, which the guide pages fail the build on.
  */
 export async function listGuides(vaultDir: string = contentRoot): Promise<Guide[]> {
-  return openVaultCatalog(vaultDir).published('guide')
+  return guideCatalog(vaultDir).published('guide')
     .map(guide => ({
       slug: guide.id,
       title: guideTitle(guide.id, guide.body),
