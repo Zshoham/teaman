@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { dirname, join, relative, resolve, sep } from 'path';
 import matter from 'gray-matter';
-import { collectionFor } from './collections.mjs';
+import { assertCoversTypes, collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
 import { entryId } from './entry-identity.mjs';
@@ -121,6 +121,7 @@ const DISCOVER = {
   daily: discoverFiles('daily'),
   decision: discoverDecisions,
 };
+assertCoversTypes(DISCOVER, 'the vault catalog\'s discovery');
 
 /** The one place a record's `published` flag is set. */
 function withPublication(type, record) {
