@@ -22,7 +22,7 @@ import {
   rewriteReferenceBookUrl,
 } from './remark-reference-books.mjs';
 import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
-import { fenceLanguages } from './remark-fence-svg.mjs';
+import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind } from './diagram-kinds.mjs';
 
 const markdown = new MarkdownIt({
   html: true,
@@ -31,8 +31,13 @@ const markdown = new MarkdownIt({
 }).use(obsidianDialect);
 markdown.enable(['strikethrough', 'table']);
 
-const DIAGRAM_LANGUAGES = new Set(['mermaid', 'plantuml', ...fenceLanguages]);
-const DIAGRAM_LABELS = { mermaid: 'Mermaid', plantuml: 'PlantUML', tikz: 'TikZ', typst: 'Typst', d2: 'D2' };
+// Every diagram kind renders into the PDF: the build kinds through the site's
+// compilers, the browser-rendered ones through a server-side renderer here.
+const DIAGRAM_LANGUAGES = new Set(DIAGRAM_KINDS.map(kind => kind.lang));
+const SERVER_RENDERERS = { mermaid: renderMermaidSvg, plantuml: renderPlantumlSvg };
+for (const lang of CLIENT_DIAGRAM_LANGUAGES) {
+  if (!SERVER_RENDERERS[lang]) throw new Error(`no server-side renderer for the ${lang} diagram kind`);
+}
 const HTML_ID_RE = /\sid\s*=\s*(["'])([^"']+)\1/gi;
 
 const asTypstString = value => JSON.stringify(String(value ?? ''));
@@ -150,7 +155,7 @@ export async function compileReferenceDiagrams(source, {
   return compileDiagramFences(markdown.parse(source, {}), {
     languages: DIAGRAM_LANGUAGES,
     cacheDir,
-    compilers: { mermaid: renderMermaidSvg, plantuml: renderPlantumlSvg, ...compilers },
+    compilers: { ...SERVER_RENDERERS, ...compilers },
     onError: (language, reason) => warn(`[teaman] ${language} reference diagram failed to compile: ${reason}`),
   });
 }
@@ -378,7 +383,7 @@ export function markdownToTypst(source, {
         if (diagram?.svg) {
           out += embeddedSvg(diagram.svg);
         } else if (DIAGRAM_LANGUAGES.has(lang) && diagram?.error) {
-          out += `#teaman-callout(type: "warning", title: [${asText(`${DIAGRAM_LABELS[lang]} diagram could not be rendered`)}])[\n`;
+          out += `#teaman-callout(type: "warning", title: [${asText(`${diagramKind(lang).label} diagram could not be rendered`)}])[\n`;
           out += `#raw(${asTypstString(token.content)}, block: true, lang: ${asTypstString(lang)})\n]\n\n`;
         } else {
           out += `#raw(${asTypstString(token.content)}, block: true${lang ? `, lang: ${asTypstString(lang)}` : ''})\n\n`;
