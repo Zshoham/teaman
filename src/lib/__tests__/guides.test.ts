@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -88,6 +88,26 @@ describe('listGuides', () => {
     }
     return vault;
   }
+
+  // The header lists guides on every page; a build reads them once per vault.
+  it('reads the vault once in a build, and on every call in dev', async () => {
+    const dir = write({ 'guides/a/SUMMARY.md': '- [One](one.md)\n', 'guides/a/one.md': '# One' });
+    const addGuide = (slug: string) => {
+      mkdirSync(join(dir, 'guides', slug), { recursive: true });
+      writeFileSync(join(dir, 'guides', slug, 'SUMMARY.md'), '- [One](one.md)\n');
+      writeFileSync(join(dir, 'guides', slug, 'one.md'), '# One');
+    };
+    vi.stubEnv('DEV', false);
+    try {
+      expect((await listGuides(dir)).map(g => g.slug)).toEqual(['a']);
+      addGuide('b');
+      expect((await listGuides(dir)).map(g => g.slug)).toEqual(['a']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    addGuide('c');
+    expect((await listGuides(dir)).map(g => g.slug)).toEqual(['a', 'b', 'c']);
+  });
 
   it('returns guides sorted by slug, with chapters in SUMMARY order', async () => {
     const dir = write({
