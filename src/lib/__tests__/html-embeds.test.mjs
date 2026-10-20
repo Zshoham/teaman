@@ -92,6 +92,19 @@ describe('htmlEmbeds', () => {
     expect(body()).toBe('<p>hi</p>');
   });
 
+  // The URL's own query and fragment are gone by now; what is left is a path.
+  it('serves a file whose path holds # or ?', async () => {
+    const vault = scratch({ 'notes/C#/viz.html': 'sharp', 'notes/why?.html': 'why' });
+    for (const [url, expected] of [['/embeds/notes/C%23/viz.html', 'sharp'], ['/embeds/notes/why%3F.html', 'why']]) {
+      const { res, finished, body } = collectingResponse();
+      const next = vi.fn();
+      middlewareFor(vault, '/')({ url }, res, next);
+      await finished;
+      expect(next, url).not.toHaveBeenCalled();
+      expect(body(), url).toBe(expected);
+    }
+  });
+
   it('passes through anything that is not an HTML file inside the vault', () => {
     const vault = scratch({ 'notes/a.md': '', '.obsidian/x.html': '', 'dist/x.html': '', 'x.html': '' });
     const middleware = middlewareFor(vault, '/');

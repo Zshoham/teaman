@@ -38,9 +38,11 @@ export const EMBED_SANDBOX = 'allow-scripts allow-popups';
 
 const SIZE_RE = /^(?:(\d+)x)?(\d+)$/;
 
+const isHtmlFile = path => /\.html?$/i.test(path);
+
 /** Whether an `![[embed]]` target is a self-contained HTML page. */
 export function isHtmlEmbed(target) {
-  return /\.html?$/i.test(target.split(/[?#]/, 1)[0]);
+  return isHtmlFile(target.split(/[?#]/, 1)[0]);
 }
 
 /** `solar-system.html` → `Solar system`: a frame needs an accessible name. */
@@ -138,8 +140,9 @@ function embedFile(vaultDir, urlPath) {
   }
   // join() normalizes `..`; anything that escapes the vault, is not a vault
   // attachment (the rule `![[…]]` resolves by), or is not HTML is not an embed.
+  // `rel` is already a file path: a `#` or `?` in it is part of a name.
   const file = join(vaultDir, rel);
-  if (!file.startsWith(vaultDir + sep) || !isHtmlEmbed(file)) return null;
+  if (!file.startsWith(vaultDir + sep) || !isHtmlFile(file)) return null;
   if (!isAttachmentPath(relative(vaultDir, file))) return null;
   return existsSync(file) && statSync(file).isFile() ? file : null;
 }
