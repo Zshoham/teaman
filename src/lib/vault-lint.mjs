@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { basename, join, relative, sep } from 'path';
 import matter from 'gray-matter';
-import { bookProblems } from './books.mjs';
-import { COLLECTIONS, collectionFor } from './collections.mjs';
+import { bookProblems, isSummaryFile } from './books.mjs';
+import { assertCoversTypes, COLLECTIONS, collectionFor } from './collections.mjs';
 import { deckEmbedPlan } from './deck-embeds.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from './entry-identity.mjs';
 import { frontmatterProblems } from './frontmatter-schemas.mjs';
@@ -30,36 +30,13 @@ export function lintVault(vaultDir) {
   const index = createVaultIndex(vaultDir, { catalog });
   const where = (type, relPath) => `${collectionFor(type).dir}: ${relPath}`;
 
-  // Frontmatter, validated by the same schemas the content collections use
-  // (frontmatter-schemas.mjs). Glob-loaded collections validate every file,
-  // drafts included, and so does this.
-  const checkFrontmatter = (type, relPath, kind, data) => {
-    for (const problem of frontmatterProblems(kind, data)) problems.push(`${where(type, relPath)}: ${problem}`);
-  };
-  for (const type of ['note', 'daily', 'decision']) {
-    for (const record of catalog.all(type)) {
-      if (record.error) problems.push(`${where(type, record.relPath)}: ${record.error}`);
-      else checkFrontmatter(type, record.relPath, type, record.data);
+  // Frontmatter, validated by the same schemas the content collections use.
+  for (const { type } of COLLECTIONS) {
+    for (const file of FRONTMATTER[type](catalog, vaultDir)) {
+      const at = where(type, file.relPath);
+      if (file.error) problems.push(`${at}: ${file.error}`);
+      else for (const problem of frontmatterProblems(file.kind, file.data)) problems.push(`${at}: ${problem}`);
     }
-  }
-  // A guide's every Markdown file is in a collection, listed in a SUMMARY or not.
-  const guidesRoot = join(vaultDir, collectionFor('guide').dir);
-  for (const file of walkMarkdown(guidesRoot)) {
-    const relPath = relative(guidesRoot, file).split(sep).join('/');
-    let data;
-    try {
-      ({ data } = matter(readFileSync(file, 'utf8')));
-    } catch (error) {
-      problems.push(`${where('guide', relPath)}: frontmatter is not valid YAML (${String(error.message).split('\n')[0]})`);
-      continue;
-    }
-    checkFrontmatter('guide', relPath, basename(file).toLowerCase() === 'summary.md' ? 'guideSummary' : 'guideChapter', data);
-  }
-  // Decks and references reach their collections through the engine's own
-  // discovery, so validate what it hands over.
-  for (const deck of catalog.published('slides')) checkFrontmatter('slides', deck.relPath, 'deck', deck.data);
-  for (const document of catalog.all('reference')) {
-    if (!document.error) checkFrontmatter('reference', document.relPath, 'reference', document.data);
   }
 
   // Lineage pointers should resolve to an ADR that exists in the vault.
@@ -74,6 +51,7 @@ export function lintVault(vaultDir) {
     }
   }
 
+  const guidesRoot = join(vaultDir, collectionFor('guide').dir);
   if (existsSync(guidesRoot)) {
     for (const entry of readdirSync(guidesRoot, { withFileTypes: true })) {
       if (entry.isDirectory() && !existsSync(join(guidesRoot, entry.name, 'SUMMARY.md'))) {
@@ -115,6 +93,46 @@ export function lintVault(vaultDir) {
   }
 
   return { problems, warnings };
+}
+
+/**
+ * The files each type's collection validates, and the schema
+ * (`frontmatter-schemas.mjs`) each is validated against — so passing here
+ * means the build accepts them. A glob-loaded collection validates every
+ * file, drafts included; decks and references reach their collections
+ * through the engine's own discovery, so what it hands over is checked.
+ *
+ * @type {Record<string, (catalog: import('./vault-catalog.mjs').VaultCatalog, vaultDir: string) =>
+ *   Array<{ relPath: string, kind?: string, data?: object, error?: string }>>}
+ */
+const FRONTMATTER = {
+  note: catalog => fileRecords(catalog, 'note', 'note'),
+  reference: catalog => catalog.all('reference')
+    .filter(document => !document.error)
+    .map(document => ({ relPath: document.relPath, kind: 'reference', data: document.data })),
+  daily: catalog => fileRecords(catalog, 'daily', 'daily'),
+  // Every Markdown file under guides/ is in a collection, listed in a
+  // SUMMARY or not.
+  guide: (catalog, vaultDir) => {
+    const root = join(vaultDir, collectionFor('guide').dir);
+    return walkMarkdown(root).map(file => {
+      const relPath = relative(root, file).split(sep).join('/');
+      try {
+        const { data } = matter(readFileSync(file, 'utf8'));
+        return { relPath, kind: isSummaryFile(file) ? 'guideSummary' : 'guideChapter', data };
+      } catch (error) {
+        return { relPath, error: `frontmatter is not valid YAML (${String(error.message).split('\n')[0]})` };
+      }
+    });
+  },
+  slides: catalog => catalog.published('slides').map(deck => ({ relPath: deck.relPath, kind: 'deck', data: deck.data })),
+  decision: catalog => fileRecords(catalog, 'decision', 'decision'),
+};
+assertCoversTypes(FRONTMATTER, "doctor's frontmatter check");
+
+/** A glob-loaded type's every file, with its catalog-parsed frontmatter. */
+function fileRecords(catalog, type, kind) {
+  return catalog.all(type).map(({ relPath, data, error }) => (error ? { relPath, error } : { relPath, kind, data }));
 }
 
 /** A file's frontmatter, or `{}` when it has none or it does not parse. */

@@ -44,9 +44,10 @@ const guideSummaries = defineCollection({
 });
 
 const slides = defineCollection({
-  // The deck catalog decides membership (no drafts, no `_` paths) and parses
-  // each deck with Slidev's parser; see discover-decks.mjs. The stored data is
-  // the headmatter plus what the catalog derived from it.
+  // Every deck outside `_` paths, parsed with Slidev's parser (see
+  // discover-decks.mjs); drafts are stored and `getPublished` drops them, as
+  // for the glob collections. The stored data is the headmatter plus what
+  // discovery derived from it.
   loader: slidesLoader({ base: slidesRoot }),
   schema: FRONTMATTER_SCHEMAS.deck.extend({
     title: z.string(),

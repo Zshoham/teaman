@@ -10,6 +10,7 @@ import {
   guideChapterHref,
   guideHref,
 } from './entry-identity.mjs';
+import { assertCoversTypes } from './collections.mjs';
 import { isAttachmentPath } from './fs-walk.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 
@@ -48,12 +49,12 @@ const withoutMd = value => value.replace(/\.md$/i, '');
  * @property {VaultEntry[]} alternatives  other entries the link also matched
  */
 
-function noteEntries(catalog, base) {
+function notePages(catalog, base) {
   return catalog.published('note').map(note => (
     { type: 'note', sourcePath: note.sourcePath, kind: 'file', href: entryHref(base, 'note', note.id) }));
 }
 
-function referenceEntries(catalog, base) {
+function referencePages(catalog, base) {
   return catalog.published('reference').flatMap(document => {
     const href = entryHref(base, 'reference', document.id);
     if (document.kind === 'standalone') {
@@ -69,7 +70,7 @@ function referenceEntries(catalog, base) {
   });
 }
 
-function guideEntries(catalog, base) {
+function guidePages(catalog, base) {
   return catalog.published('guide').flatMap(guide => {
     // Drafted chapters are already gone, as they are on the site, so the first
     // published chapter is the one served at the guide root.
@@ -86,7 +87,7 @@ function guideEntries(catalog, base) {
   });
 }
 
-function slideEntries(catalog, base) {
+function deckPages(catalog, base) {
   return catalog.published('slides').map(deck => ({
     type: 'slides',
     sourcePath: deck.sourcePath,
@@ -95,7 +96,7 @@ function slideEntries(catalog, base) {
   }));
 }
 
-function dailyEntries(catalog, base) {
+function dailyPages(catalog, base) {
   return catalog.published('daily').flatMap(({ id, sourcePath, data }) => {
     const date = data.date instanceof Date ? data.date : new Date(String(data.date ?? ''));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && Number.isNaN(date.getTime())) return [];
@@ -103,7 +104,7 @@ function dailyEntries(catalog, base) {
   });
 }
 
-function decisionEntries(catalog, base) {
+function decisionPages(catalog, base) {
   return catalog.published('decision').map(record => ({
     type: 'decision',
     sourcePath: record.sourcePath,
@@ -129,7 +130,16 @@ function attachmentFiles(vaultDir) {
   return files;
 }
 
-const DISCOVER = [noteEntries, referenceEntries, guideEntries, slideEntries, dailyEntries, decisionEntries];
+// The pages each content type puts on the site, from its published records.
+const PAGES = {
+  note: notePages,
+  reference: referencePages,
+  guide: guidePages,
+  slides: deckPages,
+  daily: dailyPages,
+  decision: decisionPages,
+};
+assertCoversTypes(PAGES, 'the wiki-link index');
 
 /** Split a link into its page part and whether it carried a `#` fragment. */
 function parseTarget(raw) {
@@ -178,7 +188,7 @@ function rank(candidates, fromDir) {
  */
 export function createVaultIndex(vaultDir, { base = '/', catalog = openVaultCatalog(vaultDir) } = {}) {
   /** @type {VaultEntry[]} */
-  const entries = DISCOVER.flatMap(discover => discover(catalog, base))
+  const entries = Object.values(PAGES).flatMap(pages => pages(catalog, base))
     .map(entry => ({ ...entry, path: withoutMd(posix(relative(vaultDir, entry.sourcePath))) }));
 
   const lower = value => value.toLowerCase();
