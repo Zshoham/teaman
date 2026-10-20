@@ -25,6 +25,7 @@
 import { createReadStream, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, extname, join, relative, sep } from 'path';
 import { fileURLToPath } from 'url';
+import { isAttachmentPath } from './fs-walk.mjs';
 
 /** The out-dir folder (and URL segment) embeds are served from. */
 export const EMBEDS_DIR = 'embeds';
@@ -37,20 +38,48 @@ export const EMBED_SANDBOX = 'allow-scripts allow-popups';
 
 const SIZE_RE = /^(?:(\d+)x)?(\d+)$/;
 
+/** Whether an `![[embed]]` target is a self-contained HTML page. */
+export function isHtmlEmbed(target) {
+  return /\.html?$/i.test(target.split(/[?#]/, 1)[0]);
+}
+
+/** `solar-system.html` → `Solar system`: a frame needs an accessible name. */
+function titleFromFile(path) {
+  const words = basename(path, extname(path)).replace(/[-_]+/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /**
- * What an embed's label says. Obsidian reads a numeric label as a size; for a
- * frame that always fills the column, a lone number is its height
- * (`|600`), and `|800x600` also caps the width. Anything else is the title.
+ * Everything `![[target|label]]` says about one HTML embed, for the site and
+ * for decks alike:
+ * - `path`: the target as written, minus any `?query`/`#fragment` and a
+ *   leading `./` or `/` — what is looked up in the vault, and where a deck
+ *   stages the file under its public `embeds/` dir;
+ * - `suffix`: that `?query`/`#fragment`, which rides along to the embed;
+ * - the label: Obsidian reads a numeric label as a size; for a frame that
+ *   always fills the column, a lone number is its `height` (`|600`), and
+ *   `|800x600` also sets the `width`. Anything else is the `caption`.
+ * - `title`: the caption, or a name made from the file name.
  *
- * @param {string | undefined} label
- * @returns {{ title?: string, width?: number, height?: number }}
+ * @param {string} target
+ * @param {string} [label]
+ * @returns {{ path: string, suffix: string, title: string, caption?: string, width?: number, height?: number }}
  */
-export function parseEmbedLabel(label) {
+export function parseHtmlEmbed(target, label) {
+  const trimmed = target.trim();
+  const cut = trimmed.search(/[?#]/);
+  const path = (cut === -1 ? trimmed : trimmed.slice(0, cut)).trim().replace(/^(\.\/|\/)+/, '');
   const text = label?.trim();
-  if (!text) return {};
-  const size = SIZE_RE.exec(text);
-  if (!size) return { title: text };
-  return { ...(size[1] ? { width: Number(size[1]) } : {}), height: Number(size[2]) };
+  const size = text ? SIZE_RE.exec(text) : null;
+  const caption = text && !size ? text : undefined;
+  return {
+    path,
+    suffix: cut === -1 ? '' : trimmed.slice(cut),
+    title: caption ?? titleFromFile(path),
+    ...(caption ? { caption } : {}),
+    ...(size?.[1] ? { width: Number(size[1]) } : {}),
+    ...(size ? { height: Number(size[2]) } : {}),
+  };
 }
 
 /**
@@ -64,39 +93,20 @@ export function htmlEmbedHref(base, relPath) {
 }
 
 /**
- * Where a deck's `![[target]]` is staged under the deck's public `embeds/`
- * dir — the target as written, minus any `?query`/`#fragment` and leading
- * `./` or `/`. The `<HtmlEmbed>` that `deck-embeds.mjs` writes loads the same
- * path, so decks need no manifest. Decks sharing a folder share a public dir, and the same
- * target text resolves to the same file from the same folder.
- *
- * @param {string} target
- */
-export function deckEmbedPath(target) {
-  return target.split(/[?#]/, 1)[0].trim().replace(/^(\.\/|\/)+/, '');
-}
-
-/** `solar-system.html` → `Solar system`: a frame needs an accessible name. */
-function titleFromFile(file) {
-  const words = basename(file, extname(file)).replace(/[-_]+/g, ' ').trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/**
  * The hast for one embed: a `<figure>` when it stands alone in its paragraph
  * (with the label as caption, like a standalone image), a `<span>` when it
  * flows inside text so no block ends up inside a `<p>`.
  *
- * @param {{ src: string, file: string, label?: string, block?: boolean }} embed
+ * @param {{ src: string, target: string, label?: string, block?: boolean }} embed
  */
-export function htmlEmbedElement({ src, file, label, block = false }) {
-  const { title, width, height } = parseEmbedLabel(label);
+export function htmlEmbedElement({ src, target, label, block = false }) {
+  const { title, caption, width, height } = parseHtmlEmbed(target, label);
   const iframe = {
     type: 'element',
     tagName: 'iframe',
     properties: {
       src,
-      title: title ?? titleFromFile(file),
+      title,
       loading: 'lazy',
       sandbox: EMBED_SANDBOX,
       allow: 'fullscreen',
@@ -107,14 +117,14 @@ export function htmlEmbedElement({ src, file, label, block = false }) {
     },
     children: [],
   };
-  const caption = block && title
-    ? [{ type: 'element', tagName: 'figcaption', properties: {}, children: [{ type: 'text', value: title }] }]
+  const figcaption = block && caption
+    ? [{ type: 'element', tagName: 'figcaption', properties: {}, children: [{ type: 'text', value: caption }] }]
     : [];
   return {
     type: 'element',
     tagName: block ? 'figure' : 'span',
     properties: { className: ['html-embed'] },
-    children: [iframe, ...caption],
+    children: [iframe, ...figcaption],
   };
 }
 
@@ -126,11 +136,11 @@ function embedFile(vaultDir, urlPath) {
   } catch {
     return null;
   }
-  // join() normalizes `..`; anything that escapes the vault, hides in a
-  // dotted directory, or is not HTML is not an embed.
+  // join() normalizes `..`; anything that escapes the vault, is not a vault
+  // attachment (the rule `![[…]]` resolves by), or is not HTML is not an embed.
   const file = join(vaultDir, rel);
-  if (!file.startsWith(vaultDir + sep) || !/\.html?$/i.test(file)) return null;
-  if (relative(vaultDir, file).split(sep).some(segment => segment.startsWith('.'))) return null;
+  if (!file.startsWith(vaultDir + sep) || !isHtmlEmbed(file)) return null;
+  if (!isAttachmentPath(relative(vaultDir, file))) return null;
   return existsSync(file) && statSync(file).isFile() ? file : null;
 }
 

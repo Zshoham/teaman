@@ -220,9 +220,12 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   markdown-it, as Slidev parses; code spans across line runs) and builds the
   `HtmlEmbed.vue` that loads `embeds/<target>`. The theme's
   `setup/transformers.ts` rewrites with it (via the staged `deck-embeds.ts`,
-  re-pointed by absolute path), `build-slides` stages a file for each
-  (`deckEmbedPath`), and `doctor` checks each resolves — one scan, so they
-  cannot disagree.
+  re-pointed by absolute path), and `deckEmbedPlan` turns the same scan into
+  `{ target, file, dest }` — `build-slides` stages from it, `doctor` reports
+  the unresolved ones — so they cannot disagree. `parseHtmlEmbed` is the one
+  reading of `![[target|label]]` (path, `?`/`#` suffix, title, size) for the
+  site and decks; `isAttachmentPath` (`fs-walk.mjs`) is the one rule for which
+  vault files can be embedded at all.
 - Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
   `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
   every page the site renders, matched Obsidian-style (bare name or trailing

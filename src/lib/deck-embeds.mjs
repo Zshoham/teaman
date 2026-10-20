@@ -5,8 +5,9 @@
  *
  * One scan serves every consumer, so they cannot disagree: the slide
  * theme's transformer (`resources/slidev-theme-teaman/setup/transformers.ts`,
- * through the staged `deck-embeds.ts`) rewrites what it finds, build-slides
- * stages a file for each, and `doctor` checks each resolves.
+ * through the staged `deck-embeds.ts`) rewrites what it finds, and
+ * `deckEmbedPlan` says where each file comes from — build-slides stages
+ * from it, and `doctor` reports the ones that resolve to nothing.
  *
  * Code is left alone, so a slide can still show the syntax: fenced and
  * indented code blocks come from markdown-it — the parser Slidev renders
@@ -16,13 +17,13 @@
  * block of code). Raw HTML stays live: the transformer runs before Slidev
  * parses, so an embed inside `<div>…</div>` still becomes a frame.
  */
+import { dirname } from 'path';
 import MarkdownIt from 'markdown-it';
-import { deckEmbedPath } from './html-embeds.mjs';
+import { EMBEDS_DIR, isHtmlEmbed, parseHtmlEmbed } from './html-embeds.mjs';
 
 const parser = new MarkdownIt({ html: true });
 
 const EMBED_RE = /!\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]/g;
-const SIZE_RE = /^(?:(\d+)x)?(\d+)$/;
 
 /**
  * Code spans in `text`: a run of N backticks opens a span that only a run of
@@ -84,23 +85,14 @@ function codeBlockLines(markdown) {
 const escapeAttr = value =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-function titleFromFile(path) {
-  const words = (path.split('/').pop() ?? path).replace(/\.html?$/i, '').replace(/[-_]+/g, ' ').trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 /** The `<HtmlEmbed>` for one embed; its `src` is where build-slides stages the file. */
 function componentFor(target, label) {
-  const path = deckEmbedPath(target);
+  const { path, suffix, title, width, height } = parseHtmlEmbed(target, label);
   // A `#fragment` or `?query` rides along: the embed may read it.
-  const cut = target.trim().search(/[?#]/);
-  const suffix = cut === -1 ? '' : target.trim().slice(cut);
-  const src = `embeds/${path.split('/').map(encodeURIComponent).join('/')}${suffix}`;
-  const size = label ? SIZE_RE.exec(label.trim()) : null;
-  const title = label && !size ? label.trim() : titleFromFile(path);
+  const src = `${EMBEDS_DIR}/${path.split('/').map(encodeURIComponent).join('/')}${suffix}`;
   const attrs = [`src="${escapeAttr(src)}"`, `title="${escapeAttr(title)}"`];
-  if (size?.[1]) attrs.push(`:width="${size[1]}"`);
-  if (size) attrs.push(`:height="${size[2]}"`);
+  if (width) attrs.push(`:width="${width}"`);
+  if (height) attrs.push(`:height="${height}"`);
   return `<HtmlEmbed ${attrs.join(' ')} />`;
 }
 
@@ -123,7 +115,7 @@ export function htmlEmbedEdits(markdown) {
     const spans = codeSpans(text);
     for (const match of text.matchAll(EMBED_RE)) {
       const [whole, target, label] = match;
-      if (!/\.html?$/i.test(deckEmbedPath(target))) continue;
+      if (!isHtmlEmbed(parseHtmlEmbed(target).path)) continue;
       if (spans.some(([from, to]) => match.index >= from && match.index < to)) continue;
       edits.push({
         start: start + match.index,
@@ -147,4 +139,25 @@ export function htmlEmbedEdits(markdown) {
   });
   flush();
   return edits;
+}
+
+/**
+ * Where each of a deck's embeds comes from and where it is staged: `file` is
+ * the vault file `![[target]]` resolves to (null when there is none), `dest`
+ * the path — relative to the slides root — that the deck's `<HtmlEmbed>`
+ * loads, in the public dir Slidev serves beside the deck. One entry per
+ * distinct target.
+ *
+ * @param {{ markdown: string, sourcePath: string, relPath: string }} deck
+ * @param {(target: string, fromPath: string) => string | null} resolveAttachment
+ * @returns {Array<{ target: string, file: string | null, dest: string }>}
+ */
+export function deckEmbedPlan(deck, resolveAttachment) {
+  const folder = dirname(deck.relPath);
+  const targets = [...new Set(htmlEmbedEdits(deck.markdown).map(edit => edit.target))];
+  return targets.map(target => ({
+    target,
+    file: resolveAttachment(target, deck.sourcePath),
+    dest: [folder === '.' ? '' : `${folder}/`, `public/${EMBEDS_DIR}/`, parseHtmlEmbed(target).path].join(''),
+  }));
 }

@@ -5,13 +5,13 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Writable } from 'node:stream';
 import {
-  deckEmbedPath,
+  EMBED_SANDBOX,
   htmlEmbedElement,
   htmlEmbedHref,
   htmlEmbeds,
-  parseEmbedLabel,
+  parseHtmlEmbed,
 } from '../html-embeds.mjs';
-import { htmlEmbedEdits } from '../deck-embeds.mjs';
+import { deckEmbedPlan, htmlEmbedEdits } from '../deck-embeds.mjs';
 
 const dirs = [];
 afterEach(() => {
@@ -28,12 +28,17 @@ function scratch(files = {}) {
   return dir;
 }
 
-describe('parseEmbedLabel', () => {
-  it('reads a number as the height, WxH as width and height, anything else as the title', () => {
-    expect(parseEmbedLabel(undefined)).toEqual({});
-    expect(parseEmbedLabel(' 600 ')).toEqual({ height: 600 });
-    expect(parseEmbedLabel('800x600')).toEqual({ width: 800, height: 600 });
-    expect(parseEmbedLabel('Our solar system')).toEqual({ title: 'Our solar system' });
+describe('parseHtmlEmbed', () => {
+  it('reads a number as the height, WxH as width and height, anything else as the caption', () => {
+    expect(parseHtmlEmbed('solar-system.html')).toEqual({ path: 'solar-system.html', suffix: '', title: 'Solar system' });
+    expect(parseHtmlEmbed('x.html', ' 600 ')).toMatchObject({ title: 'X', height: 600 });
+    expect(parseHtmlEmbed('x.html', '800x600')).toMatchObject({ width: 800, height: 600 });
+    expect(parseHtmlEmbed('x.html', 'Our solar system')).toMatchObject({ title: 'Our solar system', caption: 'Our solar system' });
+  });
+
+  it('splits the path the vault is searched by from the query or fragment the embed reads', () => {
+    expect(parseHtmlEmbed(' ./viz/My Viz.html#planet=mars ')).toMatchObject({ path: 'viz/My Viz.html', suffix: '#planet=mars' });
+    expect(parseHtmlEmbed('/a.htm?x=1')).toMatchObject({ path: 'a.htm', suffix: '?x=1', title: 'A' });
   });
 });
 
@@ -46,12 +51,12 @@ describe('htmlEmbedHref', () => {
 
 describe('htmlEmbedElement', () => {
   it('names the frame after the file unless titled, and fixes only an authored height', () => {
-    const frame = htmlEmbedElement({ src: '/embeds/x.html', file: '/v/solar-system.html' });
+    const frame = htmlEmbedElement({ src: '/embeds/x.html', target: 'solar-system.html' });
     expect(frame.tagName).toBe('span');
     expect(frame.children[0].properties).toMatchObject({ title: 'Solar system', height: '480', sandbox: 'allow-scripts allow-popups' });
     expect(frame.children[0].properties).not.toHaveProperty('dataFixedHeight');
 
-    const fixed = htmlEmbedElement({ src: '/embeds/x.html', file: '/v/x.html', label: '640x400', block: true });
+    const fixed = htmlEmbedElement({ src: '/embeds/x.html', target: 'x.html', label: '640x400', block: true });
     expect(fixed.tagName).toBe('figure');
     expect(fixed.children).toHaveLength(1); // a size is not a caption
     expect(fixed.children[0].properties).toMatchObject({ width: '640', height: '400', dataFixedHeight: true });
@@ -88,12 +93,13 @@ describe('htmlEmbeds', () => {
   });
 
   it('passes through anything that is not an HTML file inside the vault', () => {
-    const vault = scratch({ 'notes/a.md': '', '.obsidian/x.html': '', 'x.html': '' });
+    const vault = scratch({ 'notes/a.md': '', '.obsidian/x.html': '', 'dist/x.html': '', 'x.html': '' });
     const middleware = middlewareFor(vault, '/');
     for (const url of [
       '/notes/a/',
       '/embeds/notes/a.md',
       '/embeds/.obsidian/x.html',
+      '/embeds/dist/x.html',
       '/embeds/../x.html',
       '/embeds/%2e%2e/%2e%2e/etc/passwd.html',
       '/embeds/missing.html',
@@ -158,13 +164,35 @@ describe('deck embeds (slide theme transformer)', () => {
   });
 
   it('stages every embed it frames, at the path the frame loads', () => {
-    // build-slides stages what htmlEmbedEdits finds; the frame must load the
+    // build-slides stages what deckEmbedPlan says; the frame must load the
     // staged path — including embeds inside raw HTML wrappers.
-    const md = '![[a.html]]\n\n<div>\n![[./sub/b.htm?x=1|300]]\n</div>\n\n`![[c.html]]`\n\n~~~\n![[d.html]]\n~~~\n';
-    const edits = htmlEmbedEdits(md);
-    const staged = edits.map(edit => `embeds/${deckEmbedPath(edit.target)}`);
-    const framed = edits.map(edit => decodeURIComponent(/src="([^"?#]+)/.exec(edit.replacement)[1]));
-    expect(framed).toEqual(staged);
-    expect(staged).toEqual(['embeds/a.html', 'embeds/sub/b.htm']);
+    const markdown = '![[a.html]]\n\n<div>\n![[./sub/b.htm?x=1|300]]\n</div>\n\n`![[c.html]]`\n\n~~~\n![[d.html]]\n~~~\n\n![[a.html|Again]]\n';
+    const plan = deckEmbedPlan({ markdown, sourcePath: '/v/slides/talks/t.md', relPath: 'talks/t.md' }, () => null);
+    const framed = htmlEmbedEdits(markdown).map(edit => decodeURIComponent(/src="([^"?#]+)/.exec(edit.replacement)[1]));
+    expect(plan.map(entry => entry.dest)).toEqual(['talks/public/embeds/a.html', 'talks/public/embeds/sub/b.htm']);
+    expect([...new Set(framed)].map(src => `talks/public/${src}`)).toEqual(plan.map(entry => entry.dest));
+  });
+
+  it('plans each target once, with the vault file it resolves to', () => {
+    const resolved = [];
+    const resolve = (target, from) => (resolved.push([target, from]), target === 'gone.html' ? null : `/v/attachments/${target}`);
+    const plan = deckEmbedPlan({ markdown: '![[viz.html]] ![[viz.html|300]] ![[gone.html]]', sourcePath: '/v/slides/t.md', relPath: 't.md' }, resolve);
+    expect(plan).toEqual([
+      { target: 'viz.html', file: '/v/attachments/viz.html', dest: 'public/embeds/viz.html' },
+      { target: 'gone.html', file: null, dest: 'public/embeds/gone.html' },
+    ]);
+    expect(resolved.every(([, from]) => from === '/v/slides/t.md')).toBe(true);
+  });
+});
+
+describe('embed frame protocol', () => {
+  it('is spoken the same by the site and the deck theme', () => {
+    const vue = readFileSync(join(import.meta.dirname, '../../../resources/slidev-theme-teaman/components/HtmlEmbed.vue'), 'utf8');
+    const site = readFileSync(join(import.meta.dirname, '../../scripts/html-embeds.ts'), 'utf8');
+    expect(vue).toContain(`sandbox="${EMBED_SANDBOX}"`);
+    for (const message of ['teaman:theme', 'teaman:ready']) {
+      expect(vue, message).toContain(`'${message}'`);
+      expect(site, message).toContain(`'${message}'`);
+    }
   });
 });
