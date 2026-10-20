@@ -25,7 +25,7 @@ import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { bookProblems } from '../src/lib/reference-documents.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
-import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
+import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
@@ -617,12 +617,11 @@ export async function lintContent(vault) {
 
   // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
   // into a frame, and build-slides fails the deck when the file is missing.
-  // Found by the slide theme's own scan, so doctor checks exactly what it rewrites.
+  // Planned from the slide theme's own scan, so doctor checks exactly what
+  // build-slides stages.
   for (const deck of catalog.published('slides')) {
-    for (const { target } of htmlEmbedEdits(deck.markdown)) {
-      if (!index.resolveAttachment(target, deck.sourcePath)) {
-        problems.push(`slides: ${deck.relPath} embeds missing HTML file ![[${target}]]`);
-      }
+    for (const { target, file } of deckEmbedPlan(deck, index.resolveAttachment)) {
+      if (!file) problems.push(`slides: ${deck.relPath} embeds missing HTML file ![[${target}]]`);
     }
   }
 

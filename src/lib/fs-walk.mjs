@@ -37,3 +37,19 @@ export function walkMarkdown(dir, { skipUnderscore = false } = {}) {
       return entry.isFile() && entry.name.toLowerCase().endsWith('.md') ? [path] : [];
     });
 }
+
+// Directories that hold no vault attachments: tooling state and build output
+// (a vault built in place writes `dist/`, full of copies of its own images).
+const NOT_ATTACHMENTS = new Set(['node_modules', 'dist']);
+
+/**
+ * Can this vault-relative path be an attachment? Not under a dotted entry
+ * (`.obsidian/`, `.git/`) or a tooling/build directory. `![[embed]]`s resolve
+ * only to such files (`vault-index.mjs`), and the dev server serves only such
+ * files as embeds (`html-embeds.mjs`).
+ *
+ * @param {string} relPath
+ */
+export function isAttachmentPath(relPath) {
+  return !relPath.split(/[/\\]/).some(segment => segment.startsWith('.') || NOT_ATTACHMENTS.has(segment));
+}

@@ -5,8 +5,7 @@ import { createRequire } from 'module';
 import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, renderDeckEmbedsModule } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
-import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
-import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
+import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
 
@@ -77,22 +76,19 @@ writeFileSync(
 writeFileSync(join(themeDir, 'deck-embeds.ts'), renderDeckEmbedsModule(join(engineDir, 'src', 'lib', 'deck-embeds.mjs')));
 
 // `![[page.html]]` embeds: the theme's transformer turns each into an
-// <HtmlEmbed> frame loading `embeds/<target>` relative to the deck, so stage
-// the file Obsidian would find into that deck folder's public dir (Slidev
-// serves `public/` beside the deck file). A missing file fails the build,
-// as it does on the site.
+// <HtmlEmbed> frame loading `embeds/<target>` relative to the deck; stage the
+// file Obsidian would find where the frame looks (deckEmbedPlan). A missing
+// file fails the build, as it does on the site.
 const vaultIndex = createVaultIndex(vaultDir, { catalog });
 const missingEmbeds = [];
 for (const deck of decks) {
-  for (const { target } of htmlEmbedEdits(deck.markdown)) {
-    const found = vaultIndex.resolveAttachment(target, deck.sourcePath);
-    if (!found) {
+  for (const { target, file, dest } of deckEmbedPlan(deck, vaultIndex.resolveAttachment)) {
+    if (!file) {
       missingEmbeds.push(`slides/${deck.relPath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
       continue;
     }
-    const dest = join(slidesTmpDir, dirname(deck.relPath), 'public', EMBEDS_DIR, deckEmbedPath(target));
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(found, dest);
+    mkdirSync(dirname(join(slidesTmpDir, dest)), { recursive: true });
+    copyFileSync(file, join(slidesTmpDir, dest));
   }
 }
 if (missingEmbeds.length > 0) {
