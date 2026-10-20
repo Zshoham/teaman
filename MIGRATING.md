@@ -23,6 +23,10 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **`/daily/` redirects instantly** (patch, no vault changes). The built
+  `/daily/` page used to wait 2 seconds before moving on to the latest week;
+  it now redirects immediately.
+
 - **Engine files no longer ship in built sites** (patch, no vault changes).
   Builds used to include `slidev-theme-teaman/`, `typst-packages/`, and
   `reference-template.typ` at the site root; only the default `teacup.svg`
