@@ -3,9 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock virtual modules before any imports from the modules under test.
 vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
 vi.mock('fs/promises', () => ({ stat: vi.fn() }));
+// Guides come from the vault catalog; each test states the one it lists.
+vi.mock('../guides', async importOriginal => ({ ...await importOriginal<object>(), listGuides: vi.fn(async () => []) }));
 
 import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
+import { listGuides } from '../guides';
 import {
   byUpdatedDesc,
   isoDate,
@@ -338,6 +341,9 @@ describe('loadGuideEntries', () => {
   });
 
   function stubGuide(summaryData: Record<string, unknown>) {
+    vi.mocked(listGuides).mockResolvedValue([
+      { slug: 'rust', title: 'Rust', chapters: [{ slug: 'intro', title: 'Intro' }], problems: [] },
+    ]);
     vi.mocked(getCollection).mockImplementation(((name: string) => {
       if (name === 'guideSummaries') {
         return Promise.resolve([

@@ -37,7 +37,8 @@ mismatch warning stays quiet and records what the vault now targets.
 
 - **`doctor` checks guide chapters** (patch). A guide whose `SUMMARY.md`
   lists a missing chapter, or one outside its directory, is now a `doctor`
-  problem; the build already failed on it.
+  problem; the build already failed on it, and now says which `SUMMARY.md`
+  and chapter instead of `Chapter not found`.
 
 - **Mermaid rendering uses Pele** (no vault changes). Existing Mermaid fences
   in site pages and reference PDFs use Pele's layout and appearance. Site

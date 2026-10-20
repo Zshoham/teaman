@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pathToFileURL } from 'url';
 
 const discoverReferenceDocuments = vi.fn();
-vi.mock('../reference-documents.mjs', async importOriginal => ({ ...await importOriginal(), discoverReferenceDocuments }));
+vi.mock('../reference-documents.mjs', () => ({ discoverReferenceDocuments }));
 
 const { referenceLoader } = await import('../reference-loader.mjs');
 

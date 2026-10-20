@@ -1,12 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
-
-import { getCollection } from 'astro:content';
+import { afterEach, describe, it, expect } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import {
   guideSlugFromSummaryId,
   chapterHref,
-  parseGuide,
+  guideTitle,
   listGuides,
 } from '../guides';
 import type { Guide } from '../guides';
@@ -44,6 +43,7 @@ const sampleGuide: Guide = {
     { slug: 'intro', title: 'Introduction' },
     { slug: 'chapter-2', title: 'Chapter Two' },
   ],
+  problems: [],
 };
 
 describe('chapterHref', () => {
@@ -61,160 +61,71 @@ describe('chapterHref', () => {
   });
 });
 
-// ── parseGuide ────────────────────────────────────────────────────────────────
+// ── guideTitle ────────────────────────────────────────────────────────────────
 
-describe('parseGuide', () => {
-  it('parses title from H1 and chapters from a bullet list', () => {
-    const summary = `# The Guide Title
-
-- [Introduction](intro.md)
-- [Chapter Two](chapter-two.md)
-`;
-    const guide = parseGuide('the-guide', summary);
-    expect(guide.title).toBe('The Guide Title');
-    expect(guide.slug).toBe('the-guide');
-    expect(guide.chapters).toEqual([
-      { slug: 'intro', title: 'Introduction' },
-      { slug: 'chapter-two', title: 'Chapter Two' },
-    ]);
-  });
-
-  it('falls back to slug-derived title when no H1 is present', () => {
-    const guide = parseGuide('my-guide', '- [Intro](intro.md)\n');
-    expect(guide.title).toBe('my guide'); // hyphens → spaces
-  });
-
-  it('accepts * list markers', () => {
-    const guide = parseGuide('g', '# G\n* [Ch](ch.md)\n');
-    expect(guide.chapters).toHaveLength(1);
-    expect(guide.chapters[0].slug).toBe('ch');
-  });
-
-  it('accepts indented list items', () => {
-    const guide = parseGuide('g', '# G\n  - [Ch](ch.md)\n');
-    expect(guide.chapters).toHaveLength(1);
-  });
-
-  it('strips the ./ prefix from chapter links', () => {
-    const guide = parseGuide('g', '# G\n- [Ch](./ch.md)\n');
-    expect(guide.chapters[0].slug).toBe('ch');
-  });
-
-  it('strips a leading / from chapter links', () => {
-    const guide = parseGuide('g', '# G\n- [Ch](/ch.md)\n');
-    expect(guide.chapters[0].slug).toBe('ch');
-  });
-
-  // Previously dropped: the old line regex only understood `-`/`*` bullets and
-  // a bare `(path.md)` destination. SUMMARY.md now goes through the same
-  // CommonMark parser the reference books use.
-  it('accepts + and numbered list markers', () => {
-    expect(parseGuide('g', '# G\n+ [A](a.md)\n').chapters).toEqual([
-      { slug: 'a', title: 'A' },
-    ]);
-    expect(parseGuide('g', '# G\n1. [A](a.md)\n2. [B](b.md)\n').chapters).toEqual([
-      { slug: 'a', title: 'A' },
-      { slug: 'b', title: 'B' },
-    ]);
-  });
-
-  it('accepts a link title after the destination', () => {
-    expect(parseGuide('g', '# G\n- [A](a.md "The first bit")\n').chapters).toEqual([
-      { slug: 'a', title: 'A' },
-    ]);
-  });
-
-  it('accepts an angle-bracket destination, spaces included', () => {
-    expect(parseGuide('g', '# G\n- [A](<my chapter.md>)\n').chapters).toEqual([
-      { slug: 'my-chapter', title: 'A' },
-    ]);
-  });
-
-  it('accepts a percent-encoded destination', () => {
-    expect(parseGuide('g', '# G\n- [A](my%20chapter.md)\n').chapters).toEqual([
-      { slug: 'my-chapter', title: 'A' },
-    ]);
-  });
-
-  it('keeps a nested chapter path', () => {
-    expect(parseGuide('g', '# G\n- [A](part-one/a.md)\n').chapters).toEqual([
-      { slug: 'part-one/a', title: 'A' },
-    ]);
-  });
-
-  it('drops the fragment from a chapter link', () => {
-    expect(parseGuide('g', '# G\n- [A](a.md#section)\n').chapters).toEqual([
-      { slug: 'a', title: 'A' },
-    ]);
-  });
-
-  it('ignores external links and non-markdown targets', () => {
-    const guide = parseGuide('g', [
-      '# G',
-      '- [Site](https://example.com/x.md)',
-      '- [Proto](//example.com/x.md)',
-      '- [Asset](diagram.svg)',
-      '- [Real](a.md)',
-    ].join('\n'));
-    expect(guide.chapters).toEqual([{ slug: 'a', title: 'Real' }]);
-  });
-
-  it('ignores a link mentioned in prose rather than listed', () => {
-    const guide = parseGuide('g', '# G\n\nSee [A](a.md) for context.\n\n- [B](b.md)\n');
-    expect(guide.chapters).toEqual([{ slug: 'b', title: 'B' }]);
-  });
-
-  it('handles Windows-style line endings', () => {
-    const summary = '# Guide\r\n- [Intro](intro.md)\r\n';
-    const guide = parseGuide('guide', summary);
-    expect(guide.title).toBe('Guide');
-    expect(guide.chapters).toHaveLength(1);
-  });
-
-  it('returns an empty chapters array for a summary with only a title', () => {
-    const guide = parseGuide('g', '# Title\n');
-    expect(guide.chapters).toEqual([]);
+describe('guideTitle', () => {
+  it('takes the H1 of the summary, else the slug with hyphens as spaces', () => {
+    expect(guideTitle('the-guide', '# The Guide Title\n\n- [Intro](intro.md)\n')).toBe('The Guide Title');
+    expect(guideTitle('my-guide', '- [Intro](intro.md)\n')).toBe('my guide');
+    expect(guideTitle('guide', '# Guide\r\n- [Intro](intro.md)\r\n')).toBe('Guide');
   });
 });
 
 // ── listGuides ────────────────────────────────────────────────────────────────
 
 describe('listGuides', () => {
-  beforeEach(() => {
-    vi.mocked(getCollection).mockReset();
+  let vault: string | undefined;
+  afterEach(() => {
+    if (vault) rmSync(vault, { recursive: true, force: true });
+    vault = undefined;
   });
 
-  it('parses and returns guides sorted by slug', async () => {
-    vi.mocked(getCollection).mockResolvedValue([
-      { id: 'zebra/summary', body: '# Zebra Guide\n- [Ch](ch.md)\n' },
-      { id: 'alpha/summary', body: '# Alpha Guide\n- [Ch](ch.md)\n' },
-    ] as any);
+  function write(files: Record<string, string>) {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-guides-'));
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(vault, path)), { recursive: true });
+      writeFileSync(join(vault, path), content);
+    }
+    return vault;
+  }
 
-    const guides = await listGuides();
-    expect(guides.map(g => g.slug)).toEqual(['alpha', 'zebra']);
+  it('returns guides sorted by slug, with chapters in SUMMARY order', async () => {
+    const dir = write({
+      'guides/zebra/SUMMARY.md': '# Zebra Guide\n- [Ch](ch.md)\n',
+      'guides/zebra/ch.md': '# Ch',
+      'guides/alpha/SUMMARY.md': '# Alpha Guide\n- [Two](<Part Two.md>)\n- [One](one.md)\n',
+      'guides/alpha/one.md': '# One',
+      'guides/alpha/Part Two.md': '# Two',
+    });
+    const guides = await listGuides(dir);
+    expect(guides.map(g => [g.slug, g.title])).toEqual([['alpha', 'Alpha Guide'], ['zebra', 'Zebra Guide']]);
+    expect(guides[0].chapters).toEqual([{ slug: 'part-two', title: 'Two' }, { slug: 'one', title: 'One' }]);
+    expect(guides[0].problems).toEqual([]);
   });
 
   it('returns an empty array when no summaries exist', async () => {
-    vi.mocked(getCollection).mockResolvedValue([] as any);
-    expect(await listGuides()).toEqual([]);
+    expect(await listGuides(write({}))).toEqual([]);
   });
 
   it('hides drafted and _-prefixed guides, and drafted chapters', async () => {
-    const collections: Record<string, unknown[]> = {
-      guideSummaries: [
-        { id: 'live/summary', data: {}, filePath: 'example/guides/live/SUMMARY.md', body: '- [A](a.md)\n- [B](b.md)\n' },
-        { id: 'wip/summary', data: { draft: true }, filePath: 'example/guides/wip/SUMMARY.md', body: '- [A](a.md)\n' },
-        { id: '_tpl/summary', data: {}, filePath: 'example/guides/_tpl/SUMMARY.md', body: '- [A](a.md)\n' },
-      ],
-      guides: [
-        { id: 'live/a', data: { draft: true }, filePath: 'example/guides/live/a.md' },
-        { id: 'live/b', data: {}, filePath: 'example/guides/live/b.md' },
-      ],
-    };
-    vi.mocked(getCollection).mockImplementation((async (name: string) => collections[name] ?? []) as any);
-
-    const guides = await listGuides();
+    const dir = write({
+      'guides/live/SUMMARY.md': '- [A](a.md)\n- [B](b.md)\n',
+      'guides/live/a.md': '---\ndraft: true\n---\n# A',
+      'guides/live/b.md': '# B',
+      'guides/wip/SUMMARY.md': '---\ndraft: true\n---\n- [A](a.md)\n',
+      'guides/wip/a.md': '# A',
+      'guides/_tpl/SUMMARY.md': '- [A](a.md)\n',
+      'guides/_tpl/a.md': '# A',
+    });
+    const guides = await listGuides(dir);
     expect(guides.map(g => g.slug)).toEqual(['live']);
     expect(guides[0].chapters.map(c => c.slug)).toEqual(['b']);
+  });
+
+  it('leaves out a chapter it cannot serve, and reports it', async () => {
+    const dir = write({ 'guides/g/SUMMARY.md': '- [Here](here.md)\n- [Gone](gone.md)\n', 'guides/g/here.md': '# Here' });
+    const [guide] = await listGuides(dir);
+    expect(guide.chapters.map(c => c.slug)).toEqual(['here']);
+    expect(guide.problems).toEqual(['g/SUMMARY.md points at missing chapter gone.md']);
   });
 });
