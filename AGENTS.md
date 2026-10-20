@@ -232,17 +232,26 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   path, case-insensitive, same folder then shortest path, legacy slug match as
   a fallback). `doctor` and Confluence sync resolve through the same index.
 
+The diagram fence languages are listed once, in `src/lib/diagram-kinds.mjs`
+(`lang`, `label`, and whether the site renders it on the `client` or at
+`build` time). Every renderer reads it, and each per-kind adapter table — the
+build compilers in `remark-fence-svg.mjs`, the PDF's server renderers in
+`reference-pdf.mjs` — throws at load if it misses a kind; a unit test checks
+each client kind has its `src/scripts/<lang>.ts` loaded by `Layout.astro`.
+Adding a kind is a row there plus its adapters.
+
 The Markdown pipeline (`astro.config.mjs`) also runs `remarkStripLeadingH1` (pages
-render the title themselves), `remarkMermaid` / `remarkPlantuml` (rewrite
-` ```mermaid ` / ` ```plantuml ` fences to `<pre class="mermaid">` /
-`<pre class="plantuml">` so Shiki skips them and `src/scripts/mermaid.ts` /
-`src/scripts/plantuml.ts` render them client-side, theme-reactive — PlantUML via
-the lazily-imported `@plantuml/core` engine + its `viz-global.js` Graphviz layout),
+render the title themselves),
 `remarkInlineSvg` (inlines local `.svg` markdown images — resolved note-relative,
 then vault root, then public roots — as theme-reactive inline svg; standalone
-images become a `<figure>` with the alt as caption), `remarkFenceSvg` (compiles
-` ```tikz `/` ```typst ` fences to inline svg at **build** time via `node-tikzjax`
-WASM TeX / native `typst.ts`, black ink → `currentColor`, renders cached by
+images become a `<figure>` with the alt as caption), `remarkDiagramFences`
+(`remark-fence-svg.mjs`: client kinds — ` ```mermaid ` / ` ```plantuml ` — become
+`<pre class="mermaid">` / `<pre class="plantuml">` so Shiki skips them and
+`src/scripts/mermaid.ts` / `src/scripts/plantuml.ts` render them client-side,
+theme-reactive — PlantUML via the lazily-imported `@plantuml/core` engine + its
+`viz-global.js` Graphviz layout; build kinds — ` ```tikz `/` ```typst `/` ```d2 ` —
+compile to inline svg at **build** time via `node-tikzjax` WASM TeX / native
+`typst.ts` / D2's WASM engine, black ink → `currentColor`, renders cached by
 content hash in the gitignored `.diagram-cache/`; TikZ text needs the
 Computer Modern `@font-face` set that `global.css` imports from node-tikzjax),
 `remarkSmartLinks` (Jira / Confluence / GitLab links → a chip carrying the ref

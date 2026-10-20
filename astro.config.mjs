@@ -7,9 +7,8 @@ import remarkWikiLink from 'remark-wiki-link';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutolinkHeadings from 'rehype-autolink-headings';
 import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
-import { remarkMermaid, remarkPlantuml } from './src/lib/remark-fence-pre.mjs';
 import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
-import { remarkFenceSvg } from './src/lib/remark-fence-svg.mjs';
+import { remarkDiagramFences } from './src/lib/remark-fence-svg.mjs';
 import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
 import { failOnEmbedErrors, remarkWikiEmbeds, remarkWikiLinks } from './src/lib/remark-wiki-links.mjs';
 import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
@@ -83,15 +82,15 @@ export default defineConfig({
         // pass gives each chapter a collision-free outline and rewrites its
         // local .md links into jumps within the assembled document.
         remarkReferenceBooks,
-        remarkMermaid,
-        remarkPlantuml,
         // `![[image.png]]` → an image node, before anything that handles images.
         [remarkWikiEmbeds, { vaultDir, base }],
         [remarkInlineSvg, { roots: svgRoots }],
-        // tikz/typst fences compile to svg at build time; renders are cached
-        // in the engine dir (like .slides-build/.teaman-public — gitignored,
-        // disposable) so unchanged diagrams never pay the compiler again.
-        [remarkFenceSvg, { cacheDir: join(engineDir, '.diagram-cache') }],
+        // Diagram fences (diagram-kinds.mjs): mermaid/plantuml become <pre>s
+        // the browser renders; tikz/typst/d2 compile to svg at build time,
+        // cached in the engine dir (like .slides-build/.teaman-public —
+        // gitignored, disposable) so unchanged diagrams never pay the
+        // compiler again.
+        [remarkDiagramFences, { cacheDir: join(engineDir, '.diagram-cache') }],
         // remark-wiki-link only parses `[[target|alias]]`; remarkWikiLinks
         // then resolves each link against the vault, Obsidian-style.
         [remarkWikiLink, { aliasDivider: '|' }],

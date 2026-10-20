@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { remarkFenceSvg, classifySvg } from '../remark-fence-svg.mjs';
+import { remarkDiagramFences, classifySvg } from '../remark-fence-svg.mjs';
 
 // Minimal mdast-compatible node factories (see remark-mermaid.test.ts).
 const code = (lang: string | null, value: string) => ({ type: 'code', lang, value });
@@ -18,11 +18,11 @@ afterEach(() => {
 
 async function run(children: object[], compilers: object) {
   const tree = { type: 'root', children: [...children] };
-  await remarkFenceSvg({ cacheDir, compilers })(tree as any);
+  await remarkDiagramFences({ cacheDir, compilers })(tree as any);
   return tree.children as any[];
 }
 
-describe('remarkFenceSvg', () => {
+describe('remarkDiagramFences', () => {
   const FAKE_SVG = '<svg viewBox="0 0 1 1" stroke="#000" fill="black"><path d="M0 0"/></svg>';
 
   it('replaces a tikz fence with theme-adapted, classified inline svg', async () => {
@@ -70,10 +70,10 @@ describe('remarkFenceSvg', () => {
 
   it('leaves other fences and prose untouched', async () => {
     const js = code('js', 'const x = 1;');
-    const mermaid = code('mermaid', 'graph TD');
-    const [a, b] = await run([js, mermaid], { tikz: vi.fn() });
+    const prose = { type: 'paragraph', children: [{ type: 'text', value: 'tikz' }] };
+    const [a, b] = await run([js, prose], { tikz: vi.fn() });
     expect(a).toBe(js);
-    expect(b).toBe(mermaid);
+    expect(b).toBe(prose);
   });
 
   it('transforms fences nested inside containers', async () => {
@@ -106,7 +106,7 @@ describe('real compilers', () => {
 
   async function compile(lang: string, source: string) {
     const tree = { type: 'root', children: [code(lang, source)] };
-    await remarkFenceSvg({ cacheDir: realCache })(tree as any);
+    await remarkDiagramFences({ cacheDir: realCache })(tree as any);
     return (tree.children[0] as any);
   }
 
@@ -164,4 +164,31 @@ describe('real compilers', () => {
     expect(node.value).toContain('content-svg tikz-svg');
     expect(node.value).toContain('stroke="currentColor"');
   }, 90_000);
+});
+
+// The browser-rendered kinds are the same rewrite with a different fence
+// name, so they are exercised as one parameterized suite.
+describe.each([
+  { lang: 'mermaid', source: 'graph TD\n  A --> B', escaped: 'graph TD\n  A --&gt; B' },
+  { lang: 'plantuml', source: '@startuml\nA -> B\n@enduml', escaped: '@startuml\nA -&gt; B\n@enduml' },
+])('remarkDiagramFences($lang)', ({ lang, source, escaped }) => {
+  const compilers = { tikz: vi.fn() };
+
+  it(`converts a ${lang} fence, nested or not, into a <pre class="${lang}"> for the browser`, async () => {
+    const [top, quote] = await run([code(lang, source), { type: 'blockquote', children: [code(lang, source)] }], compilers);
+    expect(top).toEqual({ type: 'html', value: `<pre class="${lang}">${escaped}</pre>` });
+    expect(quote.children[0]).toEqual(top);
+    expect(compilers.tikz).not.toHaveBeenCalled();
+  });
+
+  it('escapes HTML-special characters in the diagram source', async () => {
+    const [node] = await run([code(lang, 'A --> B & "C" <d>')], compilers);
+    expect(node.value).toBe(`<pre class="${lang}">A --&gt; B &amp; "C" &lt;d&gt;</pre>`);
+  });
+
+  it('leaves other and langless code fences untouched', async () => {
+    const js = code('js', 'const x = 1;');
+    const bare = code(null, lang);
+    expect(await run([js, bare], compilers)).toEqual([js, bare]);
+  });
 });
