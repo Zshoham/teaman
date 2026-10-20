@@ -72,9 +72,15 @@ export async function buildReferences({
     if (problems.length > 0) throw new Error(problems.join('; '));
   }
 
+  // The wiki-link index discovers every type (and parses every deck), so a
+  // vault with nothing to compile does not build one; `teaman dev` runs this
+  // stage on every start.
+  const published = catalog.published('reference');
+  if (published.length === 0) return result;
+
   const vaultIndex = createVaultIndex(vaultDir, { catalog });
   let compiler = null;
-  for (const document of catalog.published('reference')) {
+  for (const document of published) {
     const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir });
     // A wiki-link the site resolves to a section of this reference becomes a
     // jump within the PDF; the vault index returns that section as an anchor
