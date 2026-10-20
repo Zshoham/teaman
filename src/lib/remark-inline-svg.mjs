@@ -8,8 +8,8 @@
  *  In an Obsidian vault attachments live anywhere — next to the note, in an
  *  `attachments/` folder — so a relative URL resolves against the note's own
  *  directory first (the vfile carries the note path), then against `roots` in
- *  order (vault root, the CLI's staged public dir, `<vault>/public`, engine
- *  `resources/`). Remote URLs and non-SVG images pass through untouched; a
+ *  order (vault root, the CLI's staged public dir, `<vault>/public`, the
+ *  engine's `resources/public/`). Remote URLs and non-SVG images pass through untouched; a
  *  local `.svg` that resolves to no file warns and stays an `<img>`. The SVG
  *  is the author's own vault content, inserted raw exactly like inline HTML
  *  in markdown, so it is not sanitized. */

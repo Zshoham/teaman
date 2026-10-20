@@ -17,6 +17,7 @@ import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
 import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { htmlEmbeds } from './src/lib/html-embeds.mjs';
+import { enginePublicDir } from './src/lib/vault-config.mjs';
 import {
   engineDir,
   outDir,
@@ -32,13 +33,13 @@ import react from '@astrojs/react';
 // Obsidian keeps attachments anywhere in the vault, so the whole vault root is
 // searched (the plugin also tries the note's own directory for relative URLs),
 // plus the public-asset roots for site-root-style `/images/x.svg` references.
-// De-duplicated because `publicDir` already *is* engine resources/ when the CLI
-// didn't stage one.
+// De-duplicated because `publicDir` already *is* the engine's public assets
+// when the CLI didn't stage one.
 const svgRoots = [...new Set([
   vaultDir,
   publicDir,
   join(vaultDir, 'public'),
-  join(engineDir, 'resources'),
+  enginePublicDir(engineDir),
 ])];
 
 // Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira

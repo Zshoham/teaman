@@ -241,10 +241,22 @@ export function themeTokenName(key) {
 }
 
 /**
+ * The engine's own static assets (the default `teacup.svg` logo): served from
+ * the site root alongside the vault's `public/`. Only this folder of
+ * `resources/` is published — the rest (the Slidev theme, the Typst template
+ * and packages) is engine input, not site content.
+ *
+ * @param {string} engineDir
+ */
+export function enginePublicDir(engineDir) {
+  return join(engineDir, 'resources', 'public');
+}
+
+/**
  * The file a configured logo (`logo`, `slides.logo`) names: an absolute path,
  * else relative to the vault root, then the vault's `public/`, then the
- * engine's bundled `resources/` (where the default `teacup.svg` lives). Null
- * when none exists.
+ * engine's public assets (where the default `teacup.svg` lives). Null when
+ * none exists.
  *
  * @param {string | null | undefined} logo
  * @param {{ vaultDir: string, engineDir: string, exists?: (path: string) => boolean }} dirs
@@ -252,6 +264,6 @@ export function themeTokenName(key) {
 export function resolveLogoFile(logo, { vaultDir, engineDir, exists = existsSync }) {
   if (!logo) return null;
   if (isAbsolute(logo)) return exists(logo) ? logo : null;
-  return [join(vaultDir, logo), join(vaultDir, 'public', logo), join(engineDir, 'resources', logo)]
+  return [join(vaultDir, logo), join(vaultDir, 'public', logo), join(enginePublicDir(engineDir), logo)]
     .find(path => exists(path)) ?? null;
 }
