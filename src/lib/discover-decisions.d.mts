@@ -2,6 +2,8 @@ export interface DiscoveredDecision {
   id: string;
   num: string;
   sourcePath: string;
+  /** Under `decisionsRoot`, `/`-separated. */
+  relPath: string;
   data: Record<string, unknown>;
   body: string;
 }

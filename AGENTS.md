@@ -164,24 +164,33 @@ pages. It is `.mjs` because the CLI reads it and cannot import TypeScript.
 `src/content.config.ts` defines seven Astro collections — `notes`, `references`,
 `guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — rooted at the matching
 `*Root` from `content-paths.ts`. Most are `glob` loaders; `references` and
-`slides` are catalog-fed loaders built on `vault-loader.mjs` (store sync, digest
-skipping, dev watching), fed by `discoverReferenceDocuments` and the deck
-catalog `discoverDecks`. Notes about the model:
+`slides` are discovery-fed loaders built on `vault-loader.mjs` (store sync,
+digest skipping, dev watching), fed by `discoverReferenceDocuments` and
+`discoverDecks`. Notes about the model:
 - **Publishing** is one rule for every type (`publication.mjs`): `draft: true`
   or any `_`-prefixed path segment keeps a file off the site. Read collections
-  with `getPublished` (`published.ts`), never bare `getCollection`; discovery
-  outside Astro calls `isPublished`. Frontmatter schemas are one per file kind
+  with `getPublished` (`published.ts`), never bare `getCollection`.
+  Everything outside Astro reads the vault through the **vault catalog**
+  (`vault-catalog.mjs`, `openVaultCatalog(vaultDir)`): every entry of every
+  type, discovered once, with the rule already applied — `published(type)`
+  for what the site renders, `all(type)` (drafts and unreadable files
+  flagged) for lints, `isPublishedFile(path)` for Confluence. The vault index,
+  search, reference PDFs, deck build, Confluence sync, and `doctor` all read
+  it; never filter drafts by hand. Frontmatter schemas are one per file kind
   in `frontmatter-schemas.mjs`, shared by `content.config.ts` and `doctor`.
-- `discoverDecks` (`discover-decks.mjs`) is the one deck catalog: membership
-  (published decks only), id, title, tags, slide count, and
-  visible text, parsed once with `@slidev/parser`. The slides collection,
-  `build-slides`, search, and the vault index all read it.
+- `discoverDecks` (`discover-decks.mjs`) parses each deck once with
+  `@slidev/parser`: id, title, tags, slide count, and visible text. It
+  returns drafts too (the slides collection stores them for `getPublished` to
+  filter, like a glob); everything else gets decks from the catalog.
 - ADRs: statuses, the standalone `ADR-n · title`, and search text live in
   `decision-records.mjs` (client-safe); `discoverDecisions` reads every ADR
-  for search, `doctor`, and the vault index; the site reads the collection.
+  for the catalog; the site reads the collection.
 - `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (its own
   `guideSummaries` collection, excluded from `guides`), and the other `.md` files are
-  chapters.
+  chapters. A guide or reference book whose SUMMARY lists a missing or
+  out-of-directory chapter fails the build; `bookProblems`
+  (`reference-documents.mjs`) is the one statement of that, used by the
+  loader, the PDF build, and `doctor`.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
 - `references/*.md` are standalone long-form documents with a dedicated reader
@@ -276,10 +285,10 @@ stages writing to that one staged dir.
    referenced by path rather than inlined) — a book-sized reference takes tens
    of seconds to compile, and `teaman dev` runs this stage on every start.
 3. `scripts/build-slides.mjs` → runs `slidev build` per deck in `<vault>/slides/`.
-   Decks come from the deck catalog `src/lib/discover-decks.mjs` (also the
-   source of the slides collection and the search records, so the cards, the
-   built decks, and the index always agree): it walks subdirectories, skips any path with a segment
-   starting with `_`, and skips decks with `draft: true` frontmatter; nested
+   Decks are the vault catalog's published decks (discovered by
+   `src/lib/discover-decks.mjs`, also the source of the slides collection and
+   the search records, so the cards, the built decks, and the index always
+   agree): every subdirectory, minus `_` paths and `draft: true` decks; nested
    decks (e.g. `nested/deck`) build to `<out>/slides/nested/deck/`. Decks are
    copied into the work dir first — the CLI-provided `TEAMAN_SLIDES_WORK` temp
    dir, falling back to `<engine>/.slides-build/` only when that env var is

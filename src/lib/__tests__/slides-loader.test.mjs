@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 describe('slidesLoader', () => {
-  it('stores exactly the published decks, with catalog data and slide text', async () => {
+  it('stores every deck outside _ paths, with catalog data and slide text', async () => {
     root = mkdtempSync(join(tmpdir(), 'teaman-slides-loader-'));
     writeFileSync(join(root, 'Team Talk.md'), '---\ntitle: Talk\n---\n# One\n\n---\n\n# Two\n');
     writeFileSync(join(root, 'wip.md'), '---\ndraft: true\n---\n# WIP\n');
@@ -31,7 +31,8 @@ describe('slidesLoader', () => {
       config: { root: pathToFileURL(`${root}/`) },
     });
 
-    expect([...entries.keys()]).toEqual(['team-talk']);
+    // The draft is stored; `getPublished` filters it, as for every collection.
+    expect([...entries.keys()]).toEqual(['team-talk', 'wip']);
     expect(entries.get('team-talk')).toMatchObject({
       data: { title: 'Talk', tags: [], slideCount: 2 },
       body: '# One\n\n# Two',

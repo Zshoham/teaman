@@ -23,6 +23,17 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Confluence sync publishes what the site publishes** (patch, no vault
+  changes). `teaman sync-confluence` no longer uploads drafts, `_`-prefixed
+  files, guide/reference `SUMMARY.md` indexes, or guide chapters no SUMMARY
+  lists, and ignores `--roots` entries for folders that are not content
+  types. Pages it created for such files before are left in place in
+  Confluence; delete them by hand.
+
+- **`doctor` checks guide chapters** (patch). A guide whose `SUMMARY.md`
+  lists a missing chapter, or one outside its directory, is now a `doctor`
+  problem; the build already failed on it.
+
 - **Mermaid rendering uses Pele** (no vault changes). Existing Mermaid fences
   in site pages and reference PDFs use Pele's layout and appearance. Site
   diagrams follow the theme through CSS without re-rendering. Slidev decks

@@ -7,6 +7,9 @@ import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
 import { fenceLanguages, renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
+import { CONTENT_DIRS } from '../src/lib/collections.mjs';
+import { walkMarkdown } from '../src/lib/fs-walk.mjs';
+import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import {
   compileDiagramFences,
@@ -174,25 +177,27 @@ function assertConfig(args) {
   if (missing.length > 0) throw new Error(`Missing required configuration: ${missing.join(', ')}`);
 }
 
+// Only vault content folders sync: a root for anything else names nothing the
+// site publishes.
 function listFolders(contentDir, roots, only) {
   return readdirSync(contentDir, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
-    .filter(name => roots[name])
+    .filter(name => roots[name] && CONTENT_DIRS.includes(name))
     .filter(name => !only || only.has(name))
     .sort();
 }
 
-function walkMarkdown(dir) {
-  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-  const files = [];
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...walkMarkdown(path));
-    else if (entry.isFile() && entry.name.endsWith('.md')) files.push(path);
-  }
-  return files;
+/**
+ * The Markdown files in one content folder that become Confluence pages:
+ * exactly the files of pages the site publishes (`vault-catalog.mjs`). Drafts,
+ * `_`-prefixed paths, and SUMMARY.md indexes stay behind.
+ *
+ * @param {import('../src/lib/vault-catalog.mjs').VaultCatalog} catalog
+ * @param {string} folder
+ */
+function folderPages(catalog, folder) {
+  return walkMarkdown(join(catalog.vaultDir, folder)).filter(path => catalog.isPublishedFile(path));
 }
 
 function pageTitle(markdown, filePath) {
@@ -910,7 +915,7 @@ async function syncFolder({ client, folder, rootId, args }) {
   }
 
   const folderDir = join(args.contentDir, folder);
-  for (const filePath of walkMarkdown(folderDir)) {
+  for (const filePath of folderPages(args.catalog, folder)) {
     const markdown = readFileSync(filePath, 'utf8');
     const rel = relative(folderDir, dirname(filePath));
     let parent = root;
@@ -952,7 +957,11 @@ async function main() {
     if (unknown.length > 0) throw new Error(`No root page configured for: ${unknown.join(', ')}`);
   }
 
-  args.vaultIndex = createVaultIndex(args.contentDir);
+  const ignored = Object.keys(args.roots).filter(folder => !CONTENT_DIRS.includes(folder));
+  if (ignored.length > 0) console.warn(`Ignoring roots for non-content folders: ${ignored.join(', ')}`);
+
+  args.catalog = openVaultCatalog(args.contentDir);
+  args.vaultIndex = createVaultIndex(args.contentDir, { catalog: args.catalog });
   args.linkTitle = buildLinkTitles(args.contentDir, args.vaultIndex);
 
   console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
@@ -969,4 +978,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { buildLinkTitles, compileFenceSvgs, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
+export { buildLinkTitles, compileFenceSvgs, folderPages, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };

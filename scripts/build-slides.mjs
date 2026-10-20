@@ -4,7 +4,7 @@ import { join, extname, dirname } from 'path';
 import { createRequire } from 'module';
 import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, renderDeckEmbedsModule } from './slides-theme.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
-import { discoverDecks } from '../src/lib/discover-decks.mjs';
+import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { deckEmbedPath, EMBEDS_DIR } from '../src/lib/html-embeds.mjs';
 import { htmlEmbedEdits } from '../src/lib/deck-embeds.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
@@ -30,7 +30,8 @@ if (!existsSync(slidesSrcDir)) {
   process.exit(0);
 }
 
-const decks = discoverDecks(slidesSrcDir);
+const catalog = openVaultCatalog(vaultDir);
+const decks = catalog.published('slides');
 
 if (decks.length === 0) {
   console.log('No slide decks found.');
@@ -80,16 +81,16 @@ writeFileSync(join(themeDir, 'deck-embeds.ts'), renderDeckEmbedsModule(join(engi
 // the file Obsidian would find into that deck folder's public dir (Slidev
 // serves `public/` beside the deck file). A missing file fails the build,
 // as it does on the site.
-const vaultIndex = createVaultIndex(vaultDir);
+const vaultIndex = createVaultIndex(vaultDir, { catalog });
 const missingEmbeds = [];
 for (const deck of decks) {
   for (const { target } of htmlEmbedEdits(deck.markdown)) {
-    const found = vaultIndex.resolveAttachment(target, deck.path);
+    const found = vaultIndex.resolveAttachment(target, deck.sourcePath);
     if (!found) {
-      missingEmbeds.push(`slides/${deck.relativePath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
+      missingEmbeds.push(`slides/${deck.relPath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
       continue;
     }
-    const dest = join(slidesTmpDir, dirname(deck.relativePath), 'public', EMBEDS_DIR, deckEmbedPath(target));
+    const dest = join(slidesTmpDir, dirname(deck.relPath), 'public', EMBEDS_DIR, deckEmbedPath(target));
     mkdirSync(dirname(dest), { recursive: true });
     copyFileSync(found, dest);
   }
@@ -103,7 +104,7 @@ if (missingEmbeds.length > 0) {
 try {
   for (const deck of decks) {
     const name = deck.id;
-    const tmpDeck = join(slidesTmpDir, deck.relativePath);
+    const tmpDeck = join(slidesTmpDir, deck.relPath);
     const deckOutDir = join(slidesOutDir, ...name.split('/'));
 
     mkdirSync(deckOutDir, { recursive: true });
