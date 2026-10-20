@@ -15,7 +15,7 @@ import {
   referencePdfCacheKey,
   renderReferenceTypst,
 } from '../src/lib/reference-pdf.mjs';
-import { bookProblems } from '../src/lib/reference-documents.mjs';
+import { bookProblems } from '../src/lib/books.mjs';
 import { entryHref } from '../src/lib/entry-identity.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';

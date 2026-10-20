@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   discoverReferenceDocuments,
-  parseReferenceSummary,
   prepareReferenceChapter,
   referenceChapterAnchor,
 } from '../reference-documents.mjs';
@@ -22,77 +21,6 @@ function fixture() {
 }
 
 describe('reference document discovery', () => {
-  it('parses an mdBook SUMMARY in order and preserves chapter nesting', () => {
-    expect(parseReferenceSummary([
-      '# A book',
-      '[Introduction](intro.md)',
-      '- [Items](items.md)',
-      '    - [Functions](items/functions.md#ignored)',
-      '- [External](https://example.com/x.md)',
-    ].join('\n'))).toEqual([
-      { title: 'Introduction', path: 'intro.md', depth: 0 },
-      { title: 'Items', path: 'items.md', depth: 0 },
-      { title: 'Functions', path: 'items/functions.md', depth: 1 },
-    ]);
-  });
-
-  it('uses parsed CommonMark destinations for titled and formatted SUMMARY links', () => {
-    expect(parseReferenceSummary([
-      '- [**Introduction**](intro.md "Start here")',
-      '- [Appendix](<appendix (draft).md> "Work in progress")',
-    ].join('\n'))).toEqual([
-      { title: 'Introduction', path: 'intro.md', depth: 0 },
-      { title: 'Appendix', path: 'appendix (draft).md', depth: 0 },
-    ]);
-  });
-
-  it('takes one nesting level from the SUMMARY rather than assuming four spaces', () => {
-    expect(parseReferenceSummary([
-      '- [Items](items.md)',
-      '  - [Functions](items/functions.md)',
-      '    - [Parameters](items/params.md)',
-    ].join('\n'))).toEqual([
-      { title: 'Items', path: 'items.md', depth: 0 },
-      { title: 'Functions', path: 'items/functions.md', depth: 1 },
-      { title: 'Parameters', path: 'items/params.md', depth: 2 },
-    ]);
-  });
-
-  it('derives depth per branch when SUMMARY indentation widths are mixed', () => {
-    expect(parseReferenceSummary([
-      '- [First](first.md)',
-      '    - [First child](first/child.md)',
-      '- [Second](second.md)',
-      '  - [Second child](second/child.md)',
-    ].join('\n'))).toEqual([
-      { title: 'First', path: 'first.md', depth: 0 },
-      { title: 'First child', path: 'first/child.md', depth: 1 },
-      { title: 'Second', path: 'second.md', depth: 0 },
-      { title: 'Second child', path: 'second/child.md', depth: 1 },
-    ]);
-  });
-
-  it('uses CommonMark marker widths to distinguish padding from nesting', () => {
-    expect(parseReferenceSummary('- [A](a.md)\n - [B](b.md)')).toEqual([
-      { title: 'A', path: 'a.md', depth: 0 },
-      { title: 'B', path: 'b.md', depth: 0 },
-    ]);
-    expect(parseReferenceSummary('1. [A](a.md)\n  - [B](b.md)')).toEqual([
-      { title: 'A', path: 'a.md', depth: 0 },
-      { title: 'B', path: 'b.md', depth: 0 },
-    ]);
-    expect(parseReferenceSummary('1. [A](a.md)\n   - [B](b.md)')).toEqual([
-      { title: 'A', path: 'a.md', depth: 0 },
-      { title: 'B', path: 'b.md', depth: 1 },
-    ]);
-    expect(parseReferenceSummary('10. [A](a.md)\n   - [B](b.md)\n\n10. [C](c.md)\n    - [D](d.md)')).toEqual([
-      { title: 'A', path: 'a.md', depth: 0 },
-      { title: 'B', path: 'b.md', depth: 0 },
-      { title: 'C', path: 'c.md', depth: 0 },
-      { title: 'D', path: 'd.md', depth: 1 },
-    ]);
-  });
-
   it('falls back to the first heading when frontmatter carries a valueless title', () => {
     const root = fixture();
     mkdirSync(join(root, 'book'));
@@ -281,23 +209,5 @@ describe('reference chapter preparation', () => {
 
     expect(body).toContain('> ```rust\n> let type = 1;');
     expect(body).toContain('  ```rust\n  let type = 1;');
-  });
-});
-
-describe('parseReferenceSummary root-relative targets', () => {
-  // A reference book resolves chapters against its own directory and guards
-  // against escaping it, so a leading `/` is meaningless there. Guides have
-  // always accepted that spelling, and opt in.
-  it('rejects /chapter.md by default', () => {
-    expect(parseReferenceSummary('- [A](/a.md)\n')).toEqual([]);
-  });
-
-  it('accepts and strips the slash when rootRelative is set', () => {
-    expect(parseReferenceSummary('- [A](/a.md)\n', { rootRelative: true }))
-      .toEqual([{ title: 'A', path: 'a.md', depth: 0 }]);
-  });
-
-  it('still rejects protocol-relative URLs when rootRelative is set', () => {
-    expect(parseReferenceSummary('- [A](//host/a.md)\n', { rootRelative: true })).toEqual([]);
   });
 });

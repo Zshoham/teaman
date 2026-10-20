@@ -193,10 +193,15 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   for the catalog; the site reads the collection.
 - `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (its own
   `guideSummaries` collection, excluded from `guides`), and the other `.md` files are
-  chapters. A guide or reference book whose SUMMARY lists a missing or
-  out-of-directory chapter fails the build; `bookProblems`
-  (`reference-documents.mjs`) is the one statement of that, used by the
-  loader, the PDF build, and `doctor`.
+  chapters. So is a multi-file reference (`references/<slug>/SUMMARY.md`).
+  `src/lib/books.mjs` owns books: `parseSummary` (the mdBook chapter list),
+  `readBook` (which listed chapters exist, inside the directory, once each —
+  the rest in `missing`/`invalid`), and `bookProblems` (what keeps a book
+  from building). Reference discovery, the catalog's guides, the reference
+  loader, the PDF build, the guide pages, and `doctor` all read it. The
+  site's guide list (`listGuides`, `guides.ts`) is the catalog's published
+  guides, so it matches the wiki-link index and Confluence; the guide route
+  fails the build on a guide's `problems`.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
 - `references/*.md` are standalone long-form documents with a dedicated reader
