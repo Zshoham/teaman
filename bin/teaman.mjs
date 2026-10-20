@@ -17,15 +17,8 @@ import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
 import { COLLECTIONS, CONTENT_DIRS, collectionFor } from '../src/lib/collections.mjs';
-import { adrNum, SLUG_OVERRIDE_TYPES } from '../src/lib/entry-identity.mjs';
 import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/vault-config.mjs';
-import { frontmatterProblems } from '../src/lib/frontmatter-schemas.mjs';
-import matter from 'gray-matter';
-import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
-import { bookProblems } from '../src/lib/books.mjs';
-import { createVaultIndex } from '../src/lib/vault-index.mjs';
-import { isHtmlEmbed, isImageEmbed, wikiLinks } from '../src/lib/obsidian-markdown.mjs';
-import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';
+import { lintVault } from '../src/lib/vault-lint.mjs';
 import { isInside, walkMarkdown } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
@@ -350,30 +343,63 @@ async function cmdBuild(vaultArg, opts) {
     TEAMAN_SLIDES_WORK: join(workDir, 'slides'),
   };
 
-  const pending = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
-
   info(`building ${c.bold(vault)} → ${c.bold(out)} ${c.dim(`(engine ${VERSION})`)}`);
-  // The content collections resolve their roots from TEAMAN_VAULT at build
-  // time, but Astro's content-layer store under `.astro/` is keyed by
-  // collection name, not vault. Building a different vault from the same engine
-  // checkout would otherwise reuse the previous vault's cached notes/references/guides, so
-  // drop the cache to isolate each build.
+  await runBuildPipeline({
+    stages: BUILD_STAGES,
+    run: args => run(node, args, env),
+    stagedOut,
+    out,
+    removeAfter: [stagedRoot, workDir],
+  });
+  info(c.green('done.'));
+}
+
+// The four build stages, in order, as argv for the runtime: Astro renders the
+// site, then the reference PDFs, the Slidev decks, and the search index land
+// beside it.
+const BUILD_STAGES = [
+  [astroBin, 'build'],
+  ...['build-references', 'build-slides', 'build-search'].map(stage => [join(engineDir, 'scripts', `${stage}.mjs`)]),
+];
+
+/**
+ * Run the build stages into `stagedOut` and land the finished site at `out`.
+ * The stages run in order and all write to the one staged dir; only when
+ * every stage succeeds does the site cross over — moved next to `out` first,
+ * so the swap into place stays a rename within one directory: atomic, and a
+ * failure leaves the previous build untouched. The pending copy and every
+ * `removeAfter` dir are removed whether or not the build succeeded.
+ *
+ * The content collections resolve their roots from TEAMAN_VAULT at build
+ * time, but Astro's content-layer store under `astroCache` is keyed by
+ * collection name, not vault. Building a different vault from the same engine
+ * checkout would otherwise reuse the previous vault's cached entries, so the
+ * cache is dropped before the first stage.
+ *
+ * @param {object} options
+ * @param {string[][]} options.stages  argv per stage
+ * @param {(args: string[]) => Promise<void>} options.run  runs one stage; rejects when it fails
+ * @param {string} options.stagedOut
+ * @param {string} options.out
+ * @param {string[]} [options.removeAfter]
+ * @param {string} [options.astroCache]
+ */
+export async function runBuildPipeline({
+  stages,
+  run: runStage,
+  stagedOut,
+  out,
+  removeAfter = [],
+  astroCache = join(engineDir, '.astro'),
+}) {
+  const pending = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
   try {
-    rmSync(join(engineDir, '.astro'), { recursive: true, force: true });
-    await run(node, [astroBin, 'build'], env);
-    await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], env);
-    await run(node, [join(engineDir, 'scripts', 'build-slides.mjs')], env);
-    await run(node, [join(engineDir, 'scripts', 'build-search.mjs')], env);
-    // Land the finished site next to `out` first, so the swap into place stays
-    // a rename within one directory: atomic, and a failure leaves the previous
-    // build untouched.
+    rmSync(astroCache, { recursive: true, force: true });
+    for (const stage of stages) await runStage(stage);
     moveStagedBuild(stagedOut, pending);
     commitBuild(pending, out);
-    info(c.green('done.'));
   } finally {
-    rmSync(stagedRoot, { recursive: true, force: true });
-    rmSync(pending, { recursive: true, force: true });
-    rmSync(workDir, { recursive: true, force: true });
+    for (const dir of [...removeAfter, pending]) rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -491,143 +517,6 @@ export function validateConfig(config, { hasConfigFile, version = VERSION, theme
   return { problems, warnings };
 }
 
-/**
- * Lint a vault's content against what the collection schemas and loaders will
- * demand at build time, without building. Returns findings rather than printing.
- *
- * @param {string} vault
- * @returns {Promise<{ problems: string[], warnings: string[] }>}
- */
-/** A file's frontmatter, or `{}` when it has none or it does not parse. */
-function frontmatterOr(source) {
-  try { return matter(source).data; } catch { return {}; }
-}
-
-export async function lintContent(vault) {
-  const problems = [];
-  const warnings = [];
-
-  // Frontmatter, validated by the same schemas the content collections use
-  // (frontmatter-schemas.mjs), so passing here means the build accepts it.
-  const checkFrontmatter = (dir, root, file, kind, data) => {
-    const where = `${dir}: ${relative(root, file).split(sep).join('/')}`;
-    for (const problem of frontmatterProblems(kind, data)) problems.push(`${where}: ${problem}`);
-  };
-  const frontmatterOf = (dir, root, file) => {
-    try {
-      return matter(readFileSync(file, 'utf8')).data;
-    } catch (error) {
-      problems.push(`${dir}: ${relative(root, file).split(sep).join('/')}: frontmatter is not valid YAML (${String(error.message).split('\n')[0]})`);
-      return null;
-    }
-  };
-  for (const [type, kindOf] of [
-    ['note', () => 'note'],
-    ['daily', () => 'daily'],
-    ['decision', () => 'decision'],
-    ['guide', file => (basename(file).toLowerCase() === 'summary.md' ? 'guideSummary' : 'guideChapter')],
-  ]) {
-    const { dir } = collectionFor(type);
-    const root = join(vault, dir);
-    for (const file of walkMarkdown(root)) {
-      const data = frontmatterOf(dir, root, file);
-      if (data) checkFrontmatter(dir, root, file, kindOf(file), data);
-    }
-  }
-  // Decks and references reach their collections through the engine's own
-  // discovery, so validate what it hands over.
-  const catalog = openVaultCatalog(vault);
-  for (const deck of catalog.published('slides')) checkFrontmatter('slides', join(vault, 'slides'), deck.sourcePath, 'deck', deck.data);
-  for (const document of catalog.all('reference')) {
-    if (!document.error) checkFrontmatter('references', join(vault, 'references'), document.sourcePath, 'reference', document.data);
-  }
-
-  // Lineage pointers should resolve to an ADR that exists in the vault.
-  const records = catalog.all('decision');
-  const nums = new Set(records.map(record => record.num));
-  for (const { sourcePath, data } of records) {
-    for (const key of ['supersedes', 'supersededBy']) {
-      const ref = data[key];
-      if (typeof ref === 'string' && ref && !nums.has(adrNum(ref))) {
-        warnings.push(`decisions: ${basename(sourcePath)} ${key} points at missing ${ref}`);
-      }
-    }
-  }
-
-  const guidesDir = join(vault, 'guides');
-  if (existsSync(guidesDir)) {
-    for (const d of readdirSync(guidesDir, { withFileTypes: true })) {
-      if (d.isDirectory() && !existsSync(join(guidesDir, d.name, 'SUMMARY.md'))) {
-        problems.push(`guides: ${d.name}/ has no SUMMARY.md (chapter index)`);
-      }
-    }
-  }
-
-  // A guide or reference book is a SUMMARY.md and the chapters it lists; the
-  // build fails on a chapter it cannot serve. A guide's only error is
-  // unreadable YAML, which the frontmatter check above has reported.
-  for (const document of [...catalog.all('guide'), ...catalog.all('reference')]) {
-    if (document.type === 'guide' && document.error) continue;
-    const { dir } = collectionFor(document.type);
-    for (const problem of bookProblems(document)) problems.push(`${dir}: ${problem}`);
-  }
-
-  // Wiki-links, resolved exactly as the site resolves them. Decks are Slidev,
-  // not the site's Markdown pipeline, so their links are never rendered.
-  const index = createVaultIndex(vault, { catalog });
-  for (const { type, dir } of COLLECTIONS.filter(c => c.type !== 'slides')) {
-    const root = join(vault, dir);
-    for (const file of walkMarkdown(root)) {
-      const where = `${dir}: ${relative(root, file).split(sep).join('/')}`;
-      const source = readFileSync(file, 'utf8');
-      if (!SLUG_OVERRIDE_TYPES.has(type) && frontmatterOr(source).slug) {
-        warnings.push(`${where} sets "slug", which has no effect on ${dir}`);
-      }
-      // Parsed with the dialect the PDF and Confluence render with, so code
-      // is never linted. An embed must be an image or HTML page the vault
-      // has: every renderer fails the build on a note embed or a missing file.
-      for (const { target, embed } of wikiLinks(source)) {
-        if (embed) {
-          if (!isImageEmbed(target) && !isHtmlEmbed(target)) {
-            problems.push(`${where} embeds ![[${target}]]: note embeds are not supported; link it with [[${target}]]`);
-          } else if (!index.resolveAttachment(target, file)) {
-            problems.push(`${where} embeds missing ${isHtmlEmbed(target) ? 'HTML file' : 'image'} ![[${target}]]`);
-          }
-          continue;
-        }
-        const link = `[[${target}]]`;
-        const resolution = index.resolve(target, file);
-        if (!resolution) {
-          warnings.push(`${where} links to missing ${link}`);
-          continue;
-        }
-        const { entry, via, fragment, alternatives } = resolution;
-        if (fragment) {
-          warnings.push(`${where} ${link}: heading links are not supported; linking the page`);
-        }
-        if (via === 'slug') {
-          warnings.push(`${where} ${link} only matches ${entry.path} by slug; Obsidian will not resolve it`);
-        }
-        if (alternatives.length > 0) {
-          warnings.push(`${where} ${link} matches ${alternatives.length + 1} pages; linking ${entry.path} (qualify it as [[${entry.path}]])`);
-        }
-      }
-    }
-  }
-
-  // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
-  // into a frame, and build-slides fails the deck when the file is missing.
-  // Planned from the slide theme's own scan, so doctor checks exactly what
-  // build-slides stages.
-  for (const deck of catalog.published('slides')) {
-    for (const { target, file } of deckEmbedPlan(deck, index.resolveAttachment)) {
-      if (!file) problems.push(`slides: ${deck.relPath} embeds missing HTML file ![[${target}]]`);
-    }
-  }
-
-  return { problems, warnings };
-}
-
 async function cmdDoctor(vaultArg) {
   // `check: false` — the engine-range mismatch is reported below as a finding
   // rather than as a bare warning ahead of the report.
@@ -635,7 +524,7 @@ async function cmdDoctor(vaultArg) {
 
   const checks = [
     validateConfig(config, { hasConfigFile: Boolean(path) }),
-    await lintContent(vault),
+    lintVault(vault),
   ];
   const problems = checks.flatMap(check => check.problems);
   const warnings = checks.flatMap(check => check.warnings);

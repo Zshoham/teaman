@@ -289,7 +289,10 @@ engine) and *renames* them into `outDir`, so an out dir on another filesystem �
 a Docker bind mount, a separate disk — fails with EXDEV. Only the finished site
 crosses over, via `moveStagedBuild` (rename, falling back to copy on EXDEV) into
 a hidden sibling of `out`, then `commitBuild`'s atomic swap. Keep the four
-stages writing to that one staged dir.
+stages writing to that one staged dir. That lifecycle — drop `.astro/`, run
+`BUILD_STAGES` in order, commit only when all succeed, clean up in `finally` —
+is `runBuildPipeline` (`bin/teaman.mjs`), which takes the stage runner as an
+argument so the unit tests drive it with a fake instead of spawning Astro.
 
 Stages 2–4 are modules, not just scripts: each exports a function taking its
 inputs as arguments (`buildReferences`, `buildSlides` + `stageSlidesWorkspace`,
@@ -399,6 +402,12 @@ until their behavior has been assessed separately.
   it as its own job.
 - `bun run build` (or `bun bin/teaman.mjs doctor ./example`) is the final
   validation step; `doctor` gates CI by exiting non-zero on config/content problems.
+  What it checks is tested in-process: config through `validateConfig`
+  (`bin/__tests__/teaman-unit.test.mjs`), content through `lintVault`
+  (`src/lib/vault-lint.mjs`, built on the catalog, the book rule, the
+  wiki-link index, and the deck embed plan, so it reports what the build
+  would fail on). `teaman-cli.test.mjs` keeps only what needs the real CLI:
+  config loading, output, and exit codes.
 
 ## Conventions
 

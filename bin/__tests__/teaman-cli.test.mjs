@@ -89,150 +89,32 @@ describe('teaman init', () => {
   });
 });
 
+// What doctor checks is tested in-process: config in teaman-unit
+// (validateConfig), content in src/lib/__tests__/vault-lint.test.mjs. These
+// cover the CLI's part — loading the config file, printing findings, and the
+// exit code.
 describe('teaman doctor', () => {
-  it('reports a problem and exits 1 when brand is missing', () => {
+  it('reports a config problem and exits 1', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { tagline: "no brand here" };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
     expect(stderr).toMatch(/config: brand: required/);
   });
 
-  it('warns on unknown config keys without failing', () => {
+  it('prints warnings without failing', () => {
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", bogusKey: 1 };\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(0);
     expect(stderr).toMatch(/unknown key "bogusKey"/);
   });
 
-  it('flags a daily missing a date in frontmatter', () => {
+  it('reports a content problem and exits 1', () => {
     mkdirSync(join(dir, 'dailies'), { recursive: true });
     writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
     writeFileSync(join(dir, 'dailies', '2026-01-01.md'), '# just a heading, no frontmatter\n');
     const { code, stderr } = cli(['doctor', dir]);
     expect(code).toBe(1);
     expect(stderr).toMatch(/2026-01-01\.md: date: required/);
-  });
-
-  it('warns on unknown hero keys', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", hero: { title: "ok", subtitle: "bad" } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown key "hero\.subtitle"/);
-  });
-
-  it('warns on unknown slides keys', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", slides: { accent: "red" } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown key "slides\.accent"/);
-  });
-
-  it('flags a link missing required fields', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ url: "https://a" }] };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(1);
-    expect(stderr).toMatch(/links\[0\]\.label: required/);
-  });
-
-  it('warns on an unknown link key', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ label: "ok", url: "/x", color: "red" }] };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown key "links\[\d+\]\.color"/);
-  });
-
-  it('accepts a minimal link (label + url only)', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: [{ label: "ok", url: "/x" }] };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).not.toMatch(/link/);
-  });
-
-  it('flags links that is not an array', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x", links: "nope" };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(1);
-    expect(stderr).toMatch(/config: links: Invalid input: expected array/);
-  });
-
-  it('accepts a valid smartLinks host map', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'),
-      'export default { brand: "x", smartLinks: { gitlab: ["gitlab.acme.io"], jira: ["*.acme.io"] } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).not.toMatch(/smartLinks/);
-  });
-
-  it('warns on an unknown smartLinks service', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'),
-      'export default { brand: "x", smartLinks: { github: ["github.com"] } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/unknown key "smartLinks\.github"/);
-  });
-
-  it('flags a smartLinks service whose value is not an array', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'),
-      'export default { brand: "x", smartLinks: { gitlab: "gitlab.acme.io" } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(1);
-    expect(stderr).toMatch(/smartLinks\.gitlab: Invalid input: expected array/);
-  });
-
-  it('warns on a smartLinks entry that is not a hostname', () => {
-    writeFileSync(join(dir, 'teaman.config.mjs'),
-      'export default { brand: "x", smartLinks: { gitlab: ["not a host!"] } };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/doesn't look like a hostname/);
-  });
-
-  it('flags a guide directory missing SUMMARY.md', () => {
-    mkdirSync(join(dir, 'guides', 'my-guide'), { recursive: true });
-    writeFileSync(join(dir, 'guides', 'my-guide', 'chapter.md'), '# Chapter\n');
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(1);
-    expect(stderr).toMatch(/my-guide\/ has no SUMMARY.md/);
-  });
-
-  it('flags a reference book whose SUMMARY points at a missing chapter', () => {
-    mkdirSync(join(dir, 'references', 'language'), { recursive: true });
-    writeFileSync(join(dir, 'references', 'language', 'SUMMARY.md'), '# Language\n\n- [Missing](missing.md)\n');
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(1);
-    expect(stderr).toMatch(/language\/SUMMARY\.md points at missing chapter missing\.md/);
-  });
-
-  it('accepts a complete multi-file reference book', () => {
-    mkdirSync(join(dir, 'references', 'language'), { recursive: true });
-    writeFileSync(join(dir, 'references', 'language', 'SUMMARY.md'), '# Language\n\n- [Intro](intro.md)\n');
-    writeFileSync(join(dir, 'references', 'language', 'intro.md'), '# Intro\n\nBody.\n');
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).not.toMatch(/references:/);
-  });
-
-  it('warns on unresolved wiki-links in notes', () => {
-    mkdirSync(join(dir, 'notes'), { recursive: true });
-    writeFileSync(join(dir, 'notes', 'a.md'), 'See [[nonexistent]] here.\n');
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).toMatch(/links to missing \[\[nonexistent\]\]/);
-  });
-
-  it('does not lint Obsidian image embeds as missing notes', () => {
-    mkdirSync(join(dir, 'references'), { recursive: true });
-    writeFileSync(join(dir, 'references', 'system.md'), '# System\n\n![[diagram.svg|System diagram]]\n');
-    writeFileSync(join(dir, 'references', 'diagram.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-    writeFileSync(join(dir, 'teaman.config.mjs'), 'export default { brand: "x" };\n');
-
-    const { code, stderr } = cli(['doctor', dir]);
-    expect(code).toBe(0);
-    expect(stderr).not.toMatch(/diagram\.svg.*missing|missing.*diagram\.svg/i);
   });
 });
 
