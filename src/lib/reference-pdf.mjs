@@ -416,13 +416,15 @@ export function markdownToTypst(source, {
  * The Typst source covers the template, brand, metadata and body. Images are
  * referenced by workspace path rather than inlined, so their bytes have to be
  * folded in separately or an edited image would keep serving a stale PDF.
+ *
+ * @param {{ typst: string, images: string[] }} rendered  `renderReferenceTypst`'s result
+ * @param {string} vaultDir
  */
-export function referencePdfCacheKey(typst, vaultDir) {
+export function referencePdfCacheKey({ typst, images }, vaultDir) {
   const hash = createHash('sha256').update(typst);
-  for (const [, escaped] of typst.matchAll(/#image\("((?:[^"\\]|\\.)*)"/g)) {
-    const file = join(vaultDir, escaped.replace(/\\(.)/g, '$1'));
+  for (const image of images) {
     try {
-      hash.update(readFileSync(file));
+      hash.update(readFileSync(join(vaultDir, image)));
     } catch {
       hash.update('<unreadable>');
     }
@@ -461,7 +463,10 @@ function typstTags(tags) {
   return `(${tags.map(asTypstString).join(', ')}${tags.length === 1 ? ',' : ''})`;
 }
 
-/** Fill the bundled Typst reference template with converted document content. */
+/**
+ * Fill the bundled Typst reference template with converted document content.
+ * Returns the Typst source and the vault-relative images it names, in order.
+ */
 export function renderReferenceTypst({
   template,
   title,
@@ -477,12 +482,19 @@ export function renderReferenceTypst({
   resolveWikiLink,
   resolveAttachment,
 }) {
+  // Every image the Typst names, as it is emitted — the PDF cache key folds in
+  // their bytes.
+  const images = new Set();
+  const emitted = path => {
+    if (path) images.add(path);
+    return path;
+  };
   // `![[image.png]]` names an attachment anywhere in the vault, the way the
   // site resolves it; a Markdown image path resolves relative to its file.
   const embedResolver = from => target => {
     const found = resolveAttachment?.(target, from);
-    if (found) return relative(vaultDir, found).replace(/\\/g, '/');
-    return resolveReferenceImage(target, { sourcePath: from, vaultDir });
+    if (found) return emitted(relative(vaultDir, found).replace(/\\/g, '/'));
+    return emitted(resolveReferenceImage(target, { sourcePath: from, vaultDir }));
   };
   // Parse book chapters independently so repeated reference-style link names
   // stay chapter-local and relative images resolve from the chapter that owns
@@ -511,10 +523,10 @@ export function renderReferenceTypst({
     ? preparedChapters.map(chapter => markdownToTypst(chapter.preparedBody, {
         sourcePath: chapter.sourcePath,
         resolveEmbed: embedResolver(chapter.sourcePath),
-        resolveImage: source => resolveReferenceImage(source, {
+        resolveImage: source => emitted(resolveReferenceImage(source, {
           sourcePath: chapter.sourcePath,
           vaultDir,
-        }),
+        })),
         resolveWikiLink: target => resolveWikiLink?.(target, chapter.sourcePath) ?? null,
         diagrams,
         chapterPath: chapter.path,
@@ -527,7 +539,7 @@ export function renderReferenceTypst({
     : markdownToTypst(body, {
         sourcePath,
         resolveEmbed: embedResolver(sourcePath),
-        resolveImage: source => resolveReferenceImage(source, { sourcePath, vaultDir }),
+        resolveImage: source => emitted(resolveReferenceImage(source, { sourcePath, vaultDir })),
         resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
         diagrams,
       });
@@ -541,5 +553,8 @@ export function renderReferenceTypst({
     `tags: ${typstTags(tags)}`,
     `brand: ${asTypstString(brand)}`,
   ].join(', ');
-  return `${template.trim()}\n\n#show: teaman-reference.with(${args})\n\n${content}\n`;
+  return {
+    typst: `${template.trim()}\n\n#show: teaman-reference.with(${args})\n\n${content}\n`,
+    images: [...images],
+  };
 }

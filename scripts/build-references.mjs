@@ -15,17 +15,10 @@ import {
   referencePdfCacheKey,
   renderReferenceTypst,
 } from '../src/lib/reference-pdf.mjs';
-import { createReferenceCompiler } from '../src/lib/typst-packages.mjs';
 import { bookProblems } from '../src/lib/reference-documents.mjs';
 import { entryHref } from '../src/lib/entry-identity.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
-import { engineDir, outDir, siteConfig, vaultDir } from '../src/lib/build-env.mjs';
-
-const referencesDir = join(vaultDir, 'references');
-const diagramCacheDir = join(engineDir, '.diagram-cache');
-const pdfCacheDir = join(engineDir, '.reference-cache');
-const template = readFileSync(join(engineDir, 'resources', 'reference-template.typ'), 'utf8');
 
 // Every edit to a reference strands its previous render, and these are whole
 // PDFs rather than the kilobyte-sized SVGs in `.diagram-cache` — a few days of
@@ -33,7 +26,7 @@ const template = readFileSync(join(engineDir, 'resources', 'reference-template.t
 // so this only reclaims renders nothing has asked for in a fortnight.
 const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
-function pruneCache() {
+function pruneCache(pdfCacheDir) {
   if (!existsSync(pdfCacheDir)) return;
   const cutoff = Date.now() - CACHE_TTL_MS;
   for (const name of readdirSync(pdfCacheDir)) {
@@ -44,19 +37,44 @@ function pruneCache() {
   }
 }
 
-if (!existsSync(referencesDir)) {
-  console.log('No reference documents to render.');
-} else {
-  const compiler = createReferenceCompiler(vaultDir);
-  const catalog = openVaultCatalog(vaultDir);
-  const vaultIndex = createVaultIndex(vaultDir, { catalog });
-  for (const document of catalog.all('reference')) {
+/**
+ * Render every published reference to `<outDir>/references/<id>/reference.pdf`,
+ * reusing a cached PDF whenever the Typst source and the images it names are
+ * unchanged. Throws on a reference the site would also refuse to build.
+ *
+ * @param {object} options
+ * @param {import('../src/lib/vault-catalog.mjs').VaultCatalog} options.catalog
+ * @param {string} options.outDir
+ * @param {string} options.template  the Typst reference template
+ * @param {string} [options.brand]
+ * @param {string} options.diagramCacheDir
+ * @param {string} options.pdfCacheDir
+ * @param {() => { pdf(options: { mainFileContent: string }): Uint8Array, evictCache(age: number): void }} options.createCompiler
+ *   called once, and only when a PDF has to be compiled
+ * @param {(message: string) => void} [options.log]
+ * @returns {Promise<{ rendered: string[], reused: string[] }>}  reference ids
+ */
+export async function buildReferences({
+  catalog,
+  outDir,
+  template,
+  brand,
+  diagramCacheDir,
+  pdfCacheDir,
+  createCompiler,
+  log = console.log,
+}) {
+  const { vaultDir } = catalog;
+  const result = { rendered: [], reused: [] };
+  const documents = catalog.all('reference');
+  for (const document of documents) {
     const problems = bookProblems(document);
     if (problems.length > 0) throw new Error(problems.join('; '));
   }
-  let count = 0;
-  for (const document of catalog.published('reference')) {
 
+  const vaultIndex = createVaultIndex(vaultDir, { catalog });
+  let compiler = null;
+  for (const document of catalog.published('reference')) {
     const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir });
     // A wiki-link the site resolves to a section of this reference becomes a
     // jump within the PDF; the vault index returns that section as an anchor
@@ -66,13 +84,13 @@ if (!existsSync(referencesDir)) {
       const href = vaultIndex.resolve(target, fromPath)?.href ?? '';
       return href.startsWith(`${ownHref}#`) ? href.slice(ownHref.length + 1) : null;
     };
-    const typst = renderReferenceTypst({
+    const rendered = renderReferenceTypst({
       template,
       title: document.title,
       summary: document.data.summary,
       date: document.data.date,
       tags: Array.isArray(document.data.tags) ? document.data.tags : [],
-      brand: siteConfig.brand,
+      brand,
       body: document.body,
       chapters: document.kind === 'book' ? document.chapters : undefined,
       sourcePath: document.sourcePath,
@@ -84,21 +102,46 @@ if (!existsSync(referencesDir)) {
     const targetDir = join(outDir, 'references', ...document.id.split('/'));
     mkdirSync(targetDir, { recursive: true });
     const target = join(targetDir, 'reference.pdf');
-    const cached = join(pdfCacheDir, `${referencePdfCacheKey(typst, vaultDir)}.pdf`);
+    const cached = join(pdfCacheDir, `${referencePdfCacheKey(rendered, vaultDir)}.pdf`);
     if (existsSync(cached)) {
       copyFileSync(cached, target);
       utimesSync(cached, new Date(), new Date());
-      console.log(`Reused cached reference PDF: ${document.id}`);
+      result.reused.push(document.id);
+      log(`Reused cached reference PDF: ${document.id}`);
     } else {
-      const pdf = compiler.pdf({ mainFileContent: typst });
+      compiler ??= createCompiler();
+      const pdf = compiler.pdf({ mainFileContent: rendered.typst });
       writeFileSync(target, pdf);
       mkdirSync(pdfCacheDir, { recursive: true });
       writeFileSync(cached, pdf);
-      console.log(`Rendered reference PDF: ${document.id}`);
+      result.rendered.push(document.id);
+      log(`Rendered reference PDF: ${document.id}`);
     }
-    count++;
   }
-  compiler.evictCache(0);
-  pruneCache();
-  console.log(`Prepared ${count} reference PDF${count === 1 ? '' : 's'}.`);
+  compiler?.evictCache(0);
+  pruneCache(pdfCacheDir);
+  return result;
+}
+
+if (import.meta.main) {
+  const { engineDir, outDir, siteConfig, vaultDir } = await import('../src/lib/build-env.mjs');
+  const { createReferenceCompiler } = await import('../src/lib/typst-packages.mjs');
+  try {
+    const { rendered, reused } = await buildReferences({
+      catalog: openVaultCatalog(vaultDir),
+      outDir,
+      template: readFileSync(join(engineDir, 'resources', 'reference-template.typ'), 'utf8'),
+      brand: siteConfig.brand,
+      diagramCacheDir: join(engineDir, '.diagram-cache'),
+      pdfCacheDir: join(engineDir, '.reference-cache'),
+      createCompiler: () => createReferenceCompiler(vaultDir),
+    });
+    const count = rendered.length + reused.length;
+    console.log(count === 0
+      ? 'No reference documents to render.'
+      : `Prepared ${count} reference PDF${count === 1 ? '' : 's'}.`);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }
