@@ -17,7 +17,8 @@ import rehypeStringify from 'rehype-stringify';
 import remarkWikiLink from 'remark-wiki-link';
 import { rehypeFlexibleCallouts } from '../rehype-flexible-callouts.mjs';
 import { compileDiagramFences, isHtmlEmbed, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
-import { remarkFenceSvg, fenceLanguages } from '../remark-fence-svg.mjs';
+import { remarkDiagramFences } from '../remark-fence-svg.mjs';
+import { BUILD_DIAGRAM_LANGUAGES } from '../diagram-kinds.mjs';
 
 const CASES = [
   { name: 'a bare link', md: 'See [[note]].', links: [['note', 'note']] },
@@ -106,10 +107,10 @@ it('renders D2 fences identically through remark and the shared Markdown dialect
   const md = '```d2\nclient -> server\n```';
   const compilers = { d2: async () => '<svg><text fill="black">client</text></svg>' };
   try {
-    const site = unified().use(remarkParse).use(remarkFenceSvg, { cacheDir, compilers });
+    const site = unified().use(remarkParse).use(remarkDiagramFences, { cacheDir, compilers });
     const tree = await site.run(site.parse(md));
     const tokens = new MarkdownIt().use(obsidianDialect).parse(md, {});
-    const diagrams = await compileDiagramFences(tokens, { languages: fenceLanguages, cacheDir, compilers });
+    const diagrams = await compileDiagramFences(tokens, { languages: BUILD_DIAGRAM_LANGUAGES, cacheDir, compilers });
     expect(diagrams.size).toBe(1);
     expect([...diagrams.values()][0].svg).toBe(tree.children[0].value);
     expect(tree.children[0].value).toContain('fill="black"');

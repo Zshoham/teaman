@@ -1,6 +1,14 @@
-/** Compiles ```tikz, ```typst and ```d2 fences into inline SVG at build time. Unlike
- *  mermaid/plantuml (rendered client-side, so they can follow the theme toggle
- *  live), TikZ needs a TeX engine and Typst a real compiler — far too heavy to
+/** Renders every diagram fence (`diagram-kinds.mjs`) in the site's Markdown.
+ *
+ *  A client kind (mermaid, plantuml) becomes a `<pre class="<lang>">` raw-HTML
+ *  node, so Shiki leaves it alone and the matching client renderer
+ *  (`src/scripts/<lang>.ts`) turns the definition into SVG in the browser —
+ *  which keeps the build browser-free and lets diagrams follow the light/dark
+ *  toggle. The renderers read the element's text content, so the source is
+ *  HTML-escaped, not highlighted.
+ *
+ *  A build kind (tikz, typst, d2) compiles into inline SVG at build time:
+ *  TikZ needs a TeX engine and Typst a real compiler — far too heavy to
  *  ship to the browser. So these render during the build: `node-tikzjax` (the
  *  same WASM TeX the Obsidian TikZJax plugin uses — no system LaTeX required)
  *  and `@myriaddreamin/typst-ts-node-compiler` (native Typst via napi). Theme
@@ -22,6 +30,7 @@ import { escapeHtml } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 import { themeAdaptSvg, themeD2Svg } from './svg-theme.mjs';
+import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from './diagram-kinds.mjs';
 export { themeAdaptSvg } from './svg-theme.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
@@ -95,11 +104,14 @@ function compileD2(source) {
   return run;
 }
 
+// One compiler per build diagram kind, and the theming its output needs: D2
+// embeds its own light/dark palettes, the rest are adapted to inherit ink.
 const DEFAULT_COMPILERS = { tikz: compileTikz, typst: compileTypst, d2: compileD2 };
+const THEMES = { d2: themeD2Svg };
 
-// Fence languages the default compilers cover — what callers without custom
-// `compilers` (the Confluence sync) can hand to renderFenceSvg.
-export const fenceLanguages = Object.keys(DEFAULT_COMPILERS);
+for (const lang of BUILD_DIAGRAM_LANGUAGES) {
+  if (!DEFAULT_COMPILERS[lang]) throw new Error(`no build-time compiler for the ${lang} diagram kind`);
+}
 
 function cachePath(cacheDir, lang, source) {
   const hash = createHash('sha256')
@@ -120,7 +132,7 @@ export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {})
   if (existsSync(path)) return { svg: readFileSync(path, 'utf8'), path };
 
   const rendered = await compile[lang](source);
-  const svg = classifySvg(lang === 'd2' ? themeD2Svg(rendered) : themeAdaptSvg(rendered), `${lang}-svg`);
+  const svg = classifySvg((THEMES[lang] ?? themeAdaptSvg)(rendered), `${lang}-svg`);
   if (svg === null) throw new Error('compiler produced no <svg> root');
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(path, svg);
@@ -128,7 +140,7 @@ export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {})
 }
 
 // ── the plugin ───────────────────────────────────────────────────────────────
-export function remarkFenceSvg({ cacheDir, compilers } = {}) {
+export function remarkDiagramFences({ cacheDir, compilers } = {}) {
   const compile = { ...DEFAULT_COMPILERS, ...compilers };
 
   return async (tree) => {
@@ -136,7 +148,11 @@ export function remarkFenceSvg({ cacheDir, compilers } = {}) {
     // mutation during an async walk is easier to reason about in two phases.
     const fences = [];
     replaceChildren(tree, (node, parent, index) => {
-      if (node.type !== 'code' || !(node.lang in compile)) return undefined;
+      if (node.type !== 'code') return undefined;
+      if (diagramKind(node.lang)?.render === 'client') {
+        return { type: 'html', value: `<pre class="${node.lang}">${escapeHtml(node.value)}</pre>` };
+      }
+      if (!(node.lang in compile)) return undefined;
       fences.push({ parent, index, node });
       return null;
     });

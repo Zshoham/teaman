@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
-import { fenceLanguages, renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
+import { renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
+import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from '../src/lib/diagram-kinds.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { walkMarkdown } from '../src/lib/fs-walk.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
@@ -354,10 +355,6 @@ markdownRenderer.renderer.rules.thead_close = () => '';
 markdownRenderer.renderer.rules.tbody_open = () => '';
 markdownRenderer.renderer.rules.tbody_close = () => '</tbody>\n';
 
-// Display names for the compiled-diagram fences' source-block fallback,
-// matching the 'Mermaid diagram (source)' style.
-const FENCE_LABELS = { tikz: 'TikZ', typst: 'Typst' };
-
 function renderCodeToken(tokens, idx, options, env) {
   const token = tokens[idx];
   const lang = fenceLanguage(token);
@@ -365,17 +362,21 @@ function renderCodeToken(tokens, idx, options, env) {
   // the normalized one only decides whether this is a diagram fence.
   const rawLang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
   const source = fenceSource(token);
+  const kind = diagramKind(lang);
+  const sourceBlock = () => `${codeMacro(source.split('\n'), { language: 'none', title: `${kind.label} diagram (source)` })}\n`;
 
-  if (lang === 'mermaid' && env.mermaidMacro) return diagramMacro(env.mermaidMacro, source);
-  if (lang === 'plantuml' && env.plantumlMacro) return diagramMacro(env.plantumlMacro, source);
-  if (lang === 'mermaid') return `${codeMacro(source.split('\n'), { language: 'none', title: 'Mermaid diagram (source)' })}\n`;
-  if (lang === 'plantuml') return `${codeMacro(source.split('\n'), { language: 'none', title: 'PlantUML diagram (source)' })}\n`;
+  // A browser-rendered diagram syncs as the macro configured for it, or as
+  // its source.
+  if (kind?.render === 'client') {
+    const macro = { mermaid: env.mermaidMacro, plantuml: env.plantumlMacro }[lang];
+    return macro ? diagramMacro(macro, source) : sourceBlock();
+  }
 
-  // tikz/typst fences were compiled to svg by compileFenceSvgs before this
+  // Build-time diagrams were compiled to svg by compileFenceSvgs before this
   // (synchronous) render; the results ride in env and sync exactly like local
   // .svg images. No compiled entry (compile failed, or the caller skipped the
-  // pre-pass, as unit tests do) syncs the source, labeled like mermaid above.
-  if (fenceLanguages.includes(lang)) {
+  // pre-pass, as unit tests do) syncs the source.
+  if (kind?.render === 'build') {
     const found = env.fenceSvgs?.get(diagramKey(token));
     const compiled = found && !found.error ? found : null;
     if (compiled && env.svgMacro) return `${diagramMacro(env.svgMacro, compiled.svg)}\n`;
@@ -383,7 +384,7 @@ function renderCodeToken(tokens, idx, options, env) {
       const filename = queueImage(compiled.path, env);
       return `<ac:image ac:alt="${lang} diagram"><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>\n`;
     }
-    return `${codeMacro(source.split('\n'), { language: 'none', title: `${FENCE_LABELS[lang] ?? segmentTitle(lang)} diagram (source)` })}\n`;
+    return sourceBlock();
   }
 
   return `${codeMacro(source.split('\n'), { language: confluenceLanguage(rawLang) })}\n`;
@@ -618,7 +619,7 @@ markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:tas
 // source block) with a console warning, like the site build's visible notice.
 async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compilers } = {}) {
   return compileDiagramFences(markdownRenderer.parse(matter(markdown).content, {}), {
-    languages: fenceLanguages,
+    languages: BUILD_DIAGRAM_LANGUAGES,
     cacheDir,
     compilers,
     onError: (lang, reason) => console.warn(`Warning: ${lang} fence failed to compile, syncing its source instead: ${reason}`),
