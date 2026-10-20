@@ -61,10 +61,11 @@ export function lintVault(vaultDir) {
   }
 
   // A guide or reference book is a SUMMARY.md and the chapters it lists; the
-  // build fails on a chapter it cannot serve. A guide's only error is
-  // unreadable YAML, which the frontmatter check above has reported.
-  for (const book of [...catalog.all('guide'), ...catalog.all('reference')]) {
-    if (book.type === 'guide' && book.error) continue;
+  // build fails on a chapter it cannot serve. The guide pages check published
+  // guides only, so a drafted guide may list chapters not yet written; the
+  // PDF build checks every reference. A guide's only error is unreadable
+  // YAML, which the frontmatter check above has reported.
+  for (const book of [...catalog.published('guide'), ...catalog.all('reference')]) {
     for (const problem of bookProblems(book)) problems.push(`${collectionFor(book.type).dir}: ${problem}`);
   }
 
@@ -125,7 +126,8 @@ const FRONTMATTER = {
       }
     });
   },
-  slides: catalog => catalog.published('slides').map(deck => ({ relPath: deck.relPath, kind: 'deck', data: deck.data })),
+  // The slides collection stores drafted decks too, so it validates them.
+  slides: catalog => catalog.all('slides').map(deck => ({ relPath: deck.relPath, kind: 'deck', data: deck.data })),
   decision: catalog => fileRecords(catalog, 'decision', 'decision'),
 };
 assertCoversTypes(FRONTMATTER, "doctor's frontmatter check");
