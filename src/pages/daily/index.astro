@@ -7,5 +7,7 @@ const latest = weeks[0];
 if (!latest) {
   return new Response('No daily notes yet.', { status: 404 });
 }
-return Astro.redirect(weekHref(latest));
+// 307, not the default 302: "latest week" is temporary, and Astro's static
+// redirect page waits 2 seconds before following a 302 (0 for any other status).
+return Astro.redirect(weekHref(latest), 307);
 ---

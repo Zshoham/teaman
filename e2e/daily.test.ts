@@ -1,14 +1,22 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * Loads /daily/ and waits for the Astro redirect to settle on a real week URL.
- * `Astro.redirect()` is implemented in dev with a meta-refresh page, so
- * `page.goto('/daily/')` returns before the browser navigates — we have to
- * wait for the URL to match the week-page shape.
+ * Loads /daily/, follows the redirect to the latest week, and waits until the
+ * page is interactive. A static build implements `Astro.redirect()` as a
+ * meta-refresh page, so `page.goto('/daily/')` returns before the browser
+ * navigates — wait for the URL to match the week-page shape.
+ *
+ * The week page is server-rendered, so its strip and archive toggle are on
+ * screen well before the WeekStrip island hydrates: a click lands on markup
+ * with no handler, and the strip's edge state is not set yet. The island's
+ * effect sets `data-more-after` once it has committed, so wait for that.
+ * Hydration can lag the URL by several hundred milliseconds — on a machine
+ * with many system fonts the first layout alone takes ~250ms.
  */
 async function gotoLatestWeek(page: Page): Promise<void> {
   await page.goto('/daily/');
   await expect(page).toHaveURL(/\/daily\/\d{4}-\d{2}-\d{2}\/$/);
+  await expect(page.locator('[data-strip-chips]')).toHaveAttribute('data-more-after', /^(true|false)$/);
 }
 
 test.describe('daily notes', () => {
@@ -82,11 +90,6 @@ test.describe('daily notes', () => {
         scrollbar: getComputedStyle(el).scrollbarWidth,
       }));
 
-    // The edge state is set by the WeekStrip island once it hydrates, which can
-    // land well after the URL settles: the server-rendered strip is already in
-    // place, and on a machine with many system fonts the first layout alone
-    // takes a few hundred milliseconds. Read nothing before the island is up.
-    await expect(strip).toHaveAttribute('data-more-after', /^(true|false)$/);
     const start = await metrics();
     test.skip(start.max <= 0, 'example vault has too few weeks to overflow the strip');
     expect(start.scrollbar).toBe('none');
