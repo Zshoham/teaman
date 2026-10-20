@@ -1,10 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { basename, dirname, join, relative, resolve } from 'path';
-import matter from 'gray-matter';
+import { existsSync, readdirSync } from 'fs';
+import { dirname, join, relative } from 'path';
 import { slug as githubSlug } from 'github-slugger';
-import { collectionFor } from './collections.mjs';
-import { discoverDecisions } from './discover-decisions.mjs';
-import { discoverDecks } from './discover-decks.mjs';
 import {
   adrHref,
   dailyHref,
@@ -14,9 +10,7 @@ import {
   guideChapterHref,
   guideHref,
 } from './entry-identity.mjs';
-import { isInside, walkMarkdown } from './fs-walk.mjs';
-import { isPublished } from './publication.mjs';
-import { discoverReferenceDocuments, parseReferenceSummary } from './reference-documents.mjs';
+import { openVaultCatalog } from './vault-catalog.mjs';
 
 /**
  * Every page-addressable thing the site renders from a vault, and the
@@ -24,9 +18,9 @@ import { discoverReferenceDocuments, parseReferenceSummary } from './reference-d
  * remark plugin, `doctor`, and Confluence sync all resolve links here, so they
  * agree on what `[[x]]` means.
  *
- * Membership mirrors what the site publishes (`publication.mjs`): drafts,
- * `_`-prefixed paths, SUMMARY.md files, and guide chapters no SUMMARY lists are
- * not targets.
+ * Membership is what the vault catalog publishes (`vault-catalog.mjs`):
+ * drafts, `_`-prefixed paths, SUMMARY.md files, and guide chapters no SUMMARY
+ * lists are not targets.
  */
 
 const posix = value => value.replace(/\\/g, '/');
@@ -53,25 +47,13 @@ const withoutMd = value => value.replace(/\.md$/i, '');
  * @property {VaultEntry[]} alternatives  other entries the link also matched
  */
 
-function readMatter(path) {
-  return matter(readFileSync(path, 'utf8'));
+function noteEntries(catalog, base) {
+  return catalog.published('note').map(note => (
+    { type: 'note', sourcePath: note.sourcePath, kind: 'file', href: entryHref(base, 'note', note.id) }));
 }
 
-function noteEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('note').dir);
-  return walkMarkdown(root).flatMap(sourcePath => {
-    const { data } = readMatter(sourcePath);
-    if (!isPublished({ data, relPath: relative(root, sourcePath) })) return [];
-    const id = entryId('note', relative(root, sourcePath), data);
-    return [{ type: 'note', sourcePath, kind: 'file', href: entryHref(base, 'note', id) }];
-  });
-}
-
-function referenceEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('reference').dir);
-  return discoverReferenceDocuments(root).flatMap(document => {
-    if (!document.id || document.error) return [];
-    if (!isPublished({ data: document.data, relPath: relative(root, document.sourcePath) })) return [];
+function referenceEntries(catalog, base) {
+  return catalog.published('reference').flatMap(document => {
     const href = entryHref(base, 'reference', document.id);
     if (document.kind === 'standalone') {
       return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', href }];
@@ -86,66 +68,47 @@ function referenceEntries(vaultDir, base) {
   });
 }
 
-function guideEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('guide').dir);
-  const summaries = walkMarkdown(root).filter(path => basename(path).toLowerCase() === 'summary.md');
-  return summaries.flatMap(summaryPath => {
-    const summary = readMatter(summaryPath);
-    if (!isPublished({ data: summary.data, relPath: relative(root, summaryPath) })) return [];
-    const dir = dirname(summaryPath);
-    const guideSlug = entryId('guide', relative(root, summaryPath)).replace(/\/summary$/, '');
-    // Drafted chapters drop out, as they do on the site, so the first published
-    // chapter is the one served at the guide root.
-    const chapters = parseReferenceSummary(summary.content, { rootRelative: true })
-      .map(chapter => ({ path: chapter.path, sourcePath: resolve(dir, chapter.path) }))
-      .filter(chapter => isInside(dir, chapter.sourcePath) && existsSync(chapter.sourcePath))
-      .filter(chapter => isPublished({ data: readMatter(chapter.sourcePath).data, relPath: relative(root, chapter.sourcePath) }));
-    const slugs = chapters.map(chapter => entryId('guide', chapter.path));
+function guideEntries(catalog, base) {
+  return catalog.published('guide').flatMap(guide => {
+    // Drafted chapters are already gone, as they are on the site, so the first
+    // published chapter is the one served at the guide root.
+    const slugs = guide.chapters.map(chapter => entryId('guide', chapter.path));
     return [
-      { type: 'guide', sourcePath: dir, kind: 'folder', href: guideHref(base, guideSlug) },
-      ...chapters.map((chapter, index) => ({
+      { type: 'guide', sourcePath: guide.dir, kind: 'folder', href: guideHref(base, guide.id) },
+      ...guide.chapters.map((chapter, index) => ({
         type: 'guide',
         sourcePath: chapter.sourcePath,
         kind: 'file',
-        href: guideChapterHref(base, guideSlug, slugs, slugs[index]),
+        href: guideChapterHref(base, guide.id, slugs, slugs[index]),
       })),
     ];
   });
 }
 
-function slideEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('slides').dir);
-  if (!existsSync(root)) return [];
-  return discoverDecks(root).map(deck => ({
+function slideEntries(catalog, base) {
+  return catalog.published('slides').map(deck => ({
     type: 'slides',
-    sourcePath: deck.path,
+    sourcePath: deck.sourcePath,
     kind: 'file',
     href: entryHref(base, 'slides', deck.id),
   }));
 }
 
-function dailyEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('daily').dir);
-  return walkMarkdown(root).flatMap(sourcePath => {
-    const { data } = readMatter(sourcePath);
-    if (!isPublished({ data, relPath: relative(root, sourcePath) })) return [];
-    const id = entryId('daily', relative(root, sourcePath));
+function dailyEntries(catalog, base) {
+  return catalog.published('daily').flatMap(({ id, sourcePath, data }) => {
     const date = data.date instanceof Date ? data.date : new Date(String(data.date ?? ''));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && Number.isNaN(date.getTime())) return [];
     return [{ type: 'daily', sourcePath, kind: 'file', href: dailyHref(base, dailyIsoDate(id, date)) }];
   });
 }
 
-function decisionEntries(vaultDir, base) {
-  const root = join(vaultDir, collectionFor('decision').dir);
-  return discoverDecisions(root)
-    .filter(record => isPublished({ data: record.data, relPath: relative(root, record.sourcePath) }))
-    .map(record => ({
-      type: 'decision',
-      sourcePath: record.sourcePath,
-      kind: 'file',
-      href: adrHref(base, record.num),
-    }));
+function decisionEntries(catalog, base) {
+  return catalog.published('decision').map(record => ({
+    type: 'decision',
+    sourcePath: record.sourcePath,
+    kind: 'file',
+    href: adrHref(base, record.num),
+  }));
 }
 
 // Directories that hold no vault attachments: tooling state and build output
@@ -212,11 +175,13 @@ function rank(candidates, fromDir) {
  * Index `vaultDir` once. Cheap enough to rebuild per build, not per link.
  *
  * @param {string} vaultDir
- * @param {{ base?: string }} [options]  normalized site base for hrefs
+ * @param {{ base?: string, catalog?: import('./vault-catalog.mjs').VaultCatalog }} [options]
+ *   `base`: normalized site base for hrefs. `catalog`: an already-open catalog
+ *   of `vaultDir`, to share its discovery.
  */
-export function createVaultIndex(vaultDir, { base = '/' } = {}) {
+export function createVaultIndex(vaultDir, { base = '/', catalog = openVaultCatalog(vaultDir) } = {}) {
   /** @type {VaultEntry[]} */
-  const entries = DISCOVER.flatMap(discover => discover(vaultDir, base))
+  const entries = DISCOVER.flatMap(discover => discover(catalog, base))
     .map(entry => ({ ...entry, path: withoutMd(posix(relative(vaultDir, entry.sourcePath))) }));
 
   const lower = value => value.toLowerCase();

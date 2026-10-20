@@ -1,16 +1,12 @@
-import { existsSync } from 'fs';
-import { join, relative } from 'path';
+import { join } from 'path';
 import * as pagefind from 'pagefind';
-import { discoverDecks } from '../src/lib/discover-decks.mjs';
 import { outDir, siteBase, vaultDir } from '../src/lib/build-env.mjs';
 import { pagefindGlob } from '../src/lib/collections.mjs';
 import { adrHref, entryHref } from '../src/lib/entry-identity.mjs';
 import { adrDisplayTitle, adrSearchText } from '../src/lib/decision-records.mjs';
-import { discoverDecisions } from '../src/lib/discover-decisions.mjs';
-import { isPublished } from '../src/lib/publication.mjs';
+import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 
-const slidesSrcDir = join(vaultDir, 'slides');
-const decisionsSrcDir = join(vaultDir, 'decisions');
+const catalog = openVaultCatalog(vaultDir);
 
 const { index, errors: createErrors } = await pagefind.createIndex({
   forceLanguage: 'en',
@@ -34,29 +30,25 @@ if (dirErrors.length) {
 console.log(`Indexed ${page_count} HTML pages.`);
 
 // Feed slidev decks in as custom records pointing at the deck URL.
-if (existsSync(slidesSrcDir)) {
-  const decks = discoverDecks(slidesSrcDir);
-  for (const deck of decks) {
-    const name = deck.id;
-    const { errors: recordErrors } = await index.addCustomRecord({
-      url: entryHref(siteBase, 'slides', name),
-      content: deck.text,
-      language: 'en',
-      meta: { title: deck.title },
-    });
-    if (recordErrors.length) {
-      console.error(`pagefind.addCustomRecord errors for ${name}:`, recordErrors);
-      process.exit(1);
-    }
-    console.log(`Indexed slide deck: ${name}`);
+for (const deck of catalog.published('slides')) {
+  const name = deck.id;
+  const { errors: recordErrors } = await index.addCustomRecord({
+    url: entryHref(siteBase, 'slides', name),
+    content: deck.text,
+    language: 'en',
+    meta: { title: deck.title },
+  });
+  if (recordErrors.length) {
+    console.error(`pagefind.addCustomRecord errors for ${name}:`, recordErrors);
+    process.exit(1);
   }
+  console.log(`Indexed slide deck: ${name}`);
 }
 
 // The decisions page is a single client island whose ADR bodies only enter the
 // DOM when a modal opens, so the built HTML can't be crawled per-ADR. Feed each
 // ADR in as its own custom record that deep-links to its modal (?adr=<num>).
-for (const record of discoverDecisions(decisionsSrcDir)) {
-  if (!isPublished({ data: record.data, relPath: relative(decisionsSrcDir, record.sourcePath) })) continue;
+for (const record of catalog.published('decision')) {
   const title = String(record.data.title ?? `ADR-${record.num}`);
   const { errors: recordErrors } = await index.addCustomRecord({
     url: adrHref(siteBase, record.num),

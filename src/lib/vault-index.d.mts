@@ -1,4 +1,5 @@
 import type { EntryType } from './collections.mjs';
+import type { VaultCatalog } from './vault-catalog.mjs';
 
 export interface VaultEntry {
   type: EntryType;
@@ -29,7 +30,10 @@ export interface VaultIndex {
   resolveAttachment(target: string, fromPath?: string): string | null;
 }
 
-export function createVaultIndex(vaultDir: string, options?: { base?: string }): VaultIndex;
+export function createVaultIndex(
+  vaultDir: string,
+  options?: { base?: string; catalog?: VaultCatalog },
+): VaultIndex;
 
 /** A vault index rebuilt once it is older than `maxAgeMs`. */
 export function cachedVaultIndex(

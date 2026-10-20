@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe('discoverDecks', () => {
-  it('recursively returns only publishable decks in deterministic order', () => {
+  it('recursively returns every deck outside _ paths, in deterministic order', () => {
     root = mkdtempSync(join(tmpdir(), 'teaman-decks-'));
     mkdirSync(join(root, 'nested'), { recursive: true });
     mkdirSync(join(root, '_private'), { recursive: true });
@@ -21,7 +21,7 @@ describe('discoverDecks', () => {
     writeFileSync(join(root, '_private', 'hidden.md'), '# Hidden');
     writeFileSync(join(root, 'nested', 'deck.md'), '# Nested');
 
-    expect(discoverDecks(root).map(deck => deck.id)).toEqual(['live', 'nested/deck']);
+    expect(discoverDecks(root).map(deck => deck.id)).toEqual(['draft', 'live', 'nested/deck']);
   });
 
   it('names decks with the site entry id, not the raw path', () => {
@@ -32,7 +32,7 @@ describe('discoverDecks', () => {
 
     const decks = discoverDecks(root);
     expect(decks.map(deck => deck.id)).toEqual(['custom', 'team-talks/my-deck']);
-    expect(decks[1].relativePath).toBe(join('Team Talks', 'My Deck.md'));
+    expect(decks[1].relPath).toBe('Team Talks/My Deck.md');
   });
 });
 
