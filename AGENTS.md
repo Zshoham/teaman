@@ -270,6 +270,14 @@ a Docker bind mount, a separate disk — fails with EXDEV. Only the finished sit
 crosses over, via `moveStagedBuild` (rename, falling back to copy on EXDEV) into
 a hidden sibling of `out`, then `commitBuild`'s atomic swap. Keep the four
 stages writing to that one staged dir.
+
+Stages 2–4 are modules, not just scripts: each exports a function taking its
+inputs as arguments (`buildReferences`, `buildSlides` + `stageSlidesWorkspace`,
+`buildSearch`) — the vault catalog, dirs, and its expensive dependency
+injected (the Typst compiler, the per-deck Slidev run, Pagefind) — and throws
+rather than exiting. Only the `if (import.meta.main)` block reads the env seam,
+so `scripts/__tests__/build-*.test.mjs` drive a stage against a temp vault
+with a fake for that dependency.
 1. `astro build` → HTML into `outDir`.
 2. `scripts/build-references.mjs` → converts publishable Markdown under
    `<vault>/references/` to Typst, applies `resources/reference-template.typ`,
