@@ -192,7 +192,10 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   (`vault-catalog.mjs`, `openVaultCatalog(vaultDir)`): every entry of every
   type, discovered once, with the rule already applied — `published(type)`
   for what the site renders, `all(type)` (drafts and unreadable files
-  flagged) for lints, `isPublishedFile(path)` for Confluence. The vault index,
+  flagged) for lints, `files(type)` (every Markdown file of the type, read
+  once by `entry-files.mjs`, dot paths skipped as the globs skip them) for
+  what reads files rather than entries, `isPublishedFile(path)` for
+  Confluence. The vault index,
   search, reference PDFs, deck build, Confluence sync, and `doctor` all read
   it; never filter drafts by hand. Frontmatter schemas are one per file kind
   in `frontmatter-schemas.mjs`, shared by `content.config.ts` and `doctor`.

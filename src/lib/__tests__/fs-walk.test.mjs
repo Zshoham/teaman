@@ -73,6 +73,15 @@ describe('walkMarkdown', () => {
     expect(found()).toEqual(['a.md', 'm/a.md', 'm/z.md', 'z.md']);
   });
 
+  // Astro's glob loaders (tinyglobby, `dot: false`) never see these.
+  it('skips dot-prefixed files and directories', () => {
+    write('a.md');
+    write('.hidden.md');
+    write('.obsidian/x.md');
+    write('notes/.archive/old.md');
+    expect(found()).toEqual(['a.md']);
+  });
+
   it('keeps _-prefixed paths by default', () => {
     write('_draft.md');
     write('_partials/x.md');

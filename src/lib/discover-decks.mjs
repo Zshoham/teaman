@@ -1,8 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { extname, join, relative, sep } from 'node:path';
-import matter from 'gray-matter';
+import { extname, join, relative } from 'node:path';
 import { parseSync } from '@slidev/parser/core';
 import { entryId } from './entry-identity.mjs';
+import { parseFrontmatter, yamlError } from './entry-files.mjs';
+import { toPosix } from './fs-walk.mjs';
 import { isPublishedPath } from './publication.mjs';
 
 /** `tags: a, b` and `tags: [a, b]` both mean two tags, as in the collection schema. */
@@ -19,7 +20,9 @@ function tagList(value) {
  * which decks exist, what each is called, and where it is served.
  *
  * Drafts are included; `_`-prefixed paths are pruned (they can never be
- * published, and a `_templates/` folder need not parse).
+ * published, and a `_templates/` folder need not parse), and so are dot paths,
+ * which no collection sees. A deck whose headmatter does not parse carries an
+ * `error` instead of what parsing would have found.
  *
  * @param {string} slidesRoot
  */
@@ -34,22 +37,33 @@ export function discoverDecks(slidesRoot) {
     for (const entry of entries) {
       const path = join(dir, entry.name);
       const rel = relative(slidesRoot, path);
-      // A `_` directory prunes its whole subtree.
-      if (!isPublishedPath(rel)) continue;
+      // A `_` or `.` directory prunes its whole subtree.
+      if (!isPublishedPath(rel) || entry.name.startsWith('.')) continue;
       if (entry.isDirectory()) {
         walk(path);
         continue;
       }
       if (!entry.isFile() || extname(entry.name) !== '.md') continue;
       const markdown = readFileSync(path, 'utf8');
-      const { data } = matter(markdown);
+      const relPath = toPosix(rel);
+      let data;
+      try {
+        ({ data } = parseFrontmatter(markdown));
+      } catch (error) {
+        const id = entryId('slides', rel);
+        decks.push({
+          id, sourcePath: path, relPath, markdown, data: {},
+          title: id, tags: [], slideCount: 1, text: '', error: yamlError(error),
+        });
+        continue;
+      }
       const id = entryId('slides', rel, data);
       const { slides } = parseSync(markdown, path);
       decks.push({
         // The site's name for the deck — its URL and build directory.
         id,
         sourcePath: path,
-        relPath: rel.split(sep).join('/'),
+        relPath,
         markdown,
         data,
         title: typeof data.title === 'string' && data.title ? data.title : id.replace(/-/g, ' '),

@@ -20,8 +20,19 @@ describe('discoverDecks', () => {
     writeFileSync(join(root, '_hidden.md'), '# Hidden');
     writeFileSync(join(root, '_private', 'hidden.md'), '# Hidden');
     writeFileSync(join(root, 'nested', 'deck.md'), '# Nested');
+    mkdirSync(join(root, '.wip'), { recursive: true });
+    writeFileSync(join(root, '.wip', 'deck.md'), '# Dot');
+    writeFileSync(join(root, '.dot.md'), '# Dot');
 
     expect(discoverDecks(root).map(deck => deck.id)).toEqual(['draft', 'live', 'nested/deck']);
+  });
+
+  it('records a deck whose headmatter does not parse instead of throwing', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-decks-'));
+    writeFileSync(join(root, 'broken.md'), '---\ntitle: [unclosed\n---\n# One');
+    const [deck] = discoverDecks(root);
+    expect(deck).toMatchObject({ id: 'broken', relPath: 'broken.md', data: {} });
+    expect(deck.error).toMatch(/^frontmatter is not valid YAML/);
   });
 
   it('names decks with the site entry id, not the raw path', () => {
