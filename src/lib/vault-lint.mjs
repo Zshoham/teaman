@@ -1,12 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { basename, join, relative, sep } from 'path';
-import matter from 'gray-matter';
+import { existsSync, readdirSync } from 'fs';
+import { basename, join } from 'path';
 import { bookProblems, isSummaryFile } from './books.mjs';
 import { assertCoversTypes, COLLECTIONS, collectionFor } from './collections.mjs';
 import { deckEmbedPlan } from './deck-embeds.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from './entry-identity.mjs';
 import { frontmatterProblems } from './frontmatter-schemas.mjs';
-import { walkMarkdown } from './fs-walk.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from './obsidian-markdown.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 import { createVaultIndex } from './vault-index.mjs';
@@ -32,7 +30,7 @@ export function lintVault(vaultDir) {
 
   // Frontmatter, validated by the same schemas the content collections use.
   for (const { type } of COLLECTIONS) {
-    for (const file of FRONTMATTER[type](catalog, vaultDir)) {
+    for (const file of FRONTMATTER[type](catalog)) {
       const at = where(type, file.relPath);
       if (file.error) problems.push(`${at}: ${file.error}`);
       else for (const problem of frontmatterProblems(file.kind, file.data)) problems.push(`${at}: ${problem}`);
@@ -51,10 +49,13 @@ export function lintVault(vaultDir) {
     }
   }
 
+  // Spelled exactly, as the guideSummaries collection globs for it (and
+  // without `existsSync`, which a case-insensitive filesystem would satisfy).
   const guidesRoot = join(vaultDir, collectionFor('guide').dir);
   if (existsSync(guidesRoot)) {
     for (const entry of readdirSync(guidesRoot, { withFileTypes: true })) {
-      if (entry.isDirectory() && !existsSync(join(guidesRoot, entry.name, 'SUMMARY.md'))) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      if (!readdirSync(join(guidesRoot, entry.name)).some(name => isSummaryFile(name, { caseSensitive: true }))) {
         problems.push(`guides: ${entry.name}/ has no SUMMARY.md (chapter index)`);
       }
     }
@@ -72,14 +73,12 @@ export function lintVault(vaultDir) {
   // Wiki-links, resolved exactly as the site resolves them. Decks are Slidev,
   // not the site's Markdown pipeline, so their links are never rendered.
   for (const { type, dir } of COLLECTIONS.filter(collection => collection.type !== 'slides')) {
-    const root = join(vaultDir, dir);
-    for (const file of walkMarkdown(root)) {
-      const at = where(type, relative(root, file).split(sep).join('/'));
-      const source = readFileSync(file, 'utf8');
-      if (!SLUG_OVERRIDE_TYPES.has(type) && frontmatterOr(source).slug) {
+    for (const { sourcePath, relPath, data, body } of catalog.files(type)) {
+      const at = where(type, relPath);
+      if (!SLUG_OVERRIDE_TYPES.has(type) && data.slug) {
         warnings.push(`${at} sets "slug", which has no effect on ${dir}`);
       }
-      lintLinks(source, file, at, index, problems, warnings);
+      lintLinks(body, sourcePath, at, index, problems, warnings);
     }
   }
 
@@ -103,7 +102,7 @@ export function lintVault(vaultDir) {
  * file, drafts included; decks and references reach their collections
  * through the engine's own discovery, so what it hands over is checked.
  *
- * @type {Record<string, (catalog: import('./vault-catalog.mjs').VaultCatalog, vaultDir: string) =>
+ * @type {Record<string, (catalog: import('./vault-catalog.mjs').VaultCatalog) =>
  *   Array<{ relPath: string, kind?: string, data?: object, error?: string }>>}
  */
 const FRONTMATTER = {
@@ -114,32 +113,18 @@ const FRONTMATTER = {
   daily: catalog => fileRecords(catalog, 'daily', 'daily'),
   // Every Markdown file under guides/ is in a collection, listed in a
   // SUMMARY or not.
-  guide: (catalog, vaultDir) => {
-    const root = join(vaultDir, collectionFor('guide').dir);
-    return walkMarkdown(root).map(file => {
-      const relPath = relative(root, file).split(sep).join('/');
-      try {
-        const { data } = matter(readFileSync(file, 'utf8'));
-        return { relPath, kind: isSummaryFile(file) ? 'guideSummary' : 'guideChapter', data };
-      } catch (error) {
-        return { relPath, error: `frontmatter is not valid YAML (${String(error.message).split('\n')[0]})` };
-      }
-    });
-  },
+  guide: catalog => catalog.files('guide').map(({ sourcePath, relPath, data, error }) => (error
+    ? { relPath, error }
+    : { relPath, kind: isSummaryFile(sourcePath, { caseSensitive: true }) ? 'guideSummary' : 'guideChapter', data })),
   // The slides collection stores drafted decks too, so it validates them.
-  slides: catalog => catalog.all('slides').map(deck => ({ relPath: deck.relPath, kind: 'deck', data: deck.data })),
+  slides: catalog => fileRecords(catalog, 'slides', 'deck'),
   decision: catalog => fileRecords(catalog, 'decision', 'decision'),
 };
 assertCoversTypes(FRONTMATTER, "doctor's frontmatter check");
 
-/** A glob-loaded type's every file, with its catalog-parsed frontmatter. */
+/** A type's every file, with its catalog-parsed frontmatter. */
 function fileRecords(catalog, type, kind) {
   return catalog.all(type).map(({ relPath, data, error }) => (error ? { relPath, error } : { relPath, kind, data }));
-}
-
-/** A file's frontmatter, or `{}` when it has none or it does not parse. */
-function frontmatterOr(source) {
-  try { return matter(source).data; } catch { return {}; }
 }
 
 /**

@@ -99,6 +99,58 @@ describe('openVaultCatalog', () => {
     expect(broken.published).toBe(false);
   });
 
+  it('records unreadable ADR and deck frontmatter as an error instead of throwing', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('decisions/adr-0007-x.md', '---\ntitle: [unclosed\n---\n');
+    write('slides/talk.md', '---\ntitle: [unclosed\n---\n# One\n');
+    const catalog = openVaultCatalog(vault);
+    for (const type of ['decision', 'slides']) {
+      const [broken] = catalog.all(type);
+      expect(broken.error, type).toMatch(/frontmatter is not valid YAML/);
+      expect(broken.published, type).toBe(false);
+    }
+    expect(catalog.all('decision')[0].num).toBe('0007');
+  });
+
+  // Astro's glob loaders never see a dot path, so the site never renders one.
+  it('ignores dot-prefixed files and folders, as the collections do', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('notes/live.md');
+    write('notes/.archive/old.md');
+    write('notes/.hidden.md');
+    write('guides/.wip/foo/SUMMARY.md', '- [One](one.md)\n');
+    write('guides/.wip/foo/one.md');
+    write('slides/.drafts/talk.md');
+    write('decisions/.old/adr-0001.md');
+    const catalog = openVaultCatalog(vault);
+    expect(ids(catalog.all('note'))).toEqual(['live']);
+    expect(catalog.all('guide')).toEqual([]);
+    expect(catalog.all('slides')).toEqual([]);
+    expect(catalog.all('decision')).toEqual([]);
+    expect(catalog.isPublishedFile(join(vault, 'notes/.archive/old.md'))).toBe(false);
+  });
+
+  // The guideSummaries collection globs `**/SUMMARY.md`, exactly.
+  it('finds a guide only by a SUMMARY.md spelled exactly', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('guides/upper/SUMMARY.md', '- [One](one.md)\n');
+    write('guides/upper/one.md');
+    write('guides/lower/summary.md', '- [One](one.md)\n');
+    write('guides/lower/one.md');
+    expect(ids(openVaultCatalog(vault).all('guide'))).toEqual(['upper']);
+  });
+
+  it('reads each file once, shared by the entries and the files view', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('guides/g/SUMMARY.md', '- [One](one.md)\n');
+    write('guides/g/one.md', '---\ntitle: One\n---\n');
+    write('guides/g/unlisted.md');
+    const catalog = openVaultCatalog(vault);
+    expect(catalog.files('guide').map(file => file.relPath)).toEqual(['g/one.md', 'g/SUMMARY.md', 'g/unlisted.md']);
+    expect(catalog.files('guide')).toBe(catalog.files('guide'));
+    expect(catalog.all('guide')[0].chapters[0].data).toEqual({ title: 'One' });
+  });
+
   it('resolves a relative vault path, so records and lookups agree', () => {
     fixture();
     const catalog = openVaultCatalog(relative(process.cwd(), vault));

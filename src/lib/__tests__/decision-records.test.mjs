@@ -40,6 +40,14 @@ describe('discoverDecisions', () => {
       ]);
   });
 
+  it('records an ADR whose frontmatter does not parse instead of throwing', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-adrs-'));
+    writeFileSync(join(root, '0007-x.md'), '---\ntitle: [unclosed\n---\n');
+    const [adr] = discoverDecisions(root);
+    expect(adr).toMatchObject({ id: '0007-x', num: '0007', relPath: '0007-x.md', data: {} });
+    expect(adr.error).toMatch(/^frontmatter is not valid YAML/);
+  });
+
   it('yields nothing for a vault without decisions', () => {
     expect(discoverDecisions(join(tmpdir(), 'teaman-no-such-dir'))).toEqual([]);
   });

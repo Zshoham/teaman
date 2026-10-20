@@ -102,6 +102,29 @@ describe('lintVault', () => {
     expect(problems).toContain('guides: rust/ has no SUMMARY.md (chapter index)');
   });
 
+  // The guideSummaries collection globs `**/SUMMARY.md`, exactly.
+  it('does not take a lowercase summary.md for a guide index', () => {
+    write('guides/g/summary.md', '# G\n\n- [One](one.md)\n');
+    write('guides/g/one.md', '# One\n');
+    expect(lintVault(vault).problems).toEqual(['guides: g/ has no SUMMARY.md (chapter index)']);
+  });
+
+  it('reports unreadable ADR and deck frontmatter rather than crashing', () => {
+    write('decisions/0007-x.md', '---\ntitle: [unclosed\n---\n');
+    write('slides/talk.md', '---\ntitle: [unclosed\n---\n# One\n');
+    const { problems } = lintVault(vault);
+    expect(problems).toEqual([
+      expect.stringMatching(/^slides: talk\.md: frontmatter is not valid YAML/),
+      expect.stringMatching(/^decisions: 0007-x\.md: frontmatter is not valid YAML/),
+    ]);
+  });
+
+  it('skips dot-prefixed folders, which no collection sees', () => {
+    write('guides/.wip/SUMMARY.md', '- [Gone](gone.md)\n');
+    write('notes/.archive/old.md', '---\ntitle: [unclosed\n---\n[[nowhere]]\n');
+    expect(lintVault(vault)).toEqual({ problems: [], warnings: [] });
+  });
+
   it('fails a reference book SUMMARY that points at a missing chapter, and accepts a complete one', () => {
     write('references/language/SUMMARY.md', '# Language\n\n- [Intro](intro.md)\n- [Missing](missing.md)\n');
     write('references/language/intro.md', '# Intro\n\nBody.\n');

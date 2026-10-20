@@ -11,7 +11,39 @@ afterEach(() => {
   root = undefined;
 });
 
+function storeOf(entries) {
+  return {
+    store: {
+      keys: () => [...entries.keys()],
+      get: id => entries.get(id),
+      set: entry => entries.set(entry.id, entry),
+      delete: id => entries.delete(id),
+    },
+    parseData: async ({ data }) => data,
+    generateDigest: value => String(value.length),
+    config: { root: pathToFileURL(`${root}/`) },
+  };
+}
+
 describe('slidesLoader', () => {
+  // The store keeps one entry per id; a draft taking it would hide the deck.
+  it('never lets a draft replace a published deck with the same id', async () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-slides-loader-'));
+    writeFileSync(join(root, 'talk.md'), '---\ntitle: Published\n---\n# One\n');
+    writeFileSync(join(root, 'talk-v2.md'), '---\nslug: talk\ndraft: true\ntitle: Draft\n---\n# One\n');
+    const entries = new Map();
+    await slidesLoader({ base: root }).load(storeOf(entries));
+    expect([...entries.keys()]).toEqual(['talk']);
+    expect(entries.get('talk').data.title).toBe('Published');
+  });
+
+  it('fails the load on a deck whose headmatter does not parse, as a glob would', async () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-slides-loader-'));
+    writeFileSync(join(root, 'broken.md'), '---\ntitle: [unclosed\n---\n# One\n');
+    await expect(slidesLoader({ base: root }).load(storeOf(new Map())))
+      .rejects.toThrow(/slides\/broken\.md: frontmatter is not valid YAML/);
+  });
+
   it('stores every deck outside _ paths, with catalog data and slide text', async () => {
     root = mkdtempSync(join(tmpdir(), 'teaman-slides-loader-'));
     writeFileSync(join(root, 'Team Talk.md'), '---\ntitle: Talk\n---\n# One\n\n---\n\n# Two\n');

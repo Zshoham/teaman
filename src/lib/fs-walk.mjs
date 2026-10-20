@@ -15,10 +15,17 @@ export function isInside(root, path) {
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }
 
+/** A path relative to some root, `/`-separated whatever the platform. */
+export function toPosix(path) {
+  return path.split(sep).join('/');
+}
+
 /**
  * Every `.md` file under `dir`, recursively, sorted by name at each level so
  * discovery order (and therefore `doctor`'s output) is deterministic rather
- * than filesystem-dependent. A missing directory yields nothing.
+ * than filesystem-dependent. A missing directory yields nothing. Dot-prefixed
+ * files and directories are never walked: Astro's glob loaders do not see
+ * them, so nothing else may.
  *
  * @param {string} dir
  * @param {{ skipUnderscore?: boolean }} [options]
@@ -31,6 +38,7 @@ export function walkMarkdown(dir, { skipUnderscore = false } = {}) {
   return readdirSync(dir, { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap(entry => {
+      if (entry.name.startsWith('.')) return [];
       if (skipUnderscore && entry.name.startsWith('_')) return [];
       const path = join(dir, entry.name);
       if (entry.isDirectory()) return walkMarkdown(path, { skipUnderscore });

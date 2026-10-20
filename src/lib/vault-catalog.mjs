@@ -1,11 +1,9 @@
-import { readFileSync } from 'fs';
-import { dirname, join, relative, resolve, sep } from 'path';
-import matter from 'gray-matter';
+import { dirname, join, relative, resolve } from 'path';
 import { assertCoversTypes, collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
-import { entryId } from './entry-identity.mjs';
-import { walkMarkdown } from './fs-walk.mjs';
+import { readEntryFiles } from './entry-files.mjs';
+import { toPosix } from './fs-walk.mjs';
 import { isPublished } from './publication.mjs';
 import { discoverReferenceDocuments } from './reference-documents.mjs';
 import { isSummaryFile, readBook } from './books.mjs';
@@ -19,10 +17,10 @@ import { isSummaryFile, readBook } from './books.mjs';
  * and none of them can forget to.
  *
  * Two views: `published(type)` is what the site renders; `all(type)` adds
- * drafts and unreadable files, for lints.
+ * drafts and unreadable files, for lints. Under both, `files(type)` is every
+ * Markdown file in the type's directory, read once, for what reads files
+ * rather than entries (a guide's unlisted chapters, `doctor`'s link lint).
  */
-
-const posix = value => value.split(sep).join('/');
 
 /**
  * @typedef {import('./collections.mjs').EntryType} EntryType
@@ -44,53 +42,34 @@ const posix = value => value.split(sep).join('/');
  * `title`/`tags`/`slideCount`/`text`/`markdown`, an ADR its `num`, a reference
  * its `kind`/`title`/`chapters`/`missing`/`invalid`, a guide its
  * `dir`/`chapters`/`missing`/`invalid` (see `discoverGuides`).
+ *
+ * @typedef {ReturnType<typeof import('./entry-files.mjs').readEntryFile>} CatalogFile
  */
-
-function readEntryFile(type, root, sourcePath) {
-  const relPath = posix(relative(root, sourcePath));
-  try {
-    const { data, content } = matter(readFileSync(sourcePath, 'utf8'));
-    return { id: entryId(type, relPath, data), sourcePath, relPath, data, body: content };
-  } catch (error) {
-    return {
-      id: entryId(type, relPath),
-      sourcePath,
-      relPath,
-      data: {},
-      body: '',
-      error: `frontmatter is not valid YAML (${String(error.message).split('\n')[0]})`,
-    };
-  }
-}
-
-const discoverFiles = type => root => walkMarkdown(root).map(path => readEntryFile(type, root, path));
-
-function frontmatterOf(path) {
-  try { return matter(readFileSync(path, 'utf8')).data; } catch { return {}; }
-}
 
 /**
  * Every guide under `guidesRoot`: one per SUMMARY.md, read as a book
  * (`books.mjs`) — its chapters in order, plus the listed ones the site cannot
- * serve in `missing` / `invalid`.
+ * serve in `missing` / `invalid`. Spelled exactly `SUMMARY.md`, as the
+ * `guideSummaries` collection globs for it.
  *
  * @param {string} guidesRoot
+ * @param {CatalogFile[]} files  every Markdown file under it
  */
-function discoverGuides(guidesRoot) {
-  return walkMarkdown(guidesRoot).filter(isSummaryFile).map(summaryPath => {
-    const record = readEntryFile('guide', guidesRoot, summaryPath);
+function discoverGuides(guidesRoot, files) {
+  const byPath = new Map(files.map(file => [file.sourcePath, file]));
+  return files.filter(file => isSummaryFile(file.sourcePath, { caseSensitive: true })).map(record => {
     const id = record.id.replace(/\/summary$/, '');
-    if (record.error) return { ...record, id, dir: dirname(summaryPath), chapters: [], missing: [], invalid: [] };
+    if (record.error) return { ...record, id, dir: dirname(record.sourcePath), chapters: [], missing: [], invalid: [] };
     // Guides have always accepted `/chapter.md` for a chapter in their folder.
-    const { dir, chapters, missing, invalid } = readBook(summaryPath, { rootRelative: true });
+    const { dir, chapters, missing, invalid } = readBook(record.sourcePath, { rootRelative: true });
     return {
       ...record,
       id,
       dir,
       chapters: chapters.map(chapter => ({
         ...chapter,
-        relPath: posix(relative(guidesRoot, chapter.sourcePath)),
-        data: frontmatterOf(chapter.sourcePath),
+        relPath: toPosix(relative(guidesRoot, chapter.sourcePath)),
+        data: byPath.get(chapter.sourcePath)?.data ?? {},
       })),
       missing,
       invalid,
@@ -105,21 +84,25 @@ function discoverReferences(root) {
       ...document,
       id: document.id ?? '',
       sourcePath,
-      relPath: posix(relative(root, sourcePath)),
+      relPath: toPosix(relative(root, sourcePath)),
       data: document.data ?? {},
       body: document.body ?? '',
     };
   });
 }
 
-/** @type {Record<EntryType, (root: string) => object[]>} */
+/**
+ * Per type, its entries from its vault directory and the Markdown files in it.
+ *
+ * @type {Record<EntryType, (root: string, files: () => CatalogFile[]) => object[]>}
+ */
 const DISCOVER = {
-  note: discoverFiles('note'),
+  note: (root, files) => files(),
   reference: discoverReferences,
-  guide: discoverGuides,
+  guide: (root, files) => discoverGuides(root, files()),
   slides: discoverDecks,
-  daily: discoverFiles('daily'),
-  decision: discoverDecisions,
+  daily: (root, files) => files(),
+  decision: (root, files) => discoverDecisions(root, files()),
 };
 assertCoversTypes(DISCOVER, 'the vault catalog\'s discovery');
 
@@ -146,8 +129,22 @@ function withPublication(type, record) {
  */
 export function openVaultCatalog(vaultDir) {
   vaultDir = resolve(vaultDir);
+  const read = new Map();
   const found = new Map();
   const visible = new Map();
+  const rootOf = type => join(vaultDir, collectionFor(type).dir);
+
+  /**
+   * Every Markdown file in the directory of `type`, drafts, `_` paths, and
+   * unreadable files included — what its glob collection would see.
+   *
+   * @param {EntryType} type
+   * @returns {CatalogFile[]}
+   */
+  function files(type) {
+    if (!read.has(type)) read.set(type, readEntryFiles(type, rootOf(type)));
+    return read.get(type);
+  }
 
   /**
    * Every record of `type`, drafts and unreadable files included.
@@ -157,8 +154,8 @@ export function openVaultCatalog(vaultDir) {
    */
   function all(type) {
     if (!found.has(type)) {
-      const root = join(vaultDir, collectionFor(type).dir);
-      found.set(type, DISCOVER[type](root).map(record => withPublication(type, record)));
+      const records = DISCOVER[type](rootOf(type), () => files(type));
+      found.set(type, records.map(record => withPublication(type, record)));
     }
     return found.get(type);
   }
@@ -196,5 +193,5 @@ export function openVaultCatalog(vaultDir) {
     return pageFiles.has(resolve(path));
   }
 
-  return { vaultDir, all, published, isPublishedFile };
+  return { vaultDir, files, all, published, isPublishedFile };
 }
