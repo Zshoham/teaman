@@ -2,7 +2,7 @@
 // entrypoint check, so importing it here runs no commands — only parseArgs and
 // satisfies are exercised.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, lintContent } from '../teaman.mjs';
+import { parseArgs, satisfies, validateOutPath, assertOverwritableOut, commitBuild, sweepStagedDirs, sweepEngineStaging, moveStagedBuild, serverArgs, validateConfig, lintContent, stageStatic } from '../teaman.mjs';
 import { resolve, join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -459,6 +459,23 @@ describe('validateConfig', () => {
 
   it('accepts a theme token written without the leading dashes', () => {
     expect(validateConfig({ brand: 'x', theme: { primary: 'red' } }, ok).warnings).toEqual([]);
+  });
+});
+
+describe('stageStatic', () => {
+  let dir;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'teaman-static-')); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('publishes the engine public assets and the vault public dir, never engine inputs', () => {
+    const vault = join(dir, 'vault');
+    mkdirSync(join(vault, 'public'), { recursive: true });
+    writeFileSync(join(vault, 'public', 'robots.txt'), 'ok');
+    const staged = join(dir, 'staged');
+    const { publicDir, config } = stageStatic(vault, { logo: 'teacup.svg' }, staged);
+    expect(publicDir).toBe(staged);
+    expect(config.logo).toBe('teacup.svg');
+    expect(readdirSync(staged).sort()).toEqual(['robots.txt', 'teacup.svg']);
   });
 });
 

@@ -23,6 +23,11 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Engine files no longer ship in built sites** (patch, no vault changes).
+  Builds used to include `slidev-theme-teaman/`, `typst-packages/`, and
+  `reference-template.typ` at the site root; only the default `teacup.svg`
+  logo is published now. Nothing linked to those files.
+
 - **Confluence sync publishes what the site publishes** (patch, no vault
   changes). `teaman sync-confluence` no longer uploads drafts, `_`-prefixed
   files, guide/reference `SUMMARY.md` indexes, or guide chapters no SUMMARY

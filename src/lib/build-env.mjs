@@ -19,7 +19,7 @@ import { readFileSync } from 'fs';
 import { isAbsolute, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { normalizeBase } from './site-base.mjs';
-import { mergeConfig } from './vault-config.mjs';
+import { enginePublicDir, mergeConfig } from './vault-config.mjs';
 
 /** The engine checkout / installed package root. */
 export const engineDir = fileURLToPath(new URL('../..', import.meta.url));
@@ -37,10 +37,10 @@ export const outDir = fromEnv(process.env.TEAMAN_OUT, join(engineDir, 'public'))
 
 /**
  * Static assets handed to Astro as `publicDir`. Under the CLI this is the
- * staged dir holding engine `resources/` + the vault's own `public/`; without
- * it, engine `resources/` alone.
+ * staged dir holding the engine's `resources/public/` + the vault's own
+ * `public/`; without it, the engine's `resources/public/` alone.
  */
-export const publicDir = fromEnv(process.env.TEAMAN_PUBLIC, join(engineDir, 'resources'));
+export const publicDir = fromEnv(process.env.TEAMAN_PUBLIC, enginePublicDir(engineDir));
 
 /** Base URL path, normalized to a single leading + trailing slash. */
 export const siteBase = normalizeBase(process.env.TEAMAN_BASE ?? process.env.SITE_BASE);

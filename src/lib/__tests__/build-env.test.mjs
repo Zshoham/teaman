@@ -24,7 +24,7 @@ describe('build-env', () => {
     const { vaultDir, outDir, publicDir } = await load();
     expect(posix(vaultDir)).toMatch(/\/example$/);
     expect(posix(outDir)).toMatch(/\/public$/);
-    expect(posix(publicDir)).toMatch(/\/resources$/);
+    expect(posix(publicDir)).toMatch(/\/resources\/public$/);
   });
 
   it('uses absolute env paths verbatim', async () => {
