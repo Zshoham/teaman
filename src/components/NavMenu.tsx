@@ -22,8 +22,8 @@ interface Props {
 
 /**
  * Narrow-screen collapse for the content sections (notes/references/guides/slides). The
- * header already wraps to three rows on mobile; five inline links would push it
- * further, so below `md` these fold into one trigger while daily/decisions —
+ * header uses two rows on mobile; all inline links would push it
+ * further, so below `xl` these fold into one trigger while daily/decisions —
  * the dated views people jump to most — stay directly clickable.
  */
 export function NavMenu({ items, activeId }: Props) {
@@ -34,7 +34,7 @@ export function NavMenu({ items, activeId }: Props) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'flex cursor-pointer items-center gap-1 border-b bg-transparent py-0.5 font-mono text-meta-lg transition-colors focus-visible:outline-none',
+          'flex min-h-11 md:min-h-0 cursor-pointer items-center gap-1 border-b bg-transparent py-0.5 font-mono text-meta-lg transition-colors focus-visible:outline-none',
           active
             ? 'border-primary text-foreground'
             : 'border-transparent text-muted-foreground hover:text-foreground',

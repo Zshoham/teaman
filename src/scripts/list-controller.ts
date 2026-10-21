@@ -1,3 +1,5 @@
+import { readCollectionView } from '../lib/collection-url';
+
 /**
  * Generic filter + sort + tag controller for any list of DOM items.
  *
@@ -65,6 +67,8 @@ export interface ListControllerConfig {
   sort?: SortConfig;
   tag?: TagConfig;
   loadMore?: LoadMoreConfig;
+  /** Persist collection sort and expanded pages in the current URL. */
+  persistView?: boolean;
 }
 
 export type SortDir = 'asc' | 'desc';
@@ -81,7 +85,7 @@ export interface ListController {
   /** Force a re-application of the current state. */
   refresh: () => void;
   /** Restrict visibility to externally matched item ids; null clears it. */
-  setMatchedIds: (ids: string[] | null) => void;
+  setMatchedIds: (ids: string[] | null, restoreView?: boolean) => void;
   /** Tear down event listeners. */
   destroy: () => void;
 }
@@ -106,6 +110,22 @@ export function createListController(cfg: ListControllerConfig): ListController 
   let activeTag: string | null = null;
   let matchedIds: Set<string> | null = null;
   let page = 1;
+  const restoreView = () => {
+    const saved = readCollectionView(new URLSearchParams(location.search));
+    sortDir = saved.sort;
+    page = Math.min(saved.page, Math.max(1, Math.ceil(items.length / (cfg.loadMore?.pageSize ?? 10))));
+  };
+  if (cfg.persistView) restoreView();
+
+  const persistView = () => {
+    if (!cfg.persistView) return;
+    const url = new URL(location.href);
+    if (sortDir === 'asc') url.searchParams.set('sort', sortDir);
+    else url.searchParams.delete('sort');
+    if (page > 1) url.searchParams.set('page', String(page));
+    else url.searchParams.delete('page');
+    history.replaceState(history.state, '', url);
+  };
 
   // Changing the filter or active tag should drop the page count — otherwise
   // a user who scrolled deep into one list keeps the same page when they
@@ -183,6 +203,8 @@ export function createListController(cfg: ListControllerConfig): ListController 
   };
 
   const apply = () => {
+    if (cfg.sort?.arrow) cfg.sort.arrow.textContent = sortDir === 'asc' ? '↑' : '↓';
+    if (cfg.sort?.ariaLabelFor) cfg.sort.toggle.setAttribute('aria-label', cfg.sort.ariaLabelFor(sortDir));
     if (needsSort) {
       applySort();
       needsSort = false;
@@ -219,6 +241,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
     const { toggle, arrow, ariaLabelFor } = cfg.sort;
     const onClick = () => {
       sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+      persistView();
       if (arrow) arrow.textContent = sortDir === 'asc' ? '↑' : '↓';
       if (ariaLabelFor) toggle.setAttribute('aria-label', ariaLabelFor(sortDir));
       schedule(true);
@@ -258,6 +281,7 @@ export function createListController(cfg: ListControllerConfig): ListController 
     const { button } = cfg.loadMore;
     const onClick = () => {
       page++;
+      persistView();
       schedule(false);
     };
     button.addEventListener('click', onClick);
@@ -270,10 +294,12 @@ export function createListController(cfg: ListControllerConfig): ListController 
 
   return {
     refresh: () => schedule(false),
-    setMatchedIds: (ids) => {
+    setMatchedIds: (ids, restoring = false) => {
       matchedIds = ids === null ? null : new Set(ids);
-      resetPage();
-      schedule(false);
+      if (restoring && cfg.persistView) restoreView();
+      else resetPage();
+      persistView();
+      schedule(restoring);
     },
     destroy: () => {
       if (rafId !== null) cancelAnimationFrame(rafId);

@@ -673,6 +673,17 @@ body {
   .whiteboard-launcher-label { display: none; }
 }
 
+@media (max-width: 767px) {
+  #site-header [data-theme-toggle] { width: var(--tap-target); height: var(--tap-target); }
+}
+
+/* Mobile reference anchors clear both the site header and document navigator. */
+@media (max-width: 1023px) {
+  .reference-prose :is(h2, h3, h4, h5, h6), #reference-content {
+    scroll-margin-top: calc(var(--header-h) + 5rem);
+  }
+}
+
 @media (max-width: 479px) {
   .brand-tagline { display: none; }
   .section-nav { justify-content: flex-start; overflow-x: auto; }
@@ -1154,4 +1165,21 @@ pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox {
   --pf-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --pf-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
   --pf-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Pagefind replaces the fallback button when it upgrades. Keep its generated
+   trigger at the same size so hydration cannot change the header layout.
+   Its stylesheet uses elevated specificity, so these overrides need !important. */
+#site-header pagefind-modal-trigger { --pf-input-height: 34px; }
+#site-header .pf-trigger-btn {
+  min-width: 0;
+  padding: 0 8px 0 12px !important;
+  font-size: var(--text-meta-lg) !important;
+}
+#site-header .pf-trigger-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (width < 48rem) {
+  #site-header pagefind-modal-trigger { --pf-input-height: 44px; width: 44px; }
+  #site-header .pf-trigger-btn { padding: 0 !important; justify-content: center; }
+  #site-header .pf-trigger-text,
+  #site-header .pf-trigger-shortcut { display: none !important; }
 }

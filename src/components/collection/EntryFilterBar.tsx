@@ -16,10 +16,13 @@ import {
 import {
   ENTRY_FILTER_CHANGE_EVENT,
   ENTRY_FILTER_TERM_EVENT,
+  ENTRY_FILTER_CLEAR_EVENT,
+  ENTRY_FILTER_READY_EVENT,
   type EntryFilterChangeDetail,
   type EntryFilterTermDetail,
 } from '@/lib/entry-filter-events';
 import type { FilterTab, Topic } from '@/lib/collection-index';
+import { readCollectionFilters, writeCollectionFilters } from '@/lib/collection-url';
 
 interface FilterableEntry {
   id: string;
@@ -88,6 +91,23 @@ export function EntryFilterBar({
       : [],
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const restoreView = useRef(true);
+
+  useEffect(() => {
+    const restore = () => {
+      const saved = readCollectionFilters(new URLSearchParams(location.search))
+        .filter(rule => rule.field !== 'type' || filterTabs.length > 1);
+      restoreView.current = true;
+      setFilters(saved.length ? saved : preselectField
+        ? [{ id: `preselect-${preselectField}`, field: preselectField, operator: 'is_any_of', values: [] }]
+        : []);
+      setReady(true);
+    };
+    restore();
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, [preselectField, filterTabs.length]);
   const fields = (() => {
     const next: FilterFieldConfig<string>[] = [];
 
@@ -118,12 +138,22 @@ export function EntryFilterBar({
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !ready) return;
+    const url = writeCollectionFilters(new URL(location.href), filters);
+    history.replaceState(history.state, '', url);
     const detail: EntryFilterChangeDetail = {
       matchedIds: filters.length > 0 ? filteredEntries.map((entry) => entry.id) : null,
+      restoreView: restoreView.current,
     };
+    restoreView.current = false;
     root.dispatchEvent(new CustomEvent(ENTRY_FILTER_CHANGE_EVENT, { detail }));
-  }, [filteredEntries, filters.length]);
+    // The island and Astro's list script may load in either order.
+    const replay = () => root.dispatchEvent(new CustomEvent(ENTRY_FILTER_CHANGE_EVENT, {
+      detail: { ...detail, restoreView: true },
+    }));
+    root.addEventListener(ENTRY_FILTER_READY_EVENT, replay);
+    return () => root.removeEventListener(ENTRY_FILTER_READY_EVENT, replay);
+  }, [filteredEntries, filters, ready]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -133,8 +163,18 @@ export function EntryFilterBar({
       setFilters((current) => toggleTerm(current, field, value));
     };
     root.addEventListener(ENTRY_FILTER_TERM_EVENT, handleTerm);
-    return () => root.removeEventListener(ENTRY_FILTER_TERM_EVENT, handleTerm);
-  }, []);
+    const clear = () => {
+      setFilters(preselectField
+        ? [{ id: `preselect-${preselectField}`, field: preselectField, operator: 'is_any_of', values: [] }]
+        : []);
+      root.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+    };
+    root.addEventListener(ENTRY_FILTER_CLEAR_EVENT, clear);
+    return () => {
+      root.removeEventListener(ENTRY_FILTER_TERM_EVENT, handleTerm);
+      root.removeEventListener(ENTRY_FILTER_CLEAR_EVENT, clear);
+    };
+  }, [preselectField]);
 
   const handleChange = (next: Filter<string>[]) => {
     setFilters(retainMeaningfulRules(next, { keepField: preselectField }));

@@ -27,6 +27,7 @@ function typeSearchTerm(type: EntryType): string {
 
 async function openFilterField(page: Page, field: 'Type' | 'Tag') {
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('option', { name: field, exact: true }).hover();
 }
 
@@ -81,6 +82,7 @@ async function expectUnfilteredVisible(page: Page) {
 test.describe('home page', () => {
   test.beforeEach(async ({ page }) => {
     // Clear localStorage so theme state never bleeds between tests.
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   });

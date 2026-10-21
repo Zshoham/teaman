@@ -99,6 +99,8 @@ test.describe('section nav on mobile', () => {
 
     const trigger = page.getByRole('button', { name: 'Browse sections' });
     await expect(trigger).toBeVisible();
+    // SSR makes the trigger visible before the React island can handle clicks.
+    await expect(page.locator('astro-island').filter({ has: trigger })).not.toHaveAttribute('ssr');
     await trigger.click();
     await page.getByRole('menuitem', { name: 'guides' }).click();
     await expect(page).toHaveURL(/\/guides\/$/);
@@ -108,4 +110,44 @@ test.describe('section nav on mobile', () => {
     await page.goto('/notes/');
     await expect(page.getByRole('button', { name: 'Browse sections' })).toContainText('notes');
   });
+});
+
+test('tablet header separates branding, navigation, and search', async ({ page }) => {
+  for (const width of [768, 800, 1024, 1279, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    const collisions = await page.locator('#site-header').evaluate(header => {
+      const brand = header.querySelector('.brand')!.getBoundingClientRect();
+      const nav = header.querySelector('nav')!.getBoundingClientRect();
+      const search = header.querySelector('pagefind-modal-trigger')!.getBoundingClientRect();
+      return brand.right > nav.left || nav.right > search.left;
+    });
+    expect(collisions, `header at ${width}px`).toBe(false);
+    if (width < 1280) await expect(page.getByRole('button', { name: 'Browse sections' })).toBeVisible();
+  }
+});
+
+test('phone home shows entries before expanding quick links', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const quickLinks = page.locator('[data-mobile-quick-links]');
+  await expect(quickLinks).not.toHaveAttribute('open');
+  const firstTitle = page.locator('[data-entry] .entry-title').first();
+  await expect(firstTitle).toBeInViewport();
+  await quickLinks.locator('summary').click();
+  const links = quickLinks.getByRole('link');
+  expect(await links.count()).toBeGreaterThan(0);
+  for (const link of await links.all()) await expect(link).toBeVisible();
+});
+
+test('production search keeps the compact mobile control', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const trigger = page.locator('pagefind-modal-trigger .pf-trigger-btn');
+  await expect(trigger).toHaveAccessibleName('Search the vault');
+  const bounds = await trigger.boundingBox();
+  expect(bounds?.width).toBe(44);
+  expect(bounds?.height).toBe(44);
+  await trigger.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
 });

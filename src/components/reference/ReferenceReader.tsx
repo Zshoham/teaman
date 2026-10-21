@@ -378,6 +378,7 @@ function RailContents({
 export function ReferenceReader({ headings, pdfHref }: Props) {
   const desktopRailAnchorRef = useRef<HTMLDivElement>(null);
   const desktopRailRef = useRef<HTMLElement>(null);
+  const mobileNavRef = useRef<HTMLDetailsElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const sectionsRef = useRef<ReferenceSection[] | null>(null);
   const [sections, setSections] = useState<ReferenceSection[]>([]);
@@ -385,6 +386,11 @@ export function ReferenceReader({ headings, pdfHref }: Props) {
   const [query, setQuery] = useState('');
   const [currentSlug, setCurrentSlug] = useState(headings[0]?.slug);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobileNav = () => {
+    if (mobileNavRef.current) mobileNavRef.current.open = false;
+    setMobileOpen(false);
+  };
 
   // Segmenting the article into searchable sections walks the whole document,
   // so it waits for someone to actually search instead of running at load.
@@ -457,7 +463,8 @@ export function ReferenceReader({ headings, pdfHref }: Props) {
         const headerHeight = Number.parseFloat(
           getComputedStyle(document.documentElement).getPropertyValue('--header-h'),
         ) || 0;
-        const threshold = headerHeight + 36;
+        const mobileNavHeight = mobileNavRef.current?.offsetHeight ?? 0;
+        const threshold = headerHeight + mobileNavHeight + 36;
         const desktopRailAnchor = desktopRailAnchorRef.current;
         const desktopRail = desktopRailRef.current;
         const railVisible = Boolean(desktopRailAnchor?.offsetParent && desktopRail?.offsetParent);
@@ -518,11 +525,38 @@ export function ReferenceReader({ headings, pdfHref }: Props) {
           nodes on a large reference, and it is `lg:hidden` for most readers.
           Mounting it on first open keeps that cost off the initial page. */}
       <details
-        className="rounded-lg border border-border bg-card p-4 lg:hidden"
+        ref={mobileNavRef}
+        className="sticky top-[var(--header-h)] z-20 self-start rounded-lg border border-border bg-background lg:hidden"
+        data-mobile-reference-nav
         onToggle={event => setMobileOpen(event.currentTarget.open)}
+        onKeyDown={event => {
+          if (event.key !== 'Escape' || !mobileOpen) return;
+          event.preventDefault();
+          closeMobileNav();
+          mobileNavRef.current?.querySelector('summary')?.focus();
+        }}
       >
-        <summary className="font-mono text-meta-lg text-foreground">Browse this document</summary>
-        <div className="mt-4 border-t border-border pt-4">
+        <summary className="cursor-pointer px-4 py-2 font-mono text-meta-lg text-foreground">
+          Contents &amp; search
+          <span className="mt-1 block truncate text-meta text-muted-foreground">
+            {headings.find(heading => heading.slug === currentSlug)?.text ?? 'Browse this document'}
+          </span>
+        </summary>
+        <div
+          className="absolute top-full right-0 left-0 mt-1 h-[min(65dvh,calc(100dvh-var(--header-h)-5rem))] rounded-lg border border-border bg-background p-4 shadow-lg"
+          onClick={event => {
+            const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
+            if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            closeMobileNav();
+            // Move keyboard focus into the selected section after native anchor navigation.
+            const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+            requestAnimationFrame(() => {
+              if (!target) return;
+              target.setAttribute('tabindex', '-1');
+              target.focus({ preventScroll: true });
+            });
+          }}
+        >
           {mobileOpen && (
             <RailContents
               headings={headings}
@@ -532,6 +566,7 @@ export function ReferenceReader({ headings, pdfHref }: Props) {
               onQueryChange={handleQueryChange}
               sections={sections}
               ready={ready}
+              fullHeight
             />
           )}
         </div>

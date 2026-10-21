@@ -42,8 +42,10 @@ const preselectField = scoped && topics.length > 0 ? 'tag' : undefined;
         <div id="entries" class="flex flex-col scroll-mt-[calc(var(--header-h)_+_4rem)]" data-entries>
           {entries.map(e => <EntryCard entry={e} />)}
         </div>
-        <div class="py-10 text-center font-mono text-sm text-faint [&[hidden]]:hidden" data-empty hidden>
-          nothing matches.
+        <div class="py-10 text-center [&[hidden]]:hidden" data-empty hidden>
+          <p class="m-0 font-serif text-xl text-foreground">No entries match these filters</p>
+          <p class="mt-2 text-sm text-muted-foreground">Try removing a filter, or clear them to see all entries.</p>
+          <button type="button" class="mt-2 cursor-pointer rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted" data-clear-filters>Clear filters</button>
         </div>
         <button
           type="button"
@@ -61,6 +63,8 @@ const preselectField = scoped && topics.length > 0 ? 'tag' : undefined;
   import {
     ENTRY_FILTER_CHANGE_EVENT,
     ENTRY_FILTER_TERM_EVENT,
+    ENTRY_FILTER_CLEAR_EVENT,
+    ENTRY_FILTER_READY_EVENT,
     type EntryFilterChangeDetail,
     type EntryFilterTermDetail,
   } from '../../lib/entry-filter-events';
@@ -68,34 +72,47 @@ const preselectField = scoped && topics.length > 0 ? 'tag' : undefined;
   const entriesList = document.querySelector<HTMLElement>('[data-entries]');
   const layout = document.querySelector<HTMLElement>('[data-list-layout]');
   if (entriesList) {
-    const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
-    const loadMoreBtn = document.querySelector<HTMLButtonElement>('[data-load-more]');
+    // Wait for the island's first filter event before touching its sort button.
+    // Changing the server-rendered arrow before hydration replaces the island
+    // and invalidates listeners attached to its original DOM nodes.
+    let controller: ReturnType<typeof createListController> | undefined;
+    const initialize = () => {
+      const sortToggle = document.querySelector<HTMLButtonElement>('[data-sort-toggle]');
+      const loadMoreBtn = document.querySelector<HTMLButtonElement>('[data-load-more]');
 
-    const controller = createListController({
-      container: entriesList,
-      itemSelector: '[data-entry]',
-      emptyState: document.querySelector<HTMLElement>('[data-empty]'),
-      sort: sortToggle
-        ? {
-            toggle: sortToggle,
-            attr: 'data-updated',
-            arrow: sortToggle.querySelector<HTMLElement>('.sort-arrow'),
-            ariaLabelFor: dir => `Sort: ${dir === 'asc' ? 'oldest first' : 'newest first'}`,
-          }
-        : undefined,
-      loadMore: loadMoreBtn
-        ? {
-            button: loadMoreBtn,
-            pageSize: 10,
-            label: remaining => `load more · ${remaining}`,
-          }
-        : undefined,
-    });
+      return createListController({
+        container: entriesList,
+        persistView: true,
+        itemSelector: '[data-entry]',
+        emptyState: document.querySelector<HTMLElement>('[data-empty]'),
+        sort: sortToggle
+          ? {
+              toggle: sortToggle,
+              attr: 'data-updated',
+              arrow: sortToggle.querySelector<HTMLElement>('.sort-arrow'),
+              ariaLabelFor: dir => `Sort: ${dir === 'asc' ? 'oldest first' : 'newest first'}`,
+            }
+          : undefined,
+        loadMore: loadMoreBtn
+          ? {
+              button: loadMoreBtn,
+              pageSize: 10,
+              label: remaining => `load more · ${remaining}`,
+            }
+          : undefined,
+      });
+    };
 
     const filterRoot = document.querySelector<HTMLElement>('[data-entry-filter-bar]');
-    filterRoot?.addEventListener(ENTRY_FILTER_CHANGE_EVENT, (event) => {
+    document.addEventListener(ENTRY_FILTER_CHANGE_EVENT, (event) => {
+      if (!(event.target instanceof HTMLElement) || !event.target.matches('[data-entry-filter-bar]')) return;
       const detail = (event as CustomEvent<EntryFilterChangeDetail>).detail;
-      controller.setMatchedIds(detail.matchedIds);
+      controller ??= initialize();
+      controller.setMatchedIds(detail.matchedIds, detail.restoreView);
+    }, true);
+    filterRoot?.dispatchEvent(new CustomEvent(ENTRY_FILTER_READY_EVENT));
+    document.querySelector('[data-clear-filters]')?.addEventListener('click', () => {
+      filterRoot?.dispatchEvent(new CustomEvent(ENTRY_FILTER_CLEAR_EVENT));
     });
 
     layout?.addEventListener('click', (event) => {

@@ -12,10 +12,14 @@ const quickLinks = SITE_CONFIG.links ?? [];
 ---
 
 <Layout footerLeft={footerLeft}>
-  <h1 class="sr-only">Vault index</h1>
   {quickLinks.length > 0 && (
     <QuickLinks links={quickLinks} />
   )}
+
+  <header class="pt-2">
+    <h1 class="m-0 font-serif text-3xl font-normal tracking-tight text-foreground">Latest updates</h1>
+    <p class="mt-2 mb-0 text-sm leading-relaxed text-muted-foreground">Explore recent additions and updates from this vault.</p>
+  </header>
 
   <CollectionIndex entries={entries} emptyMessage="this vault has no entries yet." />
 </Layout>

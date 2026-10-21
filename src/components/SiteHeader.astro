@@ -11,13 +11,13 @@ const sections = await loadNavSections();
 const pathname = Astro.url.pathname;
 const activeId = sections.find(section => isSectionActive(section, pathname))?.id;
 
-// Below `md` the content sections (notes/references/guides/slides) collapse into one
+// Below `xl` the content sections (notes/references/guides/slides) collapse into one
 // dropdown so the header keeps a single nav row; daily/decisions stay inline.
 const grouped = sections.filter(section => section.grouped);
 const standalone = sections.filter(section => !section.grouped);
 
 const linkClass = (id: string) => [
-  'border-b py-0.5 font-mono text-meta-lg no-underline transition-colors',
+  'min-h-11 items-center border-b py-0.5 md:min-h-0 font-mono text-meta-lg no-underline transition-colors',
   id === activeId
     ? 'border-primary text-foreground'
     : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -26,9 +26,9 @@ const linkClass = (id: string) => [
 
 <header
   id="site-header"
-  class="sticky top-0 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-border bg-background pt-5 pb-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6 md:pt-7 md:pb-5"
+  class="sticky top-0 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border-b border-border bg-background py-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6 md:pt-7 md:pb-5"
 >
-  <a href={base} class="brand flex items-center gap-2.5 text-foreground no-underline">
+  <a href={base} class="brand min-w-0 flex items-center gap-2.5 text-foreground no-underline">
     {logoUrl
       ? <span
           class="inline-block h-5 w-5 bg-current"
@@ -37,7 +37,7 @@ const linkClass = (id: string) => [
         ></span>
       : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
-    <span class="brand-name font-mono text-meta-lg font-medium tracking-wide">{SITE_CONFIG.brand}</span>
+    <span class="brand-name truncate font-mono text-meta-lg font-medium tracking-wide">{SITE_CONFIG.brand}</span>
     <span class="brand-tagline ml-1 min-w-0 truncate font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
   </a>
 
@@ -46,7 +46,7 @@ const linkClass = (id: string) => [
     aria-label="Sections"
   >
     {grouped.length > 0 && (
-      <div class="md:hidden">
+      <div class="xl:hidden">
         <NavMenu
           items={grouped.map(({ id, label, href }) => ({ id, label, href }))}
           activeId={activeId}
@@ -58,7 +58,7 @@ const linkClass = (id: string) => [
     {grouped.map(section => (
       <a
         href={section.href}
-        class:list={['hidden md:inline-block', ...linkClass(section.id)]}
+        class:list={['hidden xl:inline-flex', ...linkClass(section.id)]}
         aria-current={section.id === activeId ? 'page' : undefined}
         data-nav-section={section.id}
       >{section.label}</a>
@@ -67,23 +67,23 @@ const linkClass = (id: string) => [
     {standalone.map(section => (
       <a
         href={section.href}
-        class:list={linkClass(section.id)}
+        class:list={['inline-flex', ...linkClass(section.id)]}
         aria-current={section.id === activeId ? 'page' : undefined}
         data-nav-section={section.id}
       >{section.label}</a>
     ))}
   </nav>
 
-  <div class="col-span-2 row-start-3 flex min-w-0 w-full items-center justify-between gap-3 md:col-span-1 md:col-start-3 md:row-start-1 md:w-auto md:justify-self-end md:gap-5">
-    <pagefind-modal-trigger class="w-full max-w-[320px] md:w-auto">
+  <div class="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-2 md:col-span-1 md:col-start-3 md:row-start-1 md:w-full md:justify-self-end md:gap-5">
+    <pagefind-modal-trigger placeholder="Search the vault" class="min-w-0 md:w-full md:max-w-60">
       <button
         type="button"
-        class="flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-border bg-transparent py-1.5 pr-2 pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-60"
+        class="flex size-11 justify-center cursor-pointer items-center gap-2.5 md:h-auto rounded-md border border-border bg-transparent p-0 md:py-1.5 md:pr-2 md:pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-full"
         aria-label="Search the vault"
       >
-        <span class="font-mono text-meta-lg leading-none text-faint" aria-hidden="true">⌕</span>
-        <span class="flex-1 min-w-0 text-left text-meta-lg text-muted-foreground">search the vault</span>
-        <span class="shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span>
+        <svg class="size-4 shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+        <span class="hidden md:block flex-1 min-w-0 text-left text-meta-lg text-muted-foreground">search the vault</span>
+        <span class="hidden md:block shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span>
       </button>
     </pagefind-modal-trigger>
 

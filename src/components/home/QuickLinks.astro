@@ -97,6 +97,25 @@ function destination(url: string): string {
 }
 ---
 
+<details class="mb-6 rounded-lg border border-border sm:hidden" data-mobile-quick-links>
+  <summary class="cursor-pointer px-4 py-3 font-mono text-meta-lg text-foreground">
+    Quick links <span class="text-faint">· {links.length}</span>
+  </summary>
+  <nav class="flex flex-col border-t border-border px-4 py-2" aria-label="Quick links">
+    {links.map(link => (
+      <a
+        href={link.url}
+        class="flex min-h-11 items-center justify-between gap-3 py-2 text-sm text-foreground no-underline hover:text-primary"
+        {...isExternal(link.url) ? { target: '_blank', rel: 'noopener noreferrer' } : {}}
+      >
+        <span>{link.label}</span>
+        {isExternal(link.url) && <Fragment set:html={arrowMarkup(14)} />}
+      </a>
+    ))}
+  </nav>
+</details>
+
+<div class="hidden sm:block">
 <div class="quick-links" data-quick-links>
   {cards.length > 0 && (
     <section class="grid grid-cols-1 gap-3 sm:grid-cols-4 md:grid-cols-6">
@@ -159,4 +178,5 @@ function destination(url: string): string {
       })}
     </nav>
   )}
+</div>
 </div>

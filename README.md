@@ -40,6 +40,18 @@ Every content kind gets its own index — `/notes/`, `/references/`, `/guides/`,
 has, so a vault with no decks never shows a `slides` link. `/` stays the
 combined feed across all of them.
 
+The home feed opens with a “Latest updates” heading. On phones, configured
+quick links collapse into a “Quick links” panel to leave room for entries;
+larger screens retain the quick-link grid. The header uses two rows on phones
+and keeps content sections in the Browse menu until the full navigation fits.
+
+The home feed and the notes, references, guides, and slides indexes keep their
+filters, sort order, and expanded result count in the URL. Copy the address to
+share a filtered view; refreshing or returning from an article restores it.
+For example, `/notes/?tag=tools&sort=asc` shows that tag oldest-first. Multiple
+selected tags use repeated `tag` parameters. An empty result offers **Clear
+filters** to return to the collection.
+
 **Markdown source.** Notes, guide chapters, daily entries, and decision records
 offer a **Source** button aligned to the right of their metadata or tags. It
 opens a Markdown viewer with a **Download Markdown** action that serves the
@@ -115,8 +127,11 @@ reference; results identify the exact sections that contain the phrase. Chapter
 heading IDs and reference-style links are isolated so repeated names such as
 “Syntax” remain unambiguous. mdBook fence annotations such as `rust,ignore` are
 normalized for highlighting, and Rust Reference rule labels such as
-`r[items.functions]` become navigable anchors. On small screens the rail folds
-into a “Browse this document” panel above the article.
+`r[items.functions]` become navigable anchors. On small screens a sticky
+“Contents & search” control stays below the site header, shows the current
+section, and opens the document navigation panel.
+Choosing a section closes the panel; Escape closes it and returns focus to
+the control.
 
 Every publishable reference also gets one `reference.pdf` beside its HTML page;
 a multi-file reference produces one PDF containing every listed chapter in
