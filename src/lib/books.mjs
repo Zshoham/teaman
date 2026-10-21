@@ -6,8 +6,8 @@
  * the site, the reference PDF, the wiki-link index, and `doctor` agree on it.
  * Publication (drafted chapters) is the vault catalog's.
  */
-import { existsSync, readFileSync, statSync } from 'fs';
-import { basename, dirname, relative, resolve } from 'path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { basename, dirname, join, relative, resolve } from 'path';
 import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 import { isInside, toPosix } from './fs-walk.mjs';
@@ -120,11 +120,36 @@ export function parseSummary(source, { rootRelative = false } = {}) {
 }
 
 /**
+ * `relPath` under `dir` as the directory listings spell it. On a
+ * case-insensitive filesystem SUMMARY.md can name `Intro.md` for `intro.md`
+ * and still open it; every other reader (the collections, the walks,
+ * Confluence) knows the file by its on-disk name, so a chapter is recorded
+ * under that. A segment no entry matches exactly takes the one entry that
+ * matches ignoring case; an exact match or an ambiguous one keeps the
+ * spelling as written, so on a case-sensitive filesystem nothing changes.
+ *
+ * @param {string} dir
+ * @param {string} relPath  `/`-separated, inside `dir`
+ * @param {(dir: string) => string[]} [readdir]
+ */
+export function onDiskPath(dir, relPath, readdir = readdirSync) {
+  let current = dir;
+  for (const segment of relPath.split('/')) {
+    let names;
+    try { names = readdir(current); } catch { names = []; }
+    const folded = names.filter(name => name.toLowerCase() === segment.toLowerCase());
+    current = join(current, names.includes(segment) || folded.length !== 1 ? segment : folded[0]);
+  }
+  return current;
+}
+
+/**
  * Read the book a SUMMARY.md indexes.
  *
  * - `chapters`: what it lists that is a file inside its directory, in order,
  *   first listing wins — each `{ path, title, depth, sourcePath }`, with
- *   `path` relative to the book's directory, `/`-separated;
+ *   `path` relative to the book's directory, `/`-separated, both spelled as
+ *   on disk (`onDiskPath`);
  * - `missing` / `invalid`: listed paths that are not a file, or that leave the
  *   directory — the book cannot be built (see `bookProblems`).
  *
@@ -139,15 +164,17 @@ export function readBook(summaryPath, { rootRelative = false } = {}) {
   const invalid = [];
   const seen = new Set();
   for (const item of parseSummary(content, { rootRelative })) {
-    const sourcePath = resolve(dir, item.path);
-    if (!isInside(dir, sourcePath)) {
+    const listed = resolve(dir, item.path);
+    if (!isInside(dir, listed)) {
       invalid.push(item.path);
       continue;
     }
+    const exists = existsSync(listed) && statSync(listed).isFile();
+    const sourcePath = exists ? onDiskPath(dir, toPosix(relative(dir, listed))) : listed;
     const path = toPosix(relative(dir, sourcePath));
     if (seen.has(path)) continue;
     seen.add(path);
-    if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) missing.push(item.path);
+    if (!exists) missing.push(item.path);
     else chapters.push({ ...item, path, sourcePath });
   }
   return { dir, data, content, chapters, missing, invalid };

@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { dirname, join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { bookProblems, isSummaryFile, parseSummary, readBook } from '../books.mjs';
+import { bookProblems, isSummaryFile, onDiskPath, parseSummary, readBook } from '../books.mjs';
 
 const roots = [];
 afterEach(() => {
@@ -191,5 +191,25 @@ describe('isSummaryFile', () => {
   it('matches only SUMMARY.md when case-sensitive', () => {
     const caseSensitive = path => isSummaryFile(path, { caseSensitive: true });
     expect(['g/SUMMARY.md', 'g/summary.md', 'g/Summary.MD'].map(caseSensitive)).toEqual([true, false, false]);
+  });
+});
+
+// What a case-insensitive filesystem lists, faked: SUMMARY.md's spelling opens
+// the file there, but every walk knows it by the listed name.
+describe('onDiskPath', () => {
+  const listing = {
+    '/book': ['Part One', 'intro.md', 'Notes.md', 'notes.md'],
+    '/book/Part One': ['setup.md'],
+  };
+  const readdir = dir => listing[dir] ?? [];
+
+  it('takes the listed spelling of every segment that differs only in case', () => {
+    expect(onDiskPath('/book', 'Intro.md', readdir)).toBe(join('/book', 'intro.md'));
+    expect(onDiskPath('/book', 'part one/SETUP.md', readdir)).toBe(join('/book', 'Part One', 'setup.md'));
+  });
+
+  it('keeps an exact or ambiguous spelling as written', () => {
+    expect(onDiskPath('/book', 'intro.md', readdir)).toBe(join('/book', 'intro.md'));
+    expect(onDiskPath('/book', 'NOTES.md', readdir)).toBe(join('/book', 'NOTES.md'));
   });
 });
