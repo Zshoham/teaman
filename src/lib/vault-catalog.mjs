@@ -2,7 +2,7 @@ import { dirname, join, relative, resolve } from 'path';
 import { assertCoversTypes, collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
-import { readEntryFiles } from './entry-files.mjs';
+import { readEntryFile, readEntryFiles } from './entry-files.mjs';
 import { toPosix } from './fs-walk.mjs';
 import { isPublished } from './publication.mjs';
 import { discoverReferenceDocuments } from './reference-documents.mjs';
@@ -69,7 +69,10 @@ function discoverGuides(guidesRoot, files) {
       chapters: chapters.map(chapter => ({
         ...chapter,
         relPath: toPosix(relative(guidesRoot, chapter.sourcePath)),
-        data: byPath.get(chapter.sourcePath)?.data ?? {},
+        // Read by the spelling SUMMARY.md uses when the walk found the file
+        // under another (`Intro.md` for `intro.md` on a case-insensitive
+        // filesystem), so a drafted chapter stays drafted.
+        data: (byPath.get(chapter.sourcePath) ?? readEntryFile('guide', guidesRoot, chapter.sourcePath)).data,
       })),
       missing,
       invalid,

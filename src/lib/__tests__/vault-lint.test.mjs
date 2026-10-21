@@ -17,6 +17,13 @@ describe('lintVault', () => {
     writeFileSync(path, body);
   };
 
+  // The catalog's body has its frontmatter removed; a body that opens with a
+  // `---` rule must not be read as frontmatter a second time.
+  it('lints links in a body that opens with a horizontal rule', () => {
+    write('notes/n.md', '---\ntitle: N\n---\n---\n\n[[gone]]\n\n---\n');
+    expect(lintVault(vault)).toEqual({ problems: [], warnings: ['notes: n.md links to missing [[gone]]'] });
+  });
+
   it('reports nothing for an empty vault', () => {
     expect(lintVault(vault)).toEqual({ problems: [], warnings: [] });
   });
