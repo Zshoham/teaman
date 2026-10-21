@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { COLLECTIONS } from '../collections.mjs';
@@ -110,6 +110,19 @@ describe('openVaultCatalog', () => {
       expect(broken.published, type).toBe(false);
     }
     expect(catalog.all('decision')[0].num).toBe('0007');
+  });
+
+  // On a case-insensitive filesystem SUMMARY.md can name `Intro.md` for the
+  // walked `intro.md`; a symlink reproduces that split here (walks skip it,
+  // readBook follows it).
+  it('reads a chapter SUMMARY.md spells differently from the walk', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('guides/g/SUMMARY.md', '- [One](one.md)\n- [Intro](Intro.md)\n');
+    write('guides/g/one.md');
+    write('guides/g/intro.md', DRAFT);
+    symlinkSync('intro.md', join(vault, 'guides/g/Intro.md'));
+    const [guide] = openVaultCatalog(vault).published('guide');
+    expect(guide.chapters.map(chapter => chapter.path)).toEqual(['one.md']);
   });
 
   // Astro's glob loaders never see a dot path, so the site never renders one.

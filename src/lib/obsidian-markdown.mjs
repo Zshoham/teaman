@@ -13,7 +13,6 @@
  *   synchronous render by `compileDiagramFences`.
  */
 import MarkdownIt from 'markdown-it';
-import matter from 'gray-matter';
 import { renderFenceSvg } from './remark-fence-svg.mjs';
 
 /** `[!type]` then an optional fold marker and title, on a callout's first line. */
@@ -146,15 +145,17 @@ export async function compileDiagramFences(tokens, { languages, cacheDir, compil
 const linkParser = new MarkdownIt({ html: true }).use(obsidianDialect);
 
 /**
- * Every wiki-link and embed in a Markdown document, frontmatter excluded, as
- * the renderers see them — none from code spans, fences, or raw HTML.
+ * Every wiki-link and embed in a Markdown body, as the renderers see them —
+ * none from code spans, fences, or raw HTML. Pass the body with its
+ * frontmatter already removed (the catalog's `body`): stripping it again
+ * would read a body that opens with a `---` rule as more frontmatter.
  *
- * @param {string} source
+ * @param {string} body
  * @returns {Array<{ target: string, label: string, embed: boolean }>}
  */
-export function wikiLinks(source) {
+export function wikiLinks(body) {
   const links = [];
-  for (const token of linkParser.parse(matter(source).content, {})) {
+  for (const token of linkParser.parse(body, {})) {
     for (const child of token.children ?? []) {
       if (child.type === 'wiki_link') links.push(child.meta);
     }
