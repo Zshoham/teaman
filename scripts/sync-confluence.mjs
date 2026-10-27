@@ -10,6 +10,7 @@ import { renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
 import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from '../src/lib/diagram-kinds.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { parseFrontmatter } from '../src/lib/entry-files.mjs';
+import { entryTitle, withoutTitleHeading } from '../src/lib/entry-title.mjs';
 import { walkMarkdown } from '../src/lib/fs-walk.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
@@ -202,24 +203,8 @@ function folderPages(catalog, folder) {
 }
 
 function pageTitle(markdown, filePath) {
-  const parsed = parseFrontmatter(markdown);
-  const title = frontmatterTitle(parsed.data) ?? firstHeading(parsed.content);
-  return title ?? segmentTitle(basename(filePath, '.md'));
-}
-
-function frontmatterTitle(data) {
-  return typeof data.title === 'string' && data.title.trim() ? data.title.trim() : null;
-}
-
-function firstHeading(markdown) {
-  const tokens = markdownRenderer.parse(markdown, {});
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (tokens[i].type === 'heading_open' && tokens[i].tag === 'h1') {
-      const inline = tokens[i + 1];
-      return inline?.type === 'inline' && inline.content.trim() ? inline.content.trim() : null;
-    }
-  }
-  return null;
+  const { data, content } = parseFrontmatter(markdown);
+  return entryTitle({ data, body: content, id: basename(filePath, '.md') });
 }
 
 // Resolves a wiki-link to the title of the Confluence page for the file it
@@ -243,9 +228,9 @@ function buildLinkTitles(contentDir, index = existsSync(contentDir) ? createVaul
   };
 }
 
-function storageBody(markdown, title, context = {}) {
+function storageBody(markdown, context = {}) {
   const parsed = parseFrontmatter(markdown);
-  return markdownToStorage(stripMatchingLeadingH1(parsed.content, title), context);
+  return markdownToStorage(withoutTitleHeading(parsed.content), context);
 }
 
 function codeMacro(lines, { language, title } = {}) {
@@ -639,25 +624,6 @@ function markdownToStorage(markdown, context = {}) {
   return { html: markdownRenderer.render(markdown, env).trimEnd(), images: env.images };
 }
 
-function stripMatchingLeadingH1(markdown, title) {
-  const tokens = markdownRenderer.parse(markdown, {});
-  const firstBlock = tokens.findIndex(token => !token.hidden);
-  const heading = tokens[firstBlock];
-  const inline = tokens[firstBlock + 1];
-  if (
-    heading?.type !== 'heading_open'
-    || heading.tag !== 'h1'
-    || inline?.type !== 'inline'
-    || inline.content.trim() !== title
-    || !heading.map
-  ) {
-    return markdown;
-  }
-
-  const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
-  lines.splice(heading.map[0], heading.map[1] - heading.map[0]);
-  return lines.join('\n');
-}
 
 /**
  * @typedef {import('./confluence-client.mjs').ConfluenceClient} ConfluenceClient
@@ -761,7 +727,7 @@ export async function syncVault({
   async function syncFile(parent, filePath) {
     const markdown = readFileSync(filePath, 'utf8');
     const title = pageTitle(markdown, filePath);
-    const { html: body, images } = storageBody(markdown, title, {
+    const { html: body, images } = storageBody(markdown, {
       ...context,
       filePath,
       fenceSvgs: await compileFenceSvgs(markdown),

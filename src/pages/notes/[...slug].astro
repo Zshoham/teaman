@@ -8,6 +8,7 @@ import DocMeta from '../../components/DocMeta.astro';
 import MetaDot from '../../components/MetaDot.astro';
 import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
+import { entryTitle } from '../../lib/entry-title.mjs';
 
 export async function getStaticPaths() {
   const notes = await getPublished('notes');
@@ -21,9 +22,10 @@ const { note } = Astro.props;
 const { Content } = await render(note);
 const base = import.meta.env.BASE_URL;
 const words = wordCount(note.body ?? '');
+const title = entryTitle({ data: note.data, body: note.body, id: note.id });
 ---
 
-<Layout title={note.data.title ?? note.id}>
+<Layout title={title}>
   <article class="mx-auto max-w-[var(--measure)] pt-6 pb-2">
     {/* The section index, not the home feed — the header brand already links
         home, so the crumb is more useful pointing one level up. */}
@@ -33,7 +35,7 @@ const words = wordCount(note.body ?? '');
     ]} />
 
     <header class="mb-8 border-b border-border pb-6">
-      <h1 class="note-title doc-title m-0 mb-4">{note.data.title ?? note.id}</h1>
+      <h1 class="note-title doc-title m-0 mb-4">{title}</h1>
       <DocMeta class="note-meta" items={[wordMeta(words), readingTimeMeta(words)]}>
         {note.data.date && <time datetime={note.data.date.toISOString()}>{fmtDate(note.data.date)}</time>}
         {note.data.date && note.data.tags && note.data.tags.length > 0 && <MetaDot />}

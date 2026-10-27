@@ -1,10 +1,9 @@
-import { dirname, join, relative, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 import { assertCoversTypes, collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
 import { readEntryFile, readEntryFiles } from './entry-files.mjs';
 import { entryId } from './entry-identity.mjs';
-import { toPosix } from './fs-walk.mjs';
 import { isPublished } from './publication.mjs';
 import { discoverReferenceDocuments } from './reference-documents.mjs';
 import { isSummaryFile, readBook } from './books.mjs';
@@ -80,20 +79,6 @@ function discoverGuides(guidesRoot, files) {
   });
 }
 
-function discoverReferences(root) {
-  return discoverReferenceDocuments(root).map(document => {
-    const sourcePath = document.sourcePath ?? document.summaryPath;
-    return {
-      ...document,
-      id: document.id ?? '',
-      sourcePath,
-      relPath: toPosix(relative(root, sourcePath)),
-      data: document.data ?? {},
-      body: document.body ?? '',
-    };
-  });
-}
-
 /**
  * Per type, its entries from its vault directory and the Markdown files in it.
  *
@@ -101,7 +86,7 @@ function discoverReferences(root) {
  */
 const DISCOVER = {
   note: (root, files) => files(),
-  reference: discoverReferences,
+  reference: discoverReferenceDocuments,
   guide: (root, files) => discoverGuides(root, files()),
   slides: discoverDecks,
   daily: (root, files) => files(),

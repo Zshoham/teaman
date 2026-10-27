@@ -11,8 +11,9 @@ import {
   isImageEmbed,
   obsidianDialect,
 } from './obsidian-markdown.mjs';
-import { assembleReferenceBook, htmlIds, layoutReferenceBook } from './reference-book.mjs';
+import { htmlIds, layoutReferenceBook } from './reference-book.mjs';
 import { engineDir } from './build-env.mjs';
+import { withoutTitleHeading } from './entry-title.mjs';
 import { isInside, toPosix } from './fs-walk.mjs';
 import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
 import { assetRoots, resolveVaultAsset } from './vault-assets.mjs';
@@ -46,10 +47,6 @@ function humanize(value) {
     .replace(/\b\w/g, character => character.toUpperCase());
 }
 
-function sourceWithoutLeadingTitle(source) {
-  return source.replace(/^\s*#\s+[^\n]+\n+/, '');
-}
-
 function headingText(tokens) {
   return (tokens ?? [])
     .filter(token => token.type !== 'html_inline' && token.type !== 'image')
@@ -74,7 +71,7 @@ function typstInternalLabel(anchor) {
  * declares.
  */
 function parseReference(source) {
-  const tokens = markdown.parse(sourceWithoutLeadingTitle(source), {});
+  const tokens = markdown.parse(withoutTitleHeading(source), {});
   const headings = [];
   const ids = [];
   for (const [index, token] of tokens.entries()) {
@@ -412,6 +409,11 @@ function typstTags(tags) {
 /**
  * Fill the bundled Typst reference template with converted document content.
  * Returns the Typst source and the vault-relative images it names, in order.
+ *
+ * A book is rendered from `chapters` as `assembleReferenceBook` prepared them
+ * (each with its `anchor`, `preparedBody`, and `sourcePath`) — the reference
+ * document's own, so the PDF lays out exactly the book the site renders;
+ * `body` is a standalone reference's.
  */
 export function renderReferenceTypst({
   template,
@@ -448,8 +450,7 @@ export function renderReferenceTypst({
   // laid out as the site lays it out.
   let content;
   if (chapters?.length) {
-    const parsed = assembleReferenceBook(chapters).chapters
-      .map(chapter => ({ chapter, ...parseReference(chapter.preparedBody) }));
+    const parsed = chapters.map(chapter => ({ chapter, ...parseReference(chapter.preparedBody) }));
     const layout = layoutReferenceBook(parsed.map(({ chapter, headings, htmlIds: ids }) => ({
       path: chapter.path,
       anchor: chapter.anchor,

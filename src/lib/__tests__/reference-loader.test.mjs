@@ -8,6 +8,7 @@ const { referenceLoader } = await import('../reference-loader.mjs');
 
 const document = (id = 'book') => ({
   id,
+  relPath: `${id}/SUMMARY.md`,
   kind: 'book',
   data: { title: id },
   body: `# ${id}`,
@@ -55,13 +56,13 @@ describe('referenceLoader', () => {
     discoverReferenceDocuments.mockReturnValue([{ ...document(), missing: ['intro.md'] }]);
     const context = createContext();
 
-    await expect(referenceLoader({ base: '/vault/references' }).load(context))
+    await expect(referenceLoader({ vaultDir: '/vault' }).load(context))
       .rejects.toThrow(/points at missing chapter/);
   });
 
   it('reports a failed reload instead of rejecting unobserved', async () => {
     const context = createContext();
-    await referenceLoader({ base: '/vault/references' }).load(context);
+    await referenceLoader({ vaultDir: '/vault' }).load(context);
 
     discoverReferenceDocuments.mockReturnValue([{ ...document(), chapters: [] }]);
     await fire(context);
@@ -73,7 +74,7 @@ describe('referenceLoader', () => {
 
   it('recovers on the next save after a failed reload', async () => {
     const context = createContext();
-    await referenceLoader({ base: '/vault/references' }).load(context);
+    await referenceLoader({ vaultDir: '/vault' }).load(context);
 
     discoverReferenceDocuments.mockReturnValue([{ ...document(), chapters: [] }]);
     await fire(context);
@@ -85,7 +86,7 @@ describe('referenceLoader', () => {
 
   it('re-registers watcher listeners after a full content resync', async () => {
     const context = createContext();
-    const loader = referenceLoader({ base: '/vault/references' });
+    const loader = referenceLoader({ vaultDir: '/vault' });
     await loader.load(context);
 
     for (const handlers of Object.values(context.handlers)) handlers.splice(0);
@@ -108,7 +109,7 @@ describe('referenceLoader', () => {
       active -= 1;
       return { html: body };
     };
-    await referenceLoader({ base: '/vault/references' }).load(context);
+    await referenceLoader({ vaultDir: '/vault' }).load(context);
 
     discoverReferenceDocuments.mockReturnValue([document('one')]);
     const first = fire(context);

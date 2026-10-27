@@ -180,11 +180,13 @@ Adding a type means: the registry row and its `EntryType` member, a schema in
 pages, and whatever those checks then name.
 
 `src/content.config.ts` defines seven Astro collections — `notes`, `references`,
-`guides`, `guideSummaries`, `slides`, `dailies`, `decisions` — rooted at the matching
-`*Root` from `content-paths.ts`. Most are `glob` loaders; `references` and
-`slides` are discovery-fed loaders built on `vault-loader.mjs` (store sync,
-digest skipping, dev watching), fed by `discoverReferenceDocuments` and
-`discoverDecks`. Notes about the model:
+`guides`, `guideIndexes`, `slides`, `dailies`, `decisions` — rooted at the matching
+`*Root` from `content-paths.ts`. Most are `glob` loaders; `references`,
+`guideIndexes`, and `slides` are discovery-fed loaders built on
+`vault-loader.mjs` (store sync, digest skipping, dev watching), fed by the
+catalog's references and guides and by `discoverDecks`. Anything a route's
+`getStaticPaths` reads must reach it through a collection: Astro's dev server
+re-runs `getStaticPaths` only when the content store changes. Notes about the model:
 - **Publishing** is one rule for every type (`publication.mjs`): `draft: true`
   or any `_`-prefixed path segment keeps a file off the site. Read collections
   with `getPublished` (`published.ts`), never bare `getCollection`.
@@ -211,9 +213,10 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
 - ADRs: statuses, the standalone `ADR-n · title`, and search text live in
   `decision-records.mjs` (client-safe); `discoverDecisions` reads every ADR
   for the catalog; the site reads the collection.
-- `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (its own
-  `guideSummaries` collection, excluded from `guides`), and the other `.md` files are
-  chapters. So is a multi-file reference (`references/<slug>/SUMMARY.md`).
+- `guides/<slug>/` is a book: `SUMMARY.md` is the chapter index (read by the
+  catalog and stored per published guide in `guideIndexes` by
+  `guide-loader.mjs`, excluded from the `guides` collection), and the other
+  `.md` files are chapters. So is a multi-file reference (`references/<slug>/SUMMARY.md`).
   `src/lib/books.mjs` owns books: `parseSummary` (the mdBook chapter list),
   `readBook` (which listed chapters exist, inside the directory, once each —
   the rest in `missing`/`invalid` — each read through the caller's
@@ -225,8 +228,25 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   (URL segment within the guide): join chapters to collection entries by
   `id`, never by rebuilding `<guide>/<slug>` (a chapter `index.md` breaks
   that). The site's guide list (`listGuides`, `guides.ts`) is the catalog's
-  published guides, so it matches the wiki-link index and Confluence; the
-  guide route fails the build on a guide's `problems`.
+  published guides, so it matches the wiki-link index and Confluence.
+  `loadGuides` is the one place the two collections meet: each `guideIndexes`
+  chapter paired with its `guides` collection entry, the SUMMARY.md's tags and
+  body alongside — the guide route, the feed, and the source route read it,
+  never a collection and the catalog side by side.
+- **What fails the build** is `build-problems.mjs` (`buildProblems`,
+  `assertBuildable(catalog, part)`): books the reference loader and the PDF
+  stage cannot assemble (`references`), published guides that list chapters
+  they cannot serve and SUMMARY.md frontmatter its schema rejects (`guides`,
+  asserted by the guide loader),
+  deck embeds with no file to stage (`slides`). Each stage asserts its part;
+  `doctor` (`lintVault`) reports every part. A new build-blocking rule is a
+  row there, not a stage edit mirrored in the lint.
+- **Titles** are `entry-title.mjs`: frontmatter `title`, else the level-1
+  heading that opens the body (the *title heading*), else the humanized id;
+  every renderer drops the title heading (`withoutTitleHeading`; on the site
+  `remarkStripLeadingH1`, which `entry-title.test.mjs` holds to the same
+  heading). The note and reference pages, the feed, reference discovery,
+  guides, the PDF, and Confluence all title through it.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
 - `references/*.md` are standalone long-form documents with a dedicated reader
@@ -267,6 +287,8 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   every page the site renders, matched Obsidian-style (bare name or trailing
   path, case-insensitive, same folder then shortest path, legacy slug match as
   a fallback). `doctor` and Confluence sync resolve through the same index.
+  In a reference book, a link resolves from its chapter's file, not the
+  SUMMARY.md the book renders as.
 
 The diagram fence languages are listed once, in `src/lib/diagram-kinds.mjs`
 (`lang`, `label`, and whether the site renders it on the `client` or at
@@ -276,7 +298,13 @@ build compilers in `remark-fence-svg.mjs`, the PDF's server renderers in
 each client kind has its `src/scripts/<lang>.ts` loaded by `Layout.astro`.
 Adding a kind is a row there plus its adapters.
 
-The Markdown pipeline (`astro.config.mjs`) also runs `remarkStripLeadingH1` (pages
+The site's Markdown pipeline is `src/lib/site-markdown.mjs`: every remark and
+rehype pass in order, built from explicit options (no env reads).
+`astro.config.mjs` hands `siteMarkdownConfig(...)` to Astro, and tests render
+through `createSiteMarkdownRenderer` — Astro's own `createMarkdownProcessor`
+over the same plugin list — so parity tests (`obsidian-dialect.test.mjs`,
+`reference-book.test.mjs`, `entry-title.test.mjs`) run the real pipeline, never
+a hand-assembled subset. Besides wiki-links it runs `remarkStripLeadingH1` (pages
 render the title themselves),
 `remarkInlineSvg` (inlines local `.svg` markdown images — resolved by
 `vault-assets.mjs` `resolveVaultAsset`, the one image lookup the PDF and
@@ -294,8 +322,8 @@ content hash in the gitignored `.diagram-cache/`; TikZ text needs the
 Computer Modern `@font-face` set that `global.css` imports from node-tikzjax),
 `remarkSmartLinks` (Jira / Confluence / GitLab links → a chip carrying the ref
 parsed from the href by `src/lib/smart-links.mjs`; vault hosts extend the
-built-in ones via `config.smartLinks`, which `astro.config.mjs` reads straight
-off `TEAMAN_CONFIG` since it can't import the TS config),
+built-in ones via `config.smartLinks`, which `astro.config.mjs` passes in
+from `siteConfig`),
 `rehype-callouts` (Obsidian callouts), and slug +
 autolinked headings. In the rehype phase `rehypeReferenceSections` (references
 only, runs last so heading ids/permalinks are already set) wraps each `##`
@@ -309,17 +337,19 @@ name not vault — otherwise a second vault reuses the first vault's cached entr
 
 ### Build pipeline (`build:all`)
 
-Four sequential stages, all reading the env seam. `cmdBuild` points `outDir` at
-a `.teaman-out-*` staging dir it makes **inside the engine**, never at the final
-`--out`: Astro emits prerendered assets into `<cwd>/.astro/` (cwd is always the
-engine) and *renames* them into `outDir`, so an out dir on another filesystem —
-a Docker bind mount, a separate disk — fails with EXDEV. Only the finished site
-crosses over, via `moveStagedBuild` (rename, falling back to copy on EXDEV) into
-a hidden sibling of `out`, then `commitBuild`'s atomic swap. Keep the four
-stages writing to that one staged dir. That lifecycle — drop `.astro/`, run
-`BUILD_STAGES` in order, commit only when all succeed, clean up in `finally` —
-is `runBuildPipeline` (`bin/teaman.mjs`), which takes the stage runner as an
-argument so the unit tests drive it with a fake instead of spawning Astro.
+Four sequential stages, all reading the env seam. Their output lifecycle is
+`buildSite` (`bin/build-output.mjs`), which owns every name and step of it:
+refuse an unsafe or non-build `--out`, sweep what killed builds left, point
+`outDir` at a `.teaman-out-*` staging dir **inside the engine** (never at the
+final `--out`: Astro emits prerendered assets into `<cwd>/.astro/` — cwd is
+always the engine — and *renames* them into `outDir`, so an out dir on another
+filesystem — a Docker bind mount, a separate disk — fails with EXDEV), drop
+`.astro/`, run the stages in order, and only when all succeed move the site
+next to `out` (rename, falling back to copy on EXDEV) and swap it in
+atomically, cleaning up in `finally`. Keep the four stages writing to that one
+staged dir. `cmdBuild` hands it the stages and a `prepare` that stages the
+static dir and the env; the unit tests (`bin/__tests__/build-output.test.mjs`)
+drive it with a fake stage runner instead of spawning Astro.
 
 Stages 2–4 are modules, not just scripts: each exports a function taking its
 inputs as arguments (`buildReferences`, `buildSlides` + `stageSlidesWorkspace`,
@@ -338,11 +368,16 @@ with a fake for that dependency.
    breaking the PDF. A reference book's layout — its chapters joined
    (`assembleReferenceBook`), each chapter's anchor, its heading and raw-HTML
    ids, and where a link between chapter files lands — is
-   `src/lib/reference-book.mjs` (`layoutReferenceBook`); the site's
+   `src/lib/reference-book.mjs` (`layoutReferenceBook`). Discovery assembles a
+   book once (`reference-documents.mjs`): the site renders its `body`, the PDF
+   its prepared `chapters`, never re-assembling. The site renders the book as
+   its SUMMARY.md, so wiki-links and embeds resolve from the chapter file each
+   part came from (`forEachSourceNode`, from the chapter markers), as the PDF
+   and `doctor` do; the site's
    `remarkReferenceBooks` and the PDF's `renderReferenceTypst` each read
    heading texts and HTML ids from their own syntax tree and take every
-   identifier from it, and `__tests__/reference-book.test.mjs` runs one book
-   through both. The
+   identifier from it, and `__tests__/reference-book.test.mjs` runs one vault's
+   book through discovery, the site's real pipeline, and the PDF stage. The
    template's callouts come from **showybox** and its code blocks from **codly**;
    both are vendored under `resources/typst-packages/` and mounted as compiler
    shadow files by `src/lib/typst-packages.mjs` (imported as
@@ -448,9 +483,9 @@ until their behavior has been assessed separately.
   validation step; `doctor` gates CI by exiting non-zero on config/content problems.
   What it checks is tested in-process: config through `validateConfig`
   (`bin/__tests__/teaman-unit.test.mjs`), content through `lintVault`
-  (`src/lib/vault-lint.mjs`, built on the catalog, the book rule, the
-  wiki-link index, and the deck embed plan, so it reports what the build
-  would fail on). `teaman-cli.test.mjs` keeps only what needs the real CLI:
+  (`src/lib/vault-lint.mjs`, built on the catalog, `build-problems.mjs` — the
+  stages' own refusals — and the wiki-link index, so it reports what the
+  build would fail on). `teaman-cli.test.mjs` keeps only what needs the real CLI:
   config loading, output, and exit codes.
 
 ## Conventions

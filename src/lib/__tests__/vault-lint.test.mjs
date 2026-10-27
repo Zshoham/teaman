@@ -78,8 +78,8 @@ describe('lintVault', () => {
       'notes: n.md: tags: Invalid input: expected array, received number',
       'references: r.md: date: not a valid date',
       'guides: g/a.md: title: Invalid input: expected string, received number',
-      'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
       'slides: deck.md: tags.0: Invalid input: expected string, received number',
+      'guides: g/SUMMARY.md: draft: Invalid input: expected boolean, received string',
     ]);
   });
 
@@ -213,9 +213,9 @@ describe('lintVault', () => {
     write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n\n<div>\n![[wrapped.html]]\n</div>\n');
     const { problems } = lintVault(vault);
     expect(problems).toEqual([
-      'notes: a.md embeds missing HTML file ![[gone.html]]',
       'slides: deck.md embeds missing HTML file ![[lost.html]]',
       'slides: deck.md embeds missing HTML file ![[wrapped.html]]',
+      'notes: a.md embeds missing HTML file ![[gone.html]]',
     ]);
   });
 

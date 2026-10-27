@@ -15,7 +15,7 @@ import {
   referencePdfCacheKey,
   renderReferenceTypst,
 } from '../src/lib/reference-pdf.mjs';
-import { bookProblems } from '../src/lib/books.mjs';
+import { assertBuildable } from '../src/lib/build-problems.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 
@@ -65,11 +65,7 @@ export async function buildReferences({
 }) {
   const { vaultDir } = catalog;
   const result = { rendered: [], reused: [] };
-  const documents = catalog.all('reference');
-  for (const document of documents) {
-    const problems = bookProblems(document);
-    if (problems.length > 0) throw new Error(problems.join('; '));
-  }
+  assertBuildable(catalog, 'references');
 
   // The wiki-link index discovers every type (and parses every deck), so a
   // vault with nothing to compile does not build one; `teaman dev` runs this

@@ -1,55 +1,32 @@
 ---
 import { render } from 'astro:content';
-import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { GuideTOC } from '../../components/guide/GuideTOC';
 import { GuideNav } from '../../components/guide/GuideNav';
 import SourceActions from '../../components/SourceActions.astro';
 import DocMeta from '../../components/DocMeta.astro';
-import { listGuides, getGuide } from '../../lib/guides';
+import { loadGuides, type GuidePage } from '../../lib/guides';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 
 export async function getStaticPaths() {
-  const guides = await listGuides();
-  // A SUMMARY.md listing a chapter the guide cannot serve fails the build, as
-  // a broken reference book does and as `doctor` reports.
-  const problems = guides.flatMap(guide => guide.problems.map(problem => `guides: ${problem}`));
-  if (problems.length > 0) throw new Error(problems.join('\n'));
-  const paths: Array<{
-    params: { slug: string };
-    props: { guideSlug: string; chapterSlug: string };
-  }> = [];
-  for (const g of guides) {
-    if (g.chapters.length === 0) continue;
-    const [first, ...rest] = g.chapters;
-    paths.push({
-      params: { slug: g.slug },
-      props: { guideSlug: g.slug, chapterSlug: first.slug },
-    });
-    for (const ch of rest) {
-      paths.push({
-        params: { slug: `${g.slug}/${ch.slug}` },
-        props: { guideSlug: g.slug, chapterSlug: ch.slug },
-      });
-    }
-  }
-  return paths;
+  // `loadGuides` fails the build on a guide it cannot serve, as a broken
+  // reference book does and as `doctor` reports.
+  const guides = await loadGuides();
+  return guides.flatMap(guide => guide.chapters.map((chapter, index) => ({
+    // The first chapter is served at the guide root.
+    params: { slug: index === 0 ? guide.slug : `${guide.slug}/${chapter.slug}` },
+    props: { guide, chapterSlug: chapter.slug },
+  })));
 }
 
-const { guideSlug, chapterSlug } = Astro.props;
-const guide = await getGuide(guideSlug);
-if (!guide) throw new Error(`Guide not found: ${guideSlug}`);
-
-const chapter = guide.chapters.find(c => c.slug === chapterSlug);
-const entries = await getPublished('guides');
-const entry = entries.find(e => e.id === chapter?.entryId);
-if (!entry) throw new Error(`Chapter not found: ${guideSlug}/${chapterSlug}`);
+const { guide, chapterSlug } = Astro.props as { guide: GuidePage; chapterSlug: string };
+const idx = guide.chapters.findIndex(c => c.slug === chapterSlug);
+const { entry } = guide.chapters[idx];
 
 const { Content } = await render(entry);
 
 const base = import.meta.env.BASE_URL;
-const idx = guide.chapters.findIndex(c => c.slug === chapterSlug);
 const currentTitle = guide.chapters[idx]?.title ?? entry.data.title ?? chapterSlug;
 const docTitle = `${currentTitle} — ${guide.title}`;
 const words = wordCount(entry.body ?? '');

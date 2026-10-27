@@ -120,7 +120,7 @@ References can be authored in either of two additive forms:
 
 Frontmatter lives on the standalone file or, for a book, on `SUMMARY.md`. It
 matches a regular note (`title`, `date`, `tags`, `draft`) and adds an optional
-one-line `summary`; without `title`, the first `#` heading supplies it. The page
+one-line `summary`; without `title`, the `#` heading that opens it supplies it. The page
 renders a sticky table of contents from the complete assembled outline, tracks
 the current section and reading progress, and lets the reader search the entire
 reference; results identify the exact sections that contain the phrase. Chapter

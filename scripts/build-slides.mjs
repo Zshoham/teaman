@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync, readFileSync } from 'fs';
+import { mkdirSync, existsSync, cpSync, rmSync, writeFileSync, copyFileSync, readFileSync, symlinkSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join, extname, dirname } from 'path';
 import { createRequire } from 'module';
@@ -6,6 +6,7 @@ import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, ren
 import { collectionFor } from '../src/lib/collections.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';
+import { buildProblems } from '../src/lib/build-problems.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 
@@ -60,6 +61,15 @@ export function stageSlidesWorkspace({ catalog, workDir, engineDir, slidesConfig
   rmSync(workDir, { recursive: true, force: true });
   cpSync(join(vaultDir, collectionFor('slides').dir), workDir, { recursive: true });
 
+  // Slidev, run from the work dir, walks up to find its deps, which a temp dir
+  // outside the engine has none of. `join(engineDir, 'node_modules')` isn't
+  // enough: when the engine is installed as a dependency its deps may be
+  // hoisted above engineDir, so resolve through an actual dependency to reach
+  // the real root. 'junction' works unprivileged on Windows; on POSIX it is a
+  // plain dir symlink.
+  const dependencyRoot = dirname(dirname(dirname(createRequire(import.meta.url).resolve('@slidev/cli/package.json'))));
+  if (!existsSync(join(workDir, 'node_modules'))) symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
+
   // Slidev merges a vite.config found in the deck's directory; preserve the
   // shared output tree and mute harmless INVALID_ANNOTATION noise (see
   // renderViteConfig).
@@ -92,14 +102,12 @@ export function stageSlidesWorkspace({ catalog, workDir, engineDir, slidesConfig
   // `![[page.html]]` embeds: the theme's transformer turns each into an
   // <HtmlEmbed> frame loading `embeds/<target>` relative to the deck; stage
   // the file Obsidian would find where the frame looks. A missing file fails
-  // the build, as it does on the site.
+  // the build (`build-problems.mjs`), as it does on the site.
   const vaultIndex = createVaultIndex(vaultDir, { catalog });
+  problems.push(...buildProblems(catalog, { parts: ['slides'], index: vaultIndex }));
   for (const deck of catalog.published('slides')) {
-    for (const { target, file, dest } of deckEmbedPlan(deck, vaultIndex.resolveAttachment)) {
-      if (!file) {
-        problems.push(`slides/${deck.relPath}: ![[${target}]]: no HTML file named “${target}” in the vault`);
-        continue;
-      }
+    for (const { file, dest } of deckEmbedPlan(deck, vaultIndex.resolveAttachment)) {
+      if (!file) continue;
       mkdirSync(dirname(join(workDir, dest)), { recursive: true });
       copyFileSync(file, join(workDir, dest));
     }
@@ -139,7 +147,7 @@ export function buildSlides({
     const { themeDir, problems, warnings } = stageSlidesWorkspace({ catalog, workDir, engineDir, slidesConfig });
     warnings.forEach(warning => console.warn(warning));
     if (problems.length > 0) {
-      throw new Error(`Missing embeds:\n${problems.map(line => `  ${line}`).join('\n')}`);
+      throw new Error(`The vault cannot build:\n${problems.map(line => `  ${line}`).join('\n')}`);
     }
     for (const deck of decks) {
       const out = join(outDir, 'slides', ...deck.id.split('/'));

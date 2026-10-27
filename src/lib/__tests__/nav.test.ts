@@ -26,7 +26,6 @@ function stubCollections(fixture: Fixture) {
     slug,
     title: slug,
     chapters: [{ slug: 'intro', entryId: `${slug}/intro`, title: 'Intro' }],
-    problems: [],
   })));
   mockGetCollection.mockImplementation(((name: string) => {
     switch (name) {

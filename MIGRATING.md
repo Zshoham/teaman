@@ -23,6 +23,29 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **One title rule everywhere** (patch). A page's title is its frontmatter
+  `title`, else the `#` heading that opens it, else its file name with `-`/`_`
+  as spaces — on the site, in the feed, in the reference PDF, and in
+  Confluence — and that opening heading is dropped from the body everywhere.
+  Before, a note without `title` was titled by its slug on the site (while
+  Confluence used its heading); a guide took the *last* `#` heading of its
+  `SUMMARY.md`, and now takes its frontmatter `title` or the opening one; a
+  reference without `title` took the first `#` heading anywhere; and
+  Confluence kept an opening heading that differed from the title. To keep a
+  title that differs from the heading, set `title` in frontmatter.
+
+- **Wiki-links in a reference book resolve from their chapter** (patch). On
+  the site, `[[name]]` and `![[image.png]]` in a book chapter were resolved as
+  if written in the book's `SUMMARY.md`, so Obsidian's same-folder preference
+  and `[[#Heading]]` could pick a different target than the PDF and `doctor`
+  did. They now resolve from the chapter's own file everywhere.
+
+- **A guide's `SUMMARY.md` frontmatter is checked by `doctor` as a build
+  problem** (patch, no vault changes). The build still fails on frontmatter
+  its schema rejects; the message now names the file under `guides:` the way
+  `doctor` reports it. A deck embed with no file now fails `build-slides` with
+  the same wording `doctor` uses.
+
 - **Reference book chapters can be drafted** (patch). A chapter of a
   `references/<slug>/SUMMARY.md` book with `draft: true`, or under a `_` path
   in the book, is now left out of the page, the PDF, wiki-link targets, and

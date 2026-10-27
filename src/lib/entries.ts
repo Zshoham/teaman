@@ -2,10 +2,11 @@ import { getPublished } from './published';
 import { stat } from 'fs/promises';
 import { resolve } from 'path';
 import { COLLECTIONS, collectionFor, type EntryType } from './collections.mjs';
-import { guideSlugFromSummaryId, listGuides } from './guides';
+import { loadGuides } from './guides';
 import { adrDisplayTitle, loadAdrs } from './adr';
 import { engineDir } from './build-env.mjs';
 import { adrHref, dailyHref, entryHref, guideHref } from './entry-identity.mjs';
+import { entryTitle } from './entry-title.mjs';
 import {
   dailyDateId,
   dateFromIsoDate,
@@ -79,7 +80,7 @@ async function loadDocumentEntries(
       return {
         id: `${type}-${document.id}`,
         type,
-        title: document.data.title ?? document.id,
+        title: entryTitle({ data: document.data, body, id: document.id }),
         excerpt: summary ?? extractExcerpt(body),
         tags: document.data.tags ?? [],
         updated: isoDate(date),
@@ -120,31 +121,15 @@ export async function loadSlideEntries(): Promise<Entry[]> {
 }
 
 export async function loadGuideEntries(): Promise<Entry[]> {
-  const [chapters, summaries, guides] = await Promise.all([
-    getPublished('guides'),
-    getPublished('guideSummaries'),
-    listGuides(),
-  ]);
-  const chaptersById = new Map(chapters.map(chapter => [chapter.id, chapter]));
-  const summariesBySlug = new Map(
-    summaries.map(summary => [
-      guideSlugFromSummaryId(summary.id),
-      { body: summary.body ?? '', tags: summary.data.tags ?? [], path: sourcePath(summary) },
-    ]),
-  );
-
+  const guides = await loadGuides();
   const entries = guides.map(async g => {
-    const summary = summariesBySlug.get(g.slug);
-    const summaryBody = summary?.body ?? '';
-    const summaryDates = await safeFileDates(summary?.path ?? '');
+    const summaryDates = await safeFileDates(g.summary.sourcePath);
     let excerpt = '';
     let words = 0;
     let updated = summaryDates.updated;
     let created = summaryDates.created;
 
-    for (const chapter of g.chapters) {
-      const entry = chaptersById.get(chapter.entryId);
-      if (!entry) continue;
+    for (const { entry } of g.chapters) {
       const body = entry.body ?? '';
       if (!excerpt) excerpt = extractExcerpt(body);
       words += wordCount(body);
@@ -153,13 +138,13 @@ export async function loadGuideEntries(): Promise<Entry[]> {
       if (chapterDates.created < created) created = chapterDates.created;
     }
 
-    if (!excerpt) excerpt = extractExcerpt(summaryBody);
+    if (!excerpt) excerpt = extractExcerpt(g.summary.body);
     return {
       id: `guide-${g.slug}`,
       type: 'guide' as const,
       title: g.title,
       excerpt,
-      tags: summary?.tags ?? [],
+      tags: g.summary.tags,
       updated: isoDate(updated),
       created: isoDate(created),
       meta: wordMeta(words),

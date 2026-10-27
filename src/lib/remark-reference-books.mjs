@@ -1,3 +1,4 @@
+import { dirname, join } from 'path';
 import { htmlIds, layoutReferenceBook, namespaceHtmlIds, parseChapterMarker } from './reference-book.mjs';
 
 /**
@@ -38,11 +39,33 @@ function chaptersOf(tree) {
 }
 
 /**
+ * Each top-level node of `tree` with the file it was written in: in a
+ * reference book (rendered as its SUMMARY.md), the chapter file the node came
+ * from; anywhere else, the file itself. Passes after `remarkReferenceBooks`
+ * that resolve something relative to the writing file (wiki-links, embeds)
+ * read it through this, as the PDF and `doctor` read each chapter from its
+ * own file.
+ *
+ * @param {{ children: any[] }} tree
+ * @param {{ path?: string } | undefined} file
+ * @param {(node: any, sourcePath: string | undefined) => void} visit
+ */
+export function forEachSourceNode(tree, file, visit) {
+  let sourcePath = file?.path;
+  for (const node of tree.children) {
+    sourcePath = node.data?.referenceChapterSource ?? sourcePath;
+    visit(node, sourcePath);
+  }
+}
+
+/**
  * Fix chapter-local identifiers and links after reference chapters are
  * joined: the site's renderer of the book's layout (`reference-book.mjs`).
+ * Each emptied chapter marker keeps the chapter's file
+ * (`forEachSourceNode`).
  */
 export function remarkReferenceBooks() {
-  return tree => {
+  return (tree, file) => {
     const chapters = chaptersOf(tree);
     if (chapters.length === 0) return;
     for (const chapter of chapters) {
@@ -65,6 +88,9 @@ export function remarkReferenceBooks() {
     for (const chapter of chapters) {
       const { path, anchor } = chapter;
       chapter.marker.value = '';
+      if (file?.path) {
+        chapter.marker.data = { ...chapter.marker.data, referenceChapterSource: join(dirname(file.path), path) };
+      }
       const ids = layout.headingIds(path);
       chapter.headings.forEach((heading, index) => {
         heading.data ??= {};

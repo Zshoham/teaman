@@ -1,77 +1,127 @@
-import { describe, expect, it } from 'vitest';
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkGfm from 'remark-gfm';
-import remarkRehype from 'remark-rehype';
-import rehypeStringify from 'rehype-stringify';
+/**
+ * One reference book through the real path: discovery (the catalog), then the
+ * site's own Markdown pipeline (`site-markdown.mjs`, rendering the book's
+ * body as its SUMMARY.md, as the reference loader does) and the PDF stage
+ * (`buildReferences`, with a compiler that keeps the Typst). Ids, links between
+ * chapters, and wiki-links have to land the same in both.
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   assembleReferenceBook,
   layoutReferenceBook,
   prepareReferenceChapter,
   referenceChapterAnchor,
 } from '../reference-book.mjs';
-import { renderReferenceTypst } from '../reference-pdf.mjs';
-import { remarkReferenceBooks } from '../remark-reference-books.mjs';
+import { createSiteMarkdownRenderer } from '../site-markdown.mjs';
+import { openVaultCatalog } from '../vault-catalog.mjs';
+import { buildReferences } from '../../../scripts/build-references.mjs';
 
-const BOOK = [
-  {
-    path: 'intro.md',
-    title: 'Introduction',
-    body: [
-      '# Introduction',
-      '',
-      'See [setup](guide/setup.md#configuration), [the guide](guide/setup.md),',
-      '[a rule](guide/setup.md#r-setup.valid), [the title](guide/setup.md#setting-up), and [below](#overview).',
-      '',
-      '## Overview',
-      '',
-      '## Overview',
-    ].join('\n'),
-    sourcePath: '/v/references/book/intro.md',
-  },
-  {
-    path: 'guide/setup.md',
-    title: 'Setup',
-    body: '# Setting up\n\n## Configuration\n\n<span id="knob"></span>\n\nr[setup.valid]\n',
-    sourcePath: '/v/references/book/guide/setup.md',
-  },
-  { path: 'foo-bar.md', title: 'Hyphen', body: '# Hyphen\n', sourcePath: '/v/references/book/foo-bar.md' },
-  { path: 'foo_bar.md', title: 'Underscore', body: '# Underscore\n\n[back](foo-bar.md)\n', sourcePath: '/v/references/book/foo_bar.md' },
-];
+const engineDir = fileURLToPath(new URL('../../..', import.meta.url));
+
+const BOOK = {
+  'SUMMARY.md': [
+    '# Book',
+    '',
+    '- [Introduction](intro.md)',
+    '- [Setup](guide/setup.md)',
+    '- [Overview](overview.md)',
+    '- [Guide overview](guide/overview.md)',
+    '- [Hyphen](foo-bar.md)',
+    '- [Underscore](foo_bar.md)',
+  ].join('\n'),
+  'intro.md': [
+    '# Introduction',
+    '',
+    'See [setup](guide/setup.md#configuration), [the guide](guide/setup.md),',
+    '[a rule](guide/setup.md#r-setup.valid), [the title](guide/setup.md#setting-up), and [below](#overview).',
+    '',
+    '## Overview',
+    '',
+    '## Overview',
+  ].join('\n'),
+  // `[[overview]]` names two chapters; Obsidian takes the one beside the
+  // linking chapter, not the one beside SUMMARY.md.
+  'guide/setup.md': '# Setting up\n\n## Configuration\n\n<span id="knob"></span>\n\nr[setup.valid]\n\nRead [[overview]].\n',
+  'overview.md': '# Overview\n',
+  'guide/overview.md': '# Guide overview\n',
+  'foo-bar.md': '# Hyphen\n',
+  'foo_bar.md': '# Underscore\n\n[back](foo-bar.md)\n',
+};
 
 const typstLabel = id => `teaman-${Buffer.from(id, 'utf8').toString('hex')}`;
 
 describe('one reference book, both renderers', () => {
-  const { body } = assembleReferenceBook(BOOK);
-  const html = String(unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .use(remarkReferenceBooks)
-    .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypeStringify, { allowDangerousHtml: true })
-    .processSync(body));
-  const { typst } = renderReferenceTypst({ template: '', title: 'Book', body: '', chapters: BOOK, sourcePath: '/v/references/book/SUMMARY.md', vaultDir: '/v' });
+  let scratch;
+  let html;
+  let typst;
 
-  const siteIds = [...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]);
-  const siteLinks = [...html.matchAll(/href="#([^"]+)"/g)].map(match => decodeURIComponent(match[1]));
+  beforeAll(async () => {
+    scratch = mkdtempSync(join(tmpdir(), 'teaman-reference-book-'));
+    const vault = join(scratch, 'vault');
+    for (const [path, content] of Object.entries(BOOK)) {
+      const file = join(vault, 'references', 'book', path);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, content);
+    }
+    const catalog = openVaultCatalog(vault);
+    const [book] = catalog.published('reference');
+
+    const renderer = await createSiteMarkdownRenderer({
+      vaultDir: vault,
+      base: '/',
+      engineDir,
+      diagramCacheDir: join(scratch, 'diagrams'),
+    });
+    ({ code: html } = await renderer.render(book.body, { fileURL: pathToFileURL(book.sourcePath) }));
+
+    await buildReferences({
+      catalog,
+      outDir: join(scratch, 'out'),
+      template: '',
+      diagramCacheDir: join(scratch, 'diagrams'),
+      pdfCacheDir: join(scratch, 'pdfs'),
+      createCompiler: () => ({
+        pdf: ({ mainFileContent }) => (typst = mainFileContent, new Uint8Array()),
+        evictCache: () => {},
+      }),
+      log: () => {},
+    });
+  });
+
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+  const siteIds = () => [...html.matchAll(/<(?!section)\w+[^>]*\sid="([^"]+)"/g)].map(match => match[1]);
+  // Links written in the chapters, not the permalinks the site adds to headings.
+  const siteLinks = () => [...html.matchAll(/<a (?![^>]*heading-anchor)[^>]*href="#([^"]+)"/g)]
+    .map(match => decodeURIComponent(match[1]));
 
   it('declares the same ids on the page and in the PDF', () => {
-    expect(siteIds).toEqual([
+    expect(siteIds()).toEqual([
       'intro', 'intro--overview', 'intro--overview-1',
       'guide--setup', 'guide--setup--configuration', 'guide--setup--knob', 'r-setup.valid',
+      'overview', 'guide--overview',
       'foo-bar', 'foo-bar--2',
     ]);
-    for (const id of siteIds) expect(typst, id).toContain(`<${typstLabel(id)}>`);
+    for (const id of siteIds()) expect(typst, id).toContain(`<${typstLabel(id)}>`);
   });
 
   it('lands every link between chapters on a declared id, in both', () => {
-    expect(siteLinks).toEqual([
+    expect(siteLinks()).toEqual([
       'guide--setup--configuration', 'guide--setup', 'r-setup.valid', 'guide--setup', 'intro--overview', 'foo-bar',
     ]);
-    for (const link of siteLinks) {
-      expect(siteIds).toContain(link);
+    for (const link of siteLinks()) {
+      expect(siteIds()).toContain(link);
       expect(typst, link).toContain(`#link(<${typstLabel(link)}>)`);
     }
+  });
+
+  it('resolves a wiki-link from the chapter it is written in, in both', () => {
+    expect(html).toContain('<a class="internal" href="/references/book/#guide--overview">overview</a>');
+    expect(typst).toContain(`#link(<${typstLabel('guide--overview')}>)[#text("overview")]`);
   });
 });
 

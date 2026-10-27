@@ -1,17 +1,15 @@
 import type { APIRoute } from 'astro';
 import { getPublished } from '../../lib/published';
-import { listGuides } from '../../lib/guides';
+import { loadGuides } from '../../lib/guides';
 import { readMarkdownSource } from '../../lib/markdown-source';
 
 export async function getStaticPaths() {
-  const [notes, dailies, decisions, chapters, guides] = await Promise.all([
-    getPublished('notes'), getPublished('dailies'),
-    getPublished('decisions'), getPublished('guides'), listGuides(),
+  const [notes, dailies, decisions, guides] = await Promise.all([
+    getPublished('notes'), getPublished('dailies'), getPublished('decisions'), loadGuides(),
   ]);
-  // Only expose chapters that actually appear in a published guide.
-  const visibleChapters = new Set(guides.flatMap(guide => guide.chapters.map(chapter => chapter.entryId)));
-  const entries = [...notes, ...dailies, ...decisions,
-    ...chapters.filter(chapter => visibleChapters.has(chapter.id))];
+  // A guide's chapters: only those that appear in a published guide.
+  const chapters = guides.flatMap(guide => guide.chapters.map(chapter => chapter.entry));
+  const entries = [...notes, ...dailies, ...decisions, ...chapters];
   return entries.map(entry => ({
     params: { path: `${entry.collection}/${entry.id}.md` },
     props: { entry },

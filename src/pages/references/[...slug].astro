@@ -8,6 +8,7 @@ import DocMeta from '../../components/DocMeta.astro';
 import { fmtDate } from '../../lib/format';
 import { readingTimeMeta, wordCount, wordMeta } from '../../lib/text';
 import { plural } from '../../lib/text';
+import { entryTitle } from '../../lib/entry-title.mjs';
 
 export async function getStaticPaths() {
   const references = await getPublished('references');
@@ -21,7 +22,7 @@ const { reference } = Astro.props;
 const { Content, headings } = await render(reference);
 const base = import.meta.env.BASE_URL;
 const words = wordCount(reference.body ?? '');
-const title = reference.data.title ?? reference.id;
+const title = entryTitle({ data: reference.data, body: reference.body, id: reference.id });
 // rehype-autolink-headings appends a visible `#` permalink to headings. Astro's
 // rendered heading metadata includes that child text, so remove only the
 // plugin's trailing marker before handing labels to the reader rail.

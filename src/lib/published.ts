@@ -9,7 +9,7 @@ const TYPE_OF: Record<CollectionKey, EntryType> = {
   notes: 'note',
   references: 'reference',
   guides: 'guide',
-  guideSummaries: 'guide',
+  guideIndexes: 'guide',
   slides: 'slides',
   dailies: 'daily',
   decisions: 'decision',

@@ -14,6 +14,8 @@ export interface BookChapter {
   slug?: string;
   /** A reference book chapter's anchor in the assembled page (published chapters). */
   anchor?: string;
+  /** A published reference book chapter's Markdown, as joined into the book (`assembleReferenceBook`). */
+  preparedBody?: string;
   data: Record<string, unknown>;
   body: string;
   /** The publish rule, applied to the chapter and to its book. */

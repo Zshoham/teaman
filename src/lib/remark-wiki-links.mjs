@@ -6,7 +6,8 @@
  * for it. `remark-wiki-link` still does the parsing — it runs first and leaves
  * `wikiLink` nodes — but its resolver only sees the link text, never the file
  * the link is written in, so it cannot apply Obsidian's same-folder
- * preference. This pass re-resolves every node with `file.path` in hand. An
+ * preference. This pass re-resolves every node with the file it was written
+ * in — a reference book's chapter, not its SUMMARY.md (`forEachSourceNode`). An
  * unresolved link renders as `<span class="wiki-link-missing">`: no dead href.
  * `teaman doctor` reports it (and ambiguous, heading, and slug-fallback
  * links); the build itself stays quiet.
@@ -20,6 +21,7 @@
 import { dirname, relative } from 'path';
 import { cachedVaultIndex } from './vault-index.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
+import { forEachSourceNode } from './remark-reference-books.mjs';
 import { isImageEmbed } from './obsidian-markdown.mjs';
 import { htmlEmbedElement, htmlEmbedHref, isHtmlEmbed, parseHtmlEmbed } from './html-embeds.mjs';
 
@@ -34,10 +36,10 @@ function vaultIndexFor(vaultDir, base) {
 
 /** @param {{ vaultDir: string, base: string }} options */
 export function remarkWikiLinks({ vaultDir, base }) {
-  return (tree, file) => {
-    replaceChildren(tree, node => {
+  return (tree, file) => forEachSourceNode(tree, file, (top, sourcePath) => {
+    replaceChildren({ children: [top] }, node => {
       if (node.type !== 'wikiLink') return undefined;
-      const resolution = vaultIndexFor(vaultDir, base).resolve(node.value, file?.path);
+      const resolution = vaultIndexFor(vaultDir, base).resolve(node.value, sourcePath);
       const label = node.data?.alias ?? node.value;
       node.data = {
         ...node.data,
@@ -49,7 +51,7 @@ export function remarkWikiLinks({ vaultDir, base }) {
       };
       return null;
     });
-  };
+  });
 }
 
 const EMBED_RE = /!\[\[([^\]\n]+?)\]\]/g;
@@ -82,10 +84,12 @@ export function failOnEmbedErrors() {
 
 /**
  * `![[target|label]]` as an mdast image. Obsidian reads a numeric label as a
- * size (`|300`, `|300x200`); anything else is the alt text.
+ * size (`|300`, `|300x200`); anything else is the alt text. Found from
+ * `sourcePath`, the file it was written in; its URL is relative to the file
+ * being rendered, which is what Astro resolves it against.
  */
-function embedImage(target, label, file, node, vaultDir, base) {
-  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, file?.path);
+function embedImage(target, label, file, sourcePath, node, vaultDir, base) {
+  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, sourcePath);
   if (!found) fail(file, `![[${target}]]: no image named “${target}” in the vault`, node);
   const from = file?.path ? dirname(file.path) : vaultDir;
   const rel = relative(from, found).split('\\').join('/');
@@ -104,8 +108,8 @@ function embedImage(target, label, file, node, vaultDir, base) {
  * inline; `remarkWikiEmbeds` promotes it to a figure when it is alone in its
  * paragraph.
  */
-function embedHtml(target, label, file, node, vaultDir, base) {
-  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, file?.path);
+function embedHtml(target, label, file, sourcePath, node, vaultDir, base) {
+  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, sourcePath);
   if (!found) fail(file, `![[${target}]]: no HTML file named “${target}” in the vault`, node);
   const relPath = relative(vaultDir, found).split('\\').join('/');
   // `![[viz.html#planet=mars]]`: a query or fragment rides along to the embed.
@@ -124,11 +128,11 @@ const isBlank = node => node.type === 'text' && node.value.trim() === '';
 /** @param {{ vaultDir: string, base: string }} options */
 export function remarkWikiEmbeds({ vaultDir, base }) {
   return (tree, file) => {
-    const visit = parent => {
+    const visit = (parent, sourcePath) => {
       if (!Array.isArray(parent.children)) return;
       parent.children = parent.children.flatMap(node => {
         if (node.type !== 'text') {
-          visit(node);
+          visit(node, sourcePath);
           return [node];
         }
         if (!node.value.includes('![[')) return [node];
@@ -145,15 +149,15 @@ export function remarkWikiEmbeds({ vaultDir, base }) {
           }
           if (match.index > last) out.push({ type: 'text', value: node.value.slice(last, match.index) });
           out.push(html
-            ? embedHtml(target, label, file, node, vaultDir, base)
-            : embedImage(target, label, file, node, vaultDir, base));
+            ? embedHtml(target, label, file, sourcePath, node, vaultDir, base)
+            : embedImage(target, label, file, sourcePath, node, vaultDir, base));
           last = match.index + whole.length;
         }
         if (last < node.value.length) out.push({ type: 'text', value: node.value.slice(last) });
         return out;
       });
     };
-    visit(tree);
+    forEachSourceNode(tree, file, (top, sourcePath) => visit(top, sourcePath));
 
     // A paragraph that is exactly one HTML embed is a block figure.
     replaceChildren(tree, node => {

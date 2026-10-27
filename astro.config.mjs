@@ -1,24 +1,10 @@
-import { join } from 'path';
 import { defineConfig } from 'astro/config';
-import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import tailwindcss from '@tailwindcss/vite';
-import remarkWikiLink from 'remark-wiki-link';
-import rehypeSlug from 'rehype-slug';
-import rehypeAutolinkHeadings from 'rehype-autolink-headings';
-import { remarkStripLeadingH1 } from './src/lib/remark-strip-h1.mjs';
-import { remarkInlineSvg } from './src/lib/remark-inline-svg.mjs';
-import { remarkDiagramFences } from './src/lib/remark-fence-svg.mjs';
-import { remarkSmartLinks } from './src/lib/remark-smart-links.mjs';
-import { failOnEmbedErrors, remarkWikiEmbeds, remarkWikiLinks } from './src/lib/remark-wiki-links.mjs';
-import { remarkReferenceBooks } from './src/lib/remark-reference-books.mjs';
-import { rehypeFlexibleCallouts } from './src/lib/rehype-flexible-callouts.mjs';
-import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
-import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
+import { failOnEmbedErrors } from './src/lib/remark-wiki-links.mjs';
+import { siteMarkdownConfig } from './src/lib/site-markdown.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { htmlEmbeds } from './src/lib/html-embeds.mjs';
-import { collectionFor } from './src/lib/collections.mjs';
-import { assetRoots } from './src/lib/vault-assets.mjs';
 import {
   engineDir,
   outDir,
@@ -29,15 +15,6 @@ import {
 } from './src/lib/build-env.mjs';
 
 import react from '@astrojs/react';
-
-// Where remark-inline-svg finds the files behind `![alt](diagram.svg)` after
-// the note's own directory: the vault root, then the public-asset roots for
-// site-root-style `/images/x.svg` references — as every renderer does.
-const svgRoots = assetRoots(vaultDir, { engineDir, publicDir });
-
-// Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira
-// Data Center; absent just means the built-in hosts.
-const smartLinkHosts = siteConfig.smartLinks;
 
 export default defineConfig({
   base,
@@ -63,53 +40,13 @@ export default defineConfig({
       fs: { allow: ['..'] },
     },
   },
-  markdown: {
-    shikiConfig: {
-      themes: { light: 'github-light', dark: 'github-dark' },
-    },
-    processor: unified({
-      gfm: true,
-      smartypants: true,
-      remarkPlugins: [
-        remarkStripLeadingH1,
-        // SUMMARY.md-backed references carry chapter boundary markers. This
-        // pass gives each chapter a collision-free outline and rewrites its
-        // local .md links into jumps within the assembled document.
-        remarkReferenceBooks,
-        // `![[image.png]]` → an image node, before anything that handles images.
-        [remarkWikiEmbeds, { vaultDir, base }],
-        [remarkInlineSvg, { roots: svgRoots }],
-        // Diagram fences (diagram-kinds.mjs): mermaid/plantuml become <pre>s
-        // the browser renders; tikz/typst/d2 compile to svg at build time,
-        // cached in the engine dir (like .slides-build/.teaman-public —
-        // gitignored, disposable) so unchanged diagrams never pay the
-        // compiler again.
-        [remarkDiagramFences, { cacheDir: join(engineDir, '.diagram-cache') }],
-        // remark-wiki-link only parses `[[target|alias]]`; remarkWikiLinks
-        // then resolves each link against the vault, Obsidian-style.
-        [remarkWikiLink, { aliasDivider: '|' }],
-        [remarkWikiLinks, { vaultDir, base }],
-        // After the wiki-link passes so it sees every link node; in-site hrefs
-        // never match a service host, so the two don't interact.
-        [remarkSmartLinks, { hosts: smartLinkHosts }],
-      ],
-      rehypePlugins: [
-        rehypeFlexibleCallouts,
-        // Astro's Shiki pass has already attached the normalized fence
-        // language, so the static toolbar can label and copy exactly what was
-        // highlighted. Diagram fences bypass Shiki and remain untouched.
-        rehypeCodeBlocks,
-        rehypeSlug,
-        [rehypeAutolinkHeadings, {
-          behavior: 'append',
-          properties: { className: ['heading-anchor'], 'aria-label': 'Permalink to this heading' },
-          content: { type: 'text', value: '#' },
-        }],
-        // Last: heading ids and permalinks are already in place, so wrapping
-        // chapters cannot disturb them. References only — see the plugin for
-        // why containment is applied per chapter rather than per block.
-        [rehypeReferenceSections, { referencesRoot: join(vaultDir, collectionFor('reference').dir) }],
-      ],
-    }),
-  },
+  markdown: siteMarkdownConfig({
+    vaultDir,
+    base,
+    engineDir,
+    publicDir,
+    // Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab /
+    // Jira Data Center; absent just means the built-in hosts.
+    smartLinkHosts: siteConfig.smartLinks,
+  }),
 });

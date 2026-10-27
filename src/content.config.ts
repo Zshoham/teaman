@@ -1,15 +1,16 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { guideLoader } from './lib/guide-loader.mjs';
 import { referenceLoader } from './lib/reference-loader.mjs';
 import { slidesLoader } from './lib/slides-loader.mjs';
 import { globEntryId } from './lib/entry-identity.mjs';
 import { FRONTMATTER_SCHEMAS } from './lib/frontmatter-schemas.mjs';
 import {
+  contentRoot,
   dailiesRoot,
   decisionsRoot,
   guidesRoot,
   notesRoot,
-  referencesRoot,
   slidesRoot,
 } from './lib/content-paths';
 
@@ -21,10 +22,11 @@ const notes = defineCollection({
 const references = defineCollection({
   // A SUMMARY.md directory is one logical entry assembled from its ordered
   // chapters; ordinary .md files remain one standalone reference apiece.
-  loader: referenceLoader({ base: referencesRoot }),
+  loader: referenceLoader({ vaultDir: contentRoot }),
   schema: FRONTMATTER_SCHEMAS.reference,
 });
 
+// A guide's chapters. Its SUMMARY.md is the guide's index, below.
 const guides = defineCollection({
   loader: glob({
     pattern: ['**/*.md', '!**/SUMMARY.md'],
@@ -34,13 +36,18 @@ const guides = defineCollection({
   schema: FRONTMATTER_SCHEMAS.guideChapter,
 });
 
-const guideSummaries = defineCollection({
-  loader: glob({
-    pattern: '**/SUMMARY.md',
-    base: guidesRoot,
-    generateId: globEntryId('guide'),
+// One entry per published guide: its SUMMARY.md as the vault catalog reads it
+// (title, tags, published chapters). Stored so a SUMMARY.md edit re-renders
+// the guide pages in dev; the frontmatter itself is validated by the catalog
+// with the guide-summary schema, and the loader refuses a guide that cannot
+// build.
+const guideIndexes = defineCollection({
+  loader: guideLoader({ vaultDir: contentRoot }),
+  schema: z.object({
+    title: z.string(),
+    tags: z.array(z.string()),
+    chapters: z.array(z.object({ slug: z.string(), entryId: z.string(), title: z.string() })),
   }),
-  schema: FRONTMATTER_SCHEMAS.guideSummary,
 });
 
 const slides = defineCollection({
@@ -70,7 +77,7 @@ export const collections = {
   notes,
   references,
   guides,
-  guideSummaries,
+  guideIndexes,
   slides,
   dailies,
   decisions,

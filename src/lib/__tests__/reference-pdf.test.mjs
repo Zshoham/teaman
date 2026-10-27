@@ -12,12 +12,16 @@ import {
   resolveReferenceImage,
 } from '../reference-pdf.mjs';
 import { diagramKey } from '../obsidian-markdown.mjs';
+import { assembleReferenceBook } from '../reference-book.mjs';
 import { createReferenceCompiler } from '../typst-packages.mjs';
 
 const template = readFileSync(
   fileURLToPath(new URL('../../../resources/reference-template.typ', import.meta.url)),
   'utf8',
 );
+
+// A book's chapters as reference discovery hands them to the PDF.
+const assembled = chapters => assembleReferenceBook(chapters).chapters;
 
 describe('reference PDF rendering', () => {
   it('converts common Markdown structures and removes a duplicate leading title', () => {
@@ -57,7 +61,7 @@ describe('reference PDF rendering', () => {
       template,
       title: 'Linked book',
       body: '',
-      chapters: [
+      chapters: assembled([
         {
           path: 'intro.md',
           title: 'Introduction',
@@ -79,7 +83,7 @@ describe('reference PDF rendering', () => {
           body: '# Details\n\n## Configuration\n\nr[details.rule]\n',
           sourcePath: '/tmp/vault/references/book/nested/details.md',
         },
-      ],
+      ]),
       sourcePath: '/tmp/vault/references/book/SUMMARY.md',
       vaultDir: '/tmp/vault',
     });
@@ -96,7 +100,7 @@ describe('reference PDF rendering', () => {
       template,
       title: 'Language guide',
       body: '',
-      chapters: [{
+      chapters: assembled([{
         path: 'syntax.md',
         title: 'Syntax',
         depth: 0,
@@ -115,7 +119,7 @@ describe('reference PDF rendering', () => {
           '[document rule]: document.valid',
         ].join('\n'),
         sourcePath: '/tmp/vault/references/guide/syntax.md',
-      }],
+      }]),
       sourcePath: '/tmp/vault/references/guide/SUMMARY.md',
       vaultDir: '/tmp/vault',
     });
@@ -132,7 +136,7 @@ describe('reference PDF rendering', () => {
       template,
       title: 'Colliding paths',
       body: '',
-      chapters: [
+      chapters: assembled([
         {
           path: 'foo-bar.md',
           title: 'Hyphen',
@@ -154,7 +158,7 @@ describe('reference PDF rendering', () => {
           body: '# Links\n\n[Hyphen](foo-bar.md) and [underscore](foo_bar.md).\n',
           sourcePath: '/tmp/vault/references/book/links.md',
         },
-      ],
+      ]),
       sourcePath: '/tmp/vault/references/book/SUMMARY.md',
       vaultDir: '/tmp/vault',
     });
@@ -411,13 +415,13 @@ describe('reference PDF rendering', () => {
         template,
         title: 'Language reference',
         body: '',
-        chapters: [{
+        chapters: assembled([{
           path: 'nested/chapter.md',
           title: 'Chapter',
           depth: 0,
           body: '# Chapter\n\n![Diagram](diagram.svg)\n',
           sourcePath,
-        }],
+        }]),
         sourcePath: join(book, 'SUMMARY.md'),
         vaultDir: vault,
       });

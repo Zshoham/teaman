@@ -4,18 +4,15 @@
  * `obsidian-markdown.mjs`. Every case here runs through both, so a vault reads
  * the same wherever it is rendered.
  */
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import MarkdownIt from 'markdown-it';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import remarkGfm from 'remark-gfm';
-import remarkRehype from 'remark-rehype';
-import rehypeStringify from 'rehype-stringify';
-import remarkWikiLink from 'remark-wiki-link';
-import { rehypeFlexibleCallouts } from '../rehype-flexible-callouts.mjs';
+import { createSiteMarkdownRenderer } from '../site-markdown.mjs';
 import { compileDiagramFences, isHtmlEmbed, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
 import { remarkDiagramFences } from '../remark-fence-svg.mjs';
 import { BUILD_DIAGRAM_LANGUAGES } from '../diagram-kinds.mjs';
@@ -47,41 +44,53 @@ function dialectCallouts(md) {
     .map(({ meta: { callout } }) => [callout.type, callout.fold, callout.title]);
 }
 
-function siteLinks(md) {
-  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkWikiLink, { aliasDivider: '|' });
-  const links = [];
-  const walk = node => {
-    if (node.type === 'wikiLink') links.push([node.value, node.data.alias ?? node.value]);
-    node.children?.forEach(walk);
-  };
-  walk(processor.runSync(processor.parse(md)));
-  return links;
+// The site side is the site's real pipeline (`site-markdown.mjs`), rendering a
+// note of an empty vault: every wiki-link is then a missing-page span naming
+// its target.
+let scratch;
+let renderer;
+beforeAll(async () => {
+  scratch = mkdtempSync(join(tmpdir(), 'teaman-dialect-'));
+  mkdirSync(join(scratch, 'vault'));
+  renderer = await createSiteMarkdownRenderer({
+    vaultDir: join(scratch, 'vault'),
+    base: '/',
+    engineDir: fileURLToPath(new URL('../../..', import.meta.url)),
+    diagramCacheDir: join(scratch, 'diagrams'),
+  });
+});
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+async function siteHtml(md) {
+  const { code } = await renderer.render(md, { fileURL: pathToFileURL(join(scratch, 'vault', 'notes', 'page.md')) });
+  return code;
 }
 
-function siteCallouts(md) {
-  const html = String(unified()
-    .use(remarkParse).use(remarkGfm)
-    .use(remarkRehype).use(rehypeFlexibleCallouts).use(rehypeStringify)
-    .processSync(md));
-  return [...html.matchAll(/data-callout="([^"]+)" data-collapsible="(true|false)"/g)]
+async function siteLinks(md) {
+  return [...(await siteHtml(md)).matchAll(/<span class="wiki-link-missing" title="No page named “([^”]*)”">([^<]*)<\/span>/g)]
+    .map(([, target, label]) => [target, label]);
+}
+
+async function siteCallouts(md) {
+  return [...(await siteHtml(md)).matchAll(/data-callout="([^"]+)" data-collapsible="(true|false)"/g)]
     .map(([, type, collapsible]) => [type, collapsible === 'true']);
 }
 
 describe.each(CASES)('$name', ({ md, links, callouts }) => {
   if (links) {
-    it('finds the same wiki-links in both parsers', () => {
+    it('finds the same wiki-links in both parsers', async () => {
       expect(wikiLinks(md).map(link => [link.target, link.label])).toEqual(links);
-      expect(siteLinks(md)).toEqual(links);
+      expect(await siteLinks(md)).toEqual(links);
     });
   }
   if (callouts) {
-    it('reads the same callouts in both parsers', () => {
+    it('reads the same callouts in both parsers', async () => {
       const dialect = dialectCallouts(md);
       expect(dialect.map(([type, fold]) => [type, fold])).toEqual(callouts.map(([type, fold]) => [type, fold]));
       callouts.forEach(([, , title], index) => {
         if (title !== undefined) expect(dialect[index][2]).toBe(title);
       });
-      expect(siteCallouts(md)).toEqual(callouts.map(([type, fold]) => [type, fold !== null]));
+      expect(await siteCallouts(md)).toEqual(callouts.map(([type, fold]) => [type, fold !== null]));
     });
   }
 });

@@ -1,8 +1,8 @@
 import { existsSync, readdirSync } from 'fs';
 import { basename, join } from 'path';
-import { bookProblems, isSummaryFile } from './books.mjs';
+import { isSummaryFile } from './books.mjs';
+import { buildProblems } from './build-problems.mjs';
 import { assertCoversTypes, COLLECTIONS, collectionFor } from './collections.mjs';
-import { deckEmbedPlan } from './deck-embeds.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from './entry-identity.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from './obsidian-markdown.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
@@ -10,10 +10,11 @@ import { createVaultIndex } from './vault-index.mjs';
 
 /**
  * Lint a vault's content against what the build will demand of it, without
- * building — what `teaman doctor` reports. Every check reads the same modules
- * the build does (the collection schemas, the vault catalog, the book rule,
- * the wiki-link index, the deck embed plan), so passing here means the build
- * accepts the vault, and a problem here is one the build would fail on.
+ * building — what `teaman doctor` reports. What fails the build's own stages
+ * comes from `build-problems.mjs`, which those stages ask; the rest reads the
+ * same modules the build does (the collection schemas, the vault catalog, the
+ * wiki-link index), so passing here means the build accepts the vault, and a
+ * problem here is one the build would fail on.
  *
  * `problems` fail the build; `warnings` render, but probably not as meant.
  *
@@ -47,8 +48,8 @@ export function lintVault(vaultDir) {
     }
   }
 
-  // Spelled exactly, as the guideSummaries collection globs for it (and
-  // without `existsSync`, which a case-insensitive filesystem would satisfy).
+  // Spelled exactly, as the vault catalog finds it (and without `existsSync`,
+  // which a case-insensitive filesystem would satisfy).
   const guidesRoot = join(vaultDir, collectionFor('guide').dir);
   if (existsSync(guidesRoot)) {
     for (const entry of readdirSync(guidesRoot, { withFileTypes: true })) {
@@ -59,14 +60,9 @@ export function lintVault(vaultDir) {
     }
   }
 
-  // A guide or reference book is a SUMMARY.md and the chapters it lists; the
-  // build fails on a chapter it cannot serve. The guide pages check published
-  // guides only, so a drafted guide may list chapters not yet written; the
-  // PDF build checks every reference. A guide's only error is unreadable
-  // YAML, which the frontmatter check above has reported.
-  for (const book of [...catalog.published('guide'), ...catalog.all('reference')]) {
-    for (const problem of bookProblems(book)) problems.push(`${collectionFor(book.type).dir}: ${problem}`);
-  }
+  // What the build's stages refuse: books they cannot assemble, guide
+  // indexes their schema rejects, deck embeds with no file to stage.
+  problems.push(...buildProblems(catalog, { index }));
 
   // Wiki-links, resolved exactly as the site resolves them. Decks are Slidev,
   // not the site's Markdown pipeline, so their links are never rendered.
@@ -80,16 +76,6 @@ export function lintVault(vaultDir) {
     }
   }
 
-  // Decks render no wiki-links, but the slide theme turns `![[page.html]]`
-  // into a frame, and build-slides fails the deck when the file is missing.
-  // Planned from the slide theme's own scan, so this checks exactly what
-  // build-slides stages.
-  for (const deck of catalog.published('slides')) {
-    for (const { target, file } of deckEmbedPlan(deck, index.resolveAttachment)) {
-      if (!file) problems.push(`slides: ${deck.relPath} embeds missing HTML file ![[${target}]]`);
-    }
-  }
-
   return { problems, warnings };
 }
 
@@ -99,8 +85,9 @@ export function lintVault(vaultDir) {
  * rejects in `issues` — so passing here means the build accepts them. A
  * glob-loaded collection validates every file, drafts included; decks and
  * references reach their collections through the engine's own discovery, so
- * what it hands over is checked. A reference that cannot be read is a book
- * problem (`bookProblems`), reported below.
+ * what it hands over is checked. A reference that cannot be read, and a
+ * guide's SUMMARY.md, are the build's own problems (`buildProblems`),
+ * reported there.
  *
  * @type {Record<string, (catalog: import('./vault-catalog.mjs').VaultCatalog) =>
  *   Array<{ relPath: string, issues?: string[], error?: string }>>}
@@ -109,9 +96,9 @@ const FRONTMATTER = {
   note: catalog => catalog.all('note'),
   reference: catalog => catalog.all('reference').filter(document => !document.error),
   daily: catalog => catalog.all('daily'),
-  // Every Markdown file under guides/ is in a collection, listed in a
+  // Every chapter file under guides/ is in the guides collection, listed in a
   // SUMMARY or not.
-  guide: catalog => catalog.files('guide'),
+  guide: catalog => catalog.files('guide').filter(file => !isSummaryFile(file.sourcePath, { caseSensitive: true })),
   // The slides collection stores drafted decks too, so it validates them.
   slides: catalog => catalog.all('slides'),
   decision: catalog => catalog.all('decision'),

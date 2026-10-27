@@ -81,7 +81,7 @@ describe('buildSlides', () => {
     const { builds, buildDeck } = recordingBuild(workDir);
 
     expect(() => buildSlides({ catalog: openVaultCatalog(vault), outDir, workDir, engineDir, buildDeck, log: () => {} }))
-      .toThrow('slides/talk.md: ![[gone.html]]: no HTML file named “gone.html” in the vault');
+      .toThrow('slides: talk.md embeds missing HTML file ![[gone.html]]');
     expect(builds).toEqual([]);
     expect(existsSync(workDir)).toBe(false);
   });

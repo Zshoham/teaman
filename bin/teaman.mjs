@@ -8,11 +8,10 @@
 import { spawn } from 'child_process';
 import {
   existsSync, mkdirSync, rmSync, cpSync, copyFileSync,
-  readFileSync, writeFileSync, readdirSync, statSync, realpathSync,
-  mkdtempSync, renameSync, symlinkSync,
+  readFileSync, writeFileSync, statSync, realpathSync, mkdtempSync,
 } from 'fs';
 import { pathToFileURL } from 'url';
-import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'path';
+import { resolve, join, dirname, basename } from 'path';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
@@ -20,7 +19,7 @@ import { encodeBuildEnv, engineDir } from '../src/lib/build-env.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { lintVault } from '../src/lib/vault-lint.mjs';
-import { isInside } from '../src/lib/fs-walk.mjs';
+import { buildSite } from './build-output.mjs';
 
 const require = createRequire(import.meta.url);
 const enginePkg = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'));
@@ -157,111 +156,6 @@ export function stageStatic(vault, config, stageDir) {
   return { publicDir: stageDir, config: { ...config, logo: basename(logoFile) } };
 }
 
-export function validateOutPath(outArg, { vault, engine = engineDir, cwd = process.cwd() }) {
-  const out = resolve(outArg);
-  const forbiddenExact = [parse(out).root, vault, engine, cwd, join(vault, 'public')]
-    .map(path => resolve(path));
-  if (forbiddenExact.includes(out)) {
-    throw new Error(`refusing unsafe output path: ${out}`);
-  }
-  if (isInside(out, vault) || isInside(out, engine)) {
-    throw new Error(`refusing output path that contains the vault or engine: ${out}`);
-  }
-  return out;
-}
-
-// A validated `out` can still be a directory of live user data (e.g.
-// `--out <vault>/notes`): commitBuild renames it away and deletes it after a
-// successful build. Only overwrite a path that's empty, absent, or looks like a
-// previous static build (an `index.html` at its root).
-export function assertOverwritableOut(out) {
-  if (!existsSync(out) || !statSync(out).isDirectory()) return;
-  const entries = readdirSync(out);
-  if (entries.length === 0 || entries.includes('index.html')) return;
-  throw new Error(
-    `refusing to overwrite non-empty directory that is not a previous build: ${out} (remove it or choose another --out)`,
-  );
-}
-
-// SIGKILL / Ctrl-C mid-build leaks a hidden staged sibling next to `out` (often
-// inside the user's vault); dying between commitBuild's renames leaks a backup
-// sibling. Clear any leftovers of either before starting a fresh build.
-export function sweepStagedDirs(out) {
-  const parent = dirname(out);
-  if (!existsSync(parent)) return;
-  const prefixes = [`.${basename(out)}.teaman-`, `${basename(out)}.teaman-backup-`];
-  for (const name of readdirSync(parent)) {
-    if (prefixes.some(p => name.startsWith(p))) rmSync(join(parent, name), { recursive: true, force: true });
-  }
-}
-
-// Astro builds a static site by emitting the prerendered pages into a server
-// output dir and *renaming* their assets into the out dir. That server dir is
-// the out dir when the out dir is under the cwd, and `<cwd>/.astro/` when it is
-// not — and the cwd here is always the engine dir. So an out dir on another
-// filesystem than the engine (a Docker bind mount, a separate disk, a network
-// share) makes Astro's rename cross a device boundary and fail with EXDEV.
-// Building into a staging dir inside the engine keeps that rename local, and
-// only the finished site crosses over — by rename when it can, by copy when it
-// cannot. Those dirs are named `.teaman-out-<pid>-<random>`, for the reason
-// sweepEngineStaging explains.
-const STAGED_OUT_PREFIX = '.teaman-out-';
-const stagedOutPrefixFor = pid => `${STAGED_OUT_PREFIX}${pid}-`;
-
-// Is a process still around? EPERM means it exists but belongs to someone else.
-function isRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === 'EPERM';
-  }
-}
-
-// sweepStagedDirs' counterpart for that staging dir: a killed build leaks one
-// inside the engine. Unlike the staged siblings of `out`, these are shared
-// ground — every vault built by this engine stages here — so a sweep must not
-// touch a dir another build is filling right now. Hence the pid in the name:
-// only leftovers whose owner is gone are swept. (A recycled pid at worst skips
-// a stale dir, which the next sweep gets.) Concurrent builds from one engine
-// are still not safe for other reasons — they share the `.astro` cache this
-// drops on every build — but that is an older, documented constraint.
-export function sweepEngineStaging(dir = engineDir) {
-  if (!existsSync(dir)) return;
-  for (const name of readdirSync(dir)) {
-    if (!name.startsWith(STAGED_OUT_PREFIX)) continue;
-    const pid = Number.parseInt(name.slice(STAGED_OUT_PREFIX.length), 10);
-    if (Number.isInteger(pid) && isRunning(pid)) continue;
-    rmSync(join(dir, name), { recursive: true, force: true });
-  }
-}
-
-export function moveStagedBuild(staged, dest) {
-  try {
-    renameSync(staged, dest);
-  } catch (error) {
-    if (error.code !== 'EXDEV') throw error;
-    cpSync(staged, dest, { recursive: true, verbatimSymlinks: true });
-    rmSync(staged, { recursive: true, force: true });
-  }
-}
-
-export function commitBuild(stagedOut, out) {
-  const backup = `${out}.teaman-backup-${process.pid}-${Date.now()}`;
-  let movedExisting = false;
-  try {
-    if (existsSync(out)) {
-      renameSync(out, backup);
-      movedExisting = true;
-    }
-    renameSync(stagedOut, out);
-    if (movedExisting) rmSync(backup, { recursive: true, force: true });
-  } catch (error) {
-    if (movedExisting && !existsSync(out) && existsSync(backup)) renameSync(backup, out);
-    throw error;
-  }
-}
-
 function envFor(vault, config, { out, base, publicDir, slidesWorkDir } = {}) {
   return {
     ...process.env,
@@ -307,49 +201,6 @@ const astroBin = (() => {
 })();
 
 // ── commands ───────────────────────────────────────────────────────────────
-async function cmdBuild(vaultArg, opts) {
-  const { vault, config, base } = await openVault(vaultArg, opts);
-
-  const present = CONTENT_DIRS.filter(d => existsSync(join(vault, d)));
-  if (present.length === 0) warn(`no content dirs (${CONTENT_DIRS.join('/')}) found under ${vault}`);
-
-  let out;
-  try {
-    out = validateOutPath(opts.out ?? join(vault, 'dist'), { vault });
-    assertOverwritableOut(out);
-  } catch (error) {
-    fail(error.message);
-  }
-  sweepStagedDirs(out);
-  sweepEngineStaging();
-  mkdirSync(dirname(out), { recursive: true });
-  const workDir = mkdtempSync(join(tmpdir(), 'teaman-build-'));
-  // Slidev, run from the temp work dir, walks up to find its deps, so the work
-  // dir needs a node_modules. `join(engineDir, 'node_modules')` isn't enough:
-  // when the engine is installed as a dependency its deps may be hoisted above
-  // engineDir, so resolve through an actual dependency to reach the real root.
-  // 'junction' works unprivileged on Windows; on POSIX Node treats an absolute
-  // junction target as a normal dir symlink.
-  const dependencyRoot = dirname(dirname(dirname(require.resolve('@slidev/cli/package.json'))));
-  symlinkSync(dependencyRoot, join(workDir, 'node_modules'), 'junction');
-  const stagedRoot = mkdtempSync(join(engineDir, stagedOutPrefixFor(process.pid)));
-  const stagedOut = join(stagedRoot, 'dist');
-  const staged = stageStatic(vault, config, join(workDir, 'public'));
-  const env = envFor(vault, staged.config, {
-    out: stagedOut, base, publicDir: staged.publicDir, slidesWorkDir: join(workDir, 'slides'),
-  });
-
-  info(`building ${c.bold(vault)} → ${c.bold(out)} ${c.dim(`(engine ${VERSION})`)}`);
-  await runBuildPipeline({
-    stages: BUILD_STAGES,
-    run: args => run(node, args, env),
-    stagedOut,
-    out,
-    removeAfter: [stagedRoot, workDir],
-  });
-  info(c.green('done.'));
-}
-
 // The four build stages, in order, as argv for the runtime: Astro renders the
 // site, then the reference PDFs, the Slidev decks, and the search index land
 // beside it.
@@ -358,45 +209,27 @@ const BUILD_STAGES = [
   ...['build-references', 'build-slides', 'build-search'].map(stage => [join(engineDir, 'scripts', `${stage}.mjs`)]),
 ];
 
-/**
- * Run the build stages into `stagedOut` and land the finished site at `out`.
- * The stages run in order and all write to the one staged dir; only when
- * every stage succeeds does the site cross over — moved next to `out` first,
- * so the swap into place stays a rename within one directory: atomic, and a
- * failure leaves the previous build untouched. The pending copy and every
- * `removeAfter` dir are removed whether or not the build succeeded.
- *
- * The content collections resolve their roots from TEAMAN_VAULT at build
- * time, but Astro's content-layer store under `astroCache` is keyed by
- * collection name, not vault. Building a different vault from the same engine
- * checkout would otherwise reuse the previous vault's cached entries, so the
- * cache is dropped before the first stage.
- *
- * @param {object} options
- * @param {string[][]} options.stages  argv per stage
- * @param {(args: string[]) => Promise<void>} options.run  runs one stage; rejects when it fails
- * @param {string} options.stagedOut
- * @param {string} options.out
- * @param {string[]} [options.removeAfter]
- * @param {string} [options.astroCache]
- */
-export async function runBuildPipeline({
-  stages,
-  run: runStage,
-  stagedOut,
-  out,
-  removeAfter = [],
-  astroCache = join(engineDir, '.astro'),
-}) {
-  const pending = join(dirname(out), `.${basename(out)}.teaman-${process.pid}-${Date.now()}`);
-  try {
-    rmSync(astroCache, { recursive: true, force: true });
-    for (const stage of stages) await runStage(stage);
-    moveStagedBuild(stagedOut, pending);
-    commitBuild(pending, out);
-  } finally {
-    for (const dir of [...removeAfter, pending]) rmSync(dir, { recursive: true, force: true });
-  }
+async function cmdBuild(vaultArg, opts) {
+  const { vault, config, base } = await openVault(vaultArg, opts);
+
+  const present = CONTENT_DIRS.filter(d => existsSync(join(vault, d)));
+  if (present.length === 0) warn(`no content dirs (${CONTENT_DIRS.join('/')}) found under ${vault}`);
+
+  const out = opts.out ?? join(vault, 'dist');
+  info(`building ${c.bold(vault)} → ${c.bold(resolve(out))} ${c.dim(`(engine ${VERSION})`)}`);
+  await buildSite({
+    out,
+    vault,
+    stages: BUILD_STAGES,
+    prepare: ({ stagedOut, workDir }) => {
+      const staged = stageStatic(vault, config, join(workDir, 'public'));
+      const env = envFor(vault, staged.config, {
+        out: stagedOut, base, publicDir: staged.publicDir, slidesWorkDir: join(workDir, 'slides'),
+      });
+      return args => run(node, args, env);
+    },
+  });
+  info(c.green('done.'));
 }
 
 /**

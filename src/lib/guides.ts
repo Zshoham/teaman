@@ -1,6 +1,10 @@
-import { bookProblems } from './books.mjs';
+import type { CollectionEntry } from 'astro:content';
+import { resolve } from 'path';
+import { engineDir } from './build-env.mjs';
 import { contentRoot } from './content-paths';
 import { guideChapterHref } from './entry-identity.mjs';
+import { guideIndex } from './guide-loader.mjs';
+import { getPublished } from './published';
 import { openVaultCatalog, type VaultCatalog } from './vault-catalog.mjs';
 
 export interface GuideChapter {
@@ -15,8 +19,13 @@ export interface Guide {
   slug: string;
   title: string;
   chapters: GuideChapter[];
-  /** What keeps this guide from building (`bookProblems`); empty when it builds. */
-  problems: string[];
+}
+
+/** A guide as its pages render it: each chapter joined to its collection entry. */
+export interface GuidePage extends Guide {
+  chapters: Array<GuideChapter & { entry: CollectionEntry<'guides'> }>;
+  /** SUMMARY.md: its tags, its body, and the file. */
+  summary: { tags: string[]; body: string; sourcePath: string };
 }
 
 const base = import.meta.env.BASE_URL;
@@ -24,10 +33,6 @@ const base = import.meta.env.BASE_URL;
 /** URL for a chapter. The first chapter of a guide is served at the guide root. */
 export function chapterHref(guide: Guide, chapterSlug: string): string {
   return guideChapterHref(base, guide.slug, guide.chapters.map(chapter => chapter.slug), chapterSlug);
-}
-
-export function guideSlugFromSummaryId(id: string): string {
-  return id.replace(/\/summary$/i, '');
 }
 
 // A build renders a snapshot of the vault, and the header lists guides on every
@@ -48,32 +53,41 @@ function guideCatalog(vaultDir: string): VaultCatalog {
  * `doctor`, and Confluence sync see. A drafted (or `_`-prefixed) SUMMARY.md
  * hides the guide; a drafted chapter drops out of the chapter list, so the
  * next chapter takes its place — including at the guide root. A chapter the
- * SUMMARY lists but the guide cannot serve is left out and reported in
- * `problems`, which the guide pages fail the build on.
+ * SUMMARY lists but the guide cannot serve is left out (and fails the build:
+ * `guide-loader.mjs`).
  */
 export async function listGuides(vaultDir: string = contentRoot): Promise<Guide[]> {
   return guideCatalog(vaultDir).published('guide')
-    .map(guide => ({
-      slug: guide.id,
-      title: guideTitle(guide.id, guide.body),
-      chapters: (guide.chapters ?? [])
-        .map(chapter => ({ title: chapter.title, slug: chapter.slug ?? chapter.id, entryId: chapter.id })),
-      problems: bookProblems(guide),
-    }))
+    .map(record => {
+      const { title, chapters } = guideIndex(record);
+      return { slug: record.id, title, chapters };
+    })
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export async function getGuide(slug: string): Promise<Guide | null> {
-  const guides = await listGuides();
-  return guides.find(guide => guide.slug === slug) ?? null;
-}
-
-/** A guide's title: the last `# Heading` of its SUMMARY.md, else its slug. */
-export function guideTitle(slug: string, summary: string): string {
-  let title = slug.replace(/-/g, ' ');
-  for (const line of summary.split(/\r?\n/)) {
-    const h1 = line.match(/^#\s+(.+?)\s*$/);
-    if (h1) title = h1[1];
-  }
-  return title;
+/**
+ * The published guides as the site's pages render them: the `guideIndexes`
+ * collection (`guide-loader.mjs`: the catalog's guides, stored so a SUMMARY.md
+ * edit re-renders them in dev), with each chapter joined to its `guides`
+ * collection entry. The one place the two meet, so the guide pages, the feed,
+ * and the source route all read the same chapters. Throws on a chapter the
+ * collection does not publish — the two publish judgments disagreeing is a
+ * bug, not a missing page.
+ */
+export async function loadGuides(): Promise<GuidePage[]> {
+  const [indexes, chapters] = await Promise.all([getPublished('guideIndexes'), getPublished('guides')]);
+  const entries = new Map(chapters.map(entry => [entry.id, entry]));
+  return indexes
+    .map(({ id: slug, data, body, filePath }) => ({
+      slug,
+      title: data.title,
+      chapters: data.chapters.map(chapter => {
+        const entry = entries.get(chapter.entryId);
+        if (!entry) throw new Error(`guides: ${slug} chapter ${chapter.entryId} is not in the published guides collection`);
+        return { ...chapter, entry };
+      }),
+      // `filePath` is relative to the project root, which is the engine.
+      summary: { tags: data.tags, body: body ?? '', sourcePath: resolve(engineDir, filePath ?? '') },
+    }))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
 }

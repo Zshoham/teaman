@@ -41,7 +41,7 @@ describe('sync-confluence markdown rendering', () => {
     const markdown = '---\ntitle: Vault Static Site Architecture\ntags: [architecture]\n---\n\n# Vault Static Site Architecture\n\nIntro paragraph.';
 
     expect(pageTitle(markdown, '/content/notes/vault-architecture.md')).toBe('Vault Static Site Architecture');
-    expect(storageBody(markdown, 'Vault Static Site Architecture').html).toBe('<p>Intro paragraph.</p>');
+    expect(storageBody(markdown).html).toBe('<p>Intro paragraph.</p>');
   });
 
   it('renders markdown tables with the markdown parser instead of treating them as paragraphs', () => {

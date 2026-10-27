@@ -1,38 +1,17 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
+
+vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
+
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { getCollection } from 'astro:content';
 import {
-  guideSlugFromSummaryId,
   chapterHref,
-  guideTitle,
   listGuides,
+  loadGuides,
 } from '../guides';
 import type { Guide } from '../guides';
-
-// ── guideSlugFromSummaryId ────────────────────────────────────────────────────
-
-describe('guideSlugFromSummaryId', () => {
-  it('removes a trailing /summary segment (lowercase)', () => {
-    expect(guideSlugFromSummaryId('my-guide/summary')).toBe('my-guide');
-  });
-
-  it('removes a trailing /SUMMARY segment (uppercase)', () => {
-    expect(guideSlugFromSummaryId('my-guide/SUMMARY')).toBe('my-guide');
-  });
-
-  it('removes a trailing /Summary segment (mixed case)', () => {
-    expect(guideSlugFromSummaryId('my-guide/Summary')).toBe('my-guide');
-  });
-
-  it('handles nested slugs', () => {
-    expect(guideSlugFromSummaryId('section/guide/summary')).toBe('section/guide');
-  });
-
-  it('leaves strings without /summary unchanged', () => {
-    expect(guideSlugFromSummaryId('just-a-slug')).toBe('just-a-slug');
-  });
-});
 
 // ── chapterHref ───────────────────────────────────────────────────────────────
 
@@ -43,7 +22,6 @@ const sampleGuide: Guide = {
     { slug: 'intro', entryId: 'my-guide/intro', title: 'Introduction' },
     { slug: 'chapter-2', entryId: 'my-guide/chapter-2', title: 'Chapter Two' },
   ],
-  problems: [],
 };
 
 describe('chapterHref', () => {
@@ -58,16 +36,6 @@ describe('chapterHref', () => {
   it('treats any slug as non-first when chapters is empty', () => {
     const empty: Guide = { ...sampleGuide, chapters: [] };
     expect(chapterHref(empty, 'intro')).toBe('/guides/my-guide/intro/');
-  });
-});
-
-// ── guideTitle ────────────────────────────────────────────────────────────────
-
-describe('guideTitle', () => {
-  it('takes the H1 of the summary, else the slug with hyphens as spaces', () => {
-    expect(guideTitle('the-guide', '# The Guide Title\n\n- [Intro](intro.md)\n')).toBe('The Guide Title');
-    expect(guideTitle('my-guide', '- [Intro](intro.md)\n')).toBe('my guide');
-    expect(guideTitle('guide', '# Guide\r\n- [Intro](intro.md)\r\n')).toBe('Guide');
   });
 });
 
@@ -123,7 +91,6 @@ describe('listGuides', () => {
       { slug: 'part-two', entryId: 'alpha/part-two', title: 'Two' },
       { slug: 'one', entryId: 'alpha/one', title: 'One' },
     ]);
-    expect(guides[0].problems).toEqual([]);
   });
 
   it('returns an empty array when no summaries exist', async () => {
@@ -145,10 +112,46 @@ describe('listGuides', () => {
     expect(guides[0].chapters.map(c => c.slug)).toEqual(['b']);
   });
 
-  it('leaves out a chapter it cannot serve, and reports it', async () => {
+  it('leaves out a chapter it cannot serve', async () => {
     const dir = write({ 'guides/g/SUMMARY.md': '- [Here](here.md)\n- [Gone](gone.md)\n', 'guides/g/here.md': '# Here' });
     const [guide] = await listGuides(dir);
     expect(guide.chapters.map(c => c.slug)).toEqual(['here']);
-    expect(guide.problems).toEqual(['g/SUMMARY.md points at missing chapter gone.md']);
+  });
+});
+
+// ── loadGuides ────────────────────────────────────────────────────────────────
+
+describe('loadGuides', () => {
+  // The two collections a guide page reads: the guides' indexes and chapters.
+  function collections(indexes: object[], chapterIds: string[]) {
+    vi.mocked(getCollection).mockImplementation((async (name: string) => (name === 'guideIndexes'
+      ? indexes
+      : chapterIds.map(id => ({ id, collection: 'guides', data: {}, body: `body of ${id}` })))) as any);
+  }
+
+  const index = {
+    id: 'g',
+    collection: 'guideIndexes',
+    filePath: 'vault/guides/g/SUMMARY.md',
+    body: '# G\n',
+    data: {
+      title: 'G',
+      tags: ['a'],
+      chapters: [{ slug: 'index', entryId: 'g', title: 'Intro' }, { slug: 'next', entryId: 'g/next', title: 'Next' }],
+    },
+  };
+
+  it('joins each chapter to its collection entry, with the SUMMARY alongside', async () => {
+    collections([index], ['g', 'g/next', 'other/chapter']);
+    const [guide] = await loadGuides();
+    expect(guide.slug).toBe('g');
+    expect(guide.title).toBe('G');
+    expect(guide.chapters.map(chapter => [chapter.slug, chapter.entry.id])).toEqual([['index', 'g'], ['next', 'g/next']]);
+    expect(guide.summary).toEqual({ tags: ['a'], body: '# G\n', sourcePath: expect.stringMatching(/vault\/guides\/g\/SUMMARY\.md$/) });
+  });
+
+  it('fails when the collection does not publish a chapter the index lists', async () => {
+    collections([index], ['g']);
+    await expect(loadGuides()).rejects.toThrow('g/next is not in the published guides collection');
   });
 });

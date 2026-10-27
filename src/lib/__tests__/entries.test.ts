@@ -4,11 +4,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
 vi.mock('fs/promises', () => ({ stat: vi.fn() }));
 // Guides come from the vault catalog; each test states the one it lists.
-vi.mock('../guides', async importOriginal => ({ ...await importOriginal<object>(), listGuides: vi.fn(async () => []) }));
+vi.mock('../guides', async importOriginal => ({ ...await importOriginal<object>(), loadGuides: vi.fn(async () => []) }));
 
 import { getCollection } from 'astro:content';
 import { stat } from 'fs/promises';
-import { listGuides } from '../guides';
+import { loadGuides } from '../guides';
 import {
   byUpdatedDesc,
   isoDate,
@@ -187,13 +187,14 @@ describe('loadNoteEntries', () => {
     expect(entries[0].id).toBe('note-live');
   });
 
-  it('falls back to the note id when title is absent', async () => {
+  it('falls back to the title heading, then the humanized id, when title is absent', async () => {
     vi.mocked(getCollection).mockResolvedValue([
+      { id: 'headed-note', data: { date: new Date('2026-01-15T00:00:00Z') }, body: '# Real Title\n\nBody.' },
       { id: 'untitled-note', data: { date: new Date('2026-01-15T00:00:00Z') }, body: 'Body.' },
     ] as any);
 
-    const [entry] = await loadNoteEntries();
-    expect(entry.title).toBe('untitled-note');
+    const entries = await loadNoteEntries();
+    expect(entries.map(entry => entry.title)).toEqual(['Real Title', 'untitled note']);
   });
 
   it('returns an empty array when the collection is empty', async () => {
@@ -340,31 +341,22 @@ describe('loadGuideEntries', () => {
     } as any);
   });
 
-  function stubGuide(summaryData: Record<string, unknown>) {
-    vi.mocked(listGuides).mockResolvedValue([
-      { slug: 'rust', title: 'Rust', chapters: [{ slug: 'intro', entryId: 'rust/intro', title: 'Intro' }], problems: [] },
-    ]);
-    vi.mocked(getCollection).mockImplementation(((name: string) => {
-      if (name === 'guideSummaries') {
-        return Promise.resolve([
-          {
-            id: 'rust/summary',
-            data: summaryData,
-            body: '# Rust\n\n- [Intro](./intro.md)\n',
-          },
-        ]);
-      }
-      if (name === 'guides') {
-        return Promise.resolve([
-          { id: 'rust/intro', data: { title: 'Intro' }, body: 'chapter body' },
-        ]);
-      }
-      return Promise.resolve([]);
-    }) as any);
+  function stubGuide(tags: string[]) {
+    vi.mocked(loadGuides).mockResolvedValue([{
+      slug: 'rust',
+      title: 'Rust',
+      chapters: [{
+        slug: 'intro',
+        entryId: 'rust/intro',
+        title: 'Intro',
+        entry: { id: 'rust/intro', data: { title: 'Intro' }, body: 'chapter body' } as any,
+      }],
+      summary: { tags, body: '# Rust\n\n- [Intro](./intro.md)\n', sourcePath: '/vault/guides/rust/SUMMARY.md' },
+    }]);
   }
 
   it('carries the tags declared on SUMMARY.md', async () => {
-    stubGuide({ tags: ['rust', 'systems'] });
+    stubGuide(['rust', 'systems']);
 
     const entries = await loadGuideEntries();
     expect(entries).toHaveLength(1);
@@ -376,7 +368,7 @@ describe('loadGuideEntries', () => {
   });
 
   it('defaults to no tags when SUMMARY.md declares none', async () => {
-    stubGuide({});
+    stubGuide([]);
 
     const entries = await loadGuideEntries();
     expect(entries[0].tags).toEqual([]);
