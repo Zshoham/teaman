@@ -3,7 +3,7 @@
 // engine. The vault carries only data: a `teaman.config.js` plus content
 // directories (notes/ references/ guides/ slides/ dailies/). This CLI resolves the vault,
 // loads its config, stages static assets, and runs the engine via the env seam
-// (TEAMAN_VAULT / TEAMAN_OUT / TEAMAN_BASE / TEAMAN_CONFIG / TEAMAN_PUBLIC).
+// (`encodeBuildEnv`, read back by every stage through `build-env.mjs`).
 
 import { spawn } from 'child_process';
 import {
@@ -11,18 +11,18 @@ import {
   readFileSync, writeFileSync, readdirSync, statSync, realpathSync,
   mkdtempSync, renameSync, symlinkSync,
 } from 'fs';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { pathToFileURL } from 'url';
 import { resolve, join, dirname, basename, isAbsolute, parse, relative } from 'path';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import semver from 'semver';
+import { encodeBuildEnv, engineDir } from '../src/lib/build-env.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { checkVaultConfig, enginePublicDir, resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { lintVault } from '../src/lib/vault-lint.mjs';
 import { isInside } from '../src/lib/fs-walk.mjs';
 
 const require = createRequire(import.meta.url);
-const engineDir = fileURLToPath(new URL('..', import.meta.url));
 const enginePkg = JSON.parse(readFileSync(join(engineDir, 'package.json'), 'utf8'));
 const VERSION = enginePkg.version;
 
@@ -262,15 +262,12 @@ export function commitBuild(stagedOut, out) {
   }
 }
 
-function envFor(vault, config, { out, base, publicDir } = {}) {
+function envFor(vault, config, { out, base, publicDir, slidesWorkDir } = {}) {
   return {
     ...process.env,
-    TEAMAN_VAULT: vault,
-    TEAMAN_CONFIG: JSON.stringify(config),
-    TEAMAN_VERSION: VERSION,
-    ...(out ? { TEAMAN_OUT: out } : {}),
-    ...(base ? { TEAMAN_BASE: base } : {}),
-    ...(publicDir ? { TEAMAN_PUBLIC: publicDir } : {}),
+    ...encodeBuildEnv({
+      vaultDir: vault, config, version: VERSION, outDir: out, siteBase: base, publicDir, slidesWorkDir,
+    }),
   };
 }
 
@@ -338,10 +335,9 @@ async function cmdBuild(vaultArg, opts) {
   const stagedRoot = mkdtempSync(join(engineDir, stagedOutPrefixFor(process.pid)));
   const stagedOut = join(stagedRoot, 'dist');
   const staged = stageStatic(vault, config, join(workDir, 'public'));
-  const env = {
-    ...envFor(vault, staged.config, { out: stagedOut, base, publicDir: staged.publicDir }),
-    TEAMAN_SLIDES_WORK: join(workDir, 'slides'),
-  };
+  const env = envFor(vault, staged.config, {
+    out: stagedOut, base, publicDir: staged.publicDir, slidesWorkDir: join(workDir, 'slides'),
+  });
 
   info(`building ${c.bold(vault)} → ${c.bold(out)} ${c.dim(`(engine ${VERSION})`)}`);
   await runBuildPipeline({
@@ -426,10 +422,8 @@ async function cmdDev(vaultArg, opts) {
     // PDFs are build artifacts rather than authored public files. Render them
     // into the staged public dir before Astro starts so download links work in
     // the local dev loop as well as in a production build.
-    await run(node, [join(engineDir, 'scripts', 'build-references.mjs')], {
-      ...env,
-      TEAMAN_OUT: staged.publicDir,
-    });
+    await run(node, [join(engineDir, 'scripts', 'build-references.mjs')],
+      envFor(vault, staged.config, { out: staged.publicDir, base, publicDir: staged.publicDir }));
     // Astro auto-detaches when it detects an AI agent. Keep the server under
     // this CLI's lifetime so staged assets survive until the server stops.
     await run(node, [astroBin, 'dev', ...serverArgs(opts)], {

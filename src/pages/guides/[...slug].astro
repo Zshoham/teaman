@@ -41,8 +41,9 @@ const { guideSlug, chapterSlug } = Astro.props;
 const guide = await getGuide(guideSlug);
 if (!guide) throw new Error(`Guide not found: ${guideSlug}`);
 
+const chapter = guide.chapters.find(c => c.slug === chapterSlug);
 const entries = await getPublished('guides');
-const entry = entries.find(e => e.id === `${guideSlug}/${chapterSlug}`);
+const entry = entries.find(e => e.id === chapter?.entryId);
 if (!entry) throw new Error(`Chapter not found: ${guideSlug}/${chapterSlug}`);
 
 const { Content } = await render(entry);

@@ -9,8 +9,7 @@ export async function getStaticPaths() {
     getPublished('decisions'), getPublished('guides'), listGuides(),
   ]);
   // Only expose chapters that actually appear in a published guide.
-  const visibleChapters = new Set(guides.flatMap(guide =>
-    guide.chapters.map(chapter => `${guide.slug}/${chapter.slug}`)));
+  const visibleChapters = new Set(guides.flatMap(guide => guide.chapters.map(chapter => chapter.entryId)));
   const entries = [...notes, ...dailies, ...decisions,
     ...chapters.filter(chapter => visibleChapters.has(chapter.id))];
   return entries.map(entry => ({

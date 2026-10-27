@@ -23,6 +23,32 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **Reference book chapters can be drafted** (patch). A chapter of a
+  `references/<slug>/SUMMARY.md` book with `draft: true`, or under a `_` path
+  in the book, is now left out of the page, the PDF, wiki-link targets, and
+  Confluence sync, as a guide chapter already was. Before, it was published.
+
+- **A guide chapter named `index.md` builds** (patch, no vault changes). A
+  top-level `index.md` listed in a guide's `SUMMARY.md` used to fail the
+  build with "Chapter not found".
+
+- **Broken reference frontmatter is reported by file** (patch). Invalid YAML
+  in a reference, a reference book's `SUMMARY.md`, or one of its chapters is
+  now a `doctor` problem naming the file; `doctor` used to crash on it, and
+  a dev reload could then miss it.
+
+- **One image lookup for the site, the PDF, and Confluence** (patch). A
+  Markdown image path resolves against the note's directory, then the vault
+  root, then the public assets, everywhere. The PDF used to try
+  `public/` before the vault root for `/x` paths, and Confluence sync
+  resolved non-`.svg` images against the note's directory only, so an image
+  the site found could be missing from the PDF or the Confluence page.
+  Comma-separated `tags: a, b` now reach the PDF too.
+
+- **Confluence dry-run output is reworded** (patch). The plan now prints
+  one `[dry-run] <operation>` line per change, in the same words `--apply`
+  logs, and lists the attachments of an existing page with the page id.
+
 - **Dot-prefixed files and folders are ignored everywhere** (patch). Notes,
   guides, dailies, and ADRs under a `.`-prefixed path (`notes/.archive/`)
   were never on the site; references and decks there were still built, and

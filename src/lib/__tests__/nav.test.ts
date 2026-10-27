@@ -25,7 +25,7 @@ function stubCollections(fixture: Fixture) {
   vi.mocked(listGuides).mockResolvedValue((fixture.guides ?? []).map(slug => ({
     slug,
     title: slug,
-    chapters: [{ slug: 'intro', title: 'Intro' }],
+    chapters: [{ slug: 'intro', entryId: `${slug}/intro`, title: 'Intro' }],
     problems: [],
   })));
   mockGetCollection.mockImplementation(((name: string) => {

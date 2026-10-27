@@ -4,7 +4,6 @@ import { bookProblems, isSummaryFile } from './books.mjs';
 import { assertCoversTypes, COLLECTIONS, collectionFor } from './collections.mjs';
 import { deckEmbedPlan } from './deck-embeds.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from './entry-identity.mjs';
-import { frontmatterProblems } from './frontmatter-schemas.mjs';
 import { isHtmlEmbed, isImageEmbed, wikiLinks } from './obsidian-markdown.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 import { createVaultIndex } from './vault-index.mjs';
@@ -32,8 +31,7 @@ export function lintVault(vaultDir) {
   for (const { type } of COLLECTIONS) {
     for (const file of FRONTMATTER[type](catalog)) {
       const at = where(type, file.relPath);
-      if (file.error) problems.push(`${at}: ${file.error}`);
-      else for (const problem of frontmatterProblems(file.kind, file.data)) problems.push(`${at}: ${problem}`);
+      for (const problem of file.error ? [file.error] : file.issues) problems.push(`${at}: ${problem}`);
     }
   }
 
@@ -96,36 +94,29 @@ export function lintVault(vaultDir) {
 }
 
 /**
- * The files each type's collection validates, and the schema
- * (`frontmatter-schemas.mjs`) each is validated against — so passing here
- * means the build accepts them. A glob-loaded collection validates every
- * file, drafts included; decks and references reach their collections
- * through the engine's own discovery, so what it hands over is checked.
+ * The files each type's collection validates, as the catalog read them —
+ * with what their schema (`frontmatter-schemas.mjs`, the collection's own)
+ * rejects in `issues` — so passing here means the build accepts them. A
+ * glob-loaded collection validates every file, drafts included; decks and
+ * references reach their collections through the engine's own discovery, so
+ * what it hands over is checked. A reference that cannot be read is a book
+ * problem (`bookProblems`), reported below.
  *
  * @type {Record<string, (catalog: import('./vault-catalog.mjs').VaultCatalog) =>
- *   Array<{ relPath: string, kind?: string, data?: object, error?: string }>>}
+ *   Array<{ relPath: string, issues?: string[], error?: string }>>}
  */
 const FRONTMATTER = {
-  note: catalog => fileRecords(catalog, 'note', 'note'),
-  reference: catalog => catalog.all('reference')
-    .filter(document => !document.error)
-    .map(document => ({ relPath: document.relPath, kind: 'reference', data: document.data })),
-  daily: catalog => fileRecords(catalog, 'daily', 'daily'),
+  note: catalog => catalog.all('note'),
+  reference: catalog => catalog.all('reference').filter(document => !document.error),
+  daily: catalog => catalog.all('daily'),
   // Every Markdown file under guides/ is in a collection, listed in a
   // SUMMARY or not.
-  guide: catalog => catalog.files('guide').map(({ sourcePath, relPath, data, error }) => (error
-    ? { relPath, error }
-    : { relPath, kind: isSummaryFile(sourcePath, { caseSensitive: true }) ? 'guideSummary' : 'guideChapter', data })),
+  guide: catalog => catalog.files('guide'),
   // The slides collection stores drafted decks too, so it validates them.
-  slides: catalog => fileRecords(catalog, 'slides', 'deck'),
-  decision: catalog => fileRecords(catalog, 'decision', 'decision'),
+  slides: catalog => catalog.all('slides'),
+  decision: catalog => catalog.all('decision'),
 };
 assertCoversTypes(FRONTMATTER, "doctor's frontmatter check");
-
-/** A type's every file, with its catalog-parsed frontmatter. */
-function fileRecords(catalog, type, kind) {
-  return catalog.all(type).map(({ relPath, data, error }) => (error ? { relPath, error } : { relPath, kind, data }));
-}
 
 /**
  * One file's wiki-links and embeds. Parsed with the dialect the PDF and

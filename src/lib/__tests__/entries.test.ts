@@ -342,7 +342,7 @@ describe('loadGuideEntries', () => {
 
   function stubGuide(summaryData: Record<string, unknown>) {
     vi.mocked(listGuides).mockResolvedValue([
-      { slug: 'rust', title: 'Rust', chapters: [{ slug: 'intro', title: 'Intro' }], problems: [] },
+      { slug: 'rust', title: 'Rust', chapters: [{ slug: 'intro', entryId: 'rust/intro', title: 'Intro' }], problems: [] },
     ]);
     vi.mocked(getCollection).mockImplementation(((name: string) => {
       if (name === 'guideSummaries') {

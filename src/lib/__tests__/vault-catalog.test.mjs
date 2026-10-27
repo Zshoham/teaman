@@ -80,6 +80,53 @@ describe('openVaultCatalog', () => {
     expect(draft.chapters.map(chapter => chapter.published)).toEqual([false]);
   });
 
+  // The guides collection drops a trailing `/index`; the chapter's URL
+  // segment is its id within the guide.
+  it('gives each guide chapter its collection id and its slug in the guide', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('guides/g/SUMMARY.md', '- [Start](index.md)\n- [Setup](setup/index.md)\n- [More](<More Info.md>)\n');
+    write('guides/g/index.md');
+    write('guides/g/setup/index.md');
+    write('guides/g/More Info.md');
+    const [guide] = openVaultCatalog(vault).published('guide');
+    expect(guide.chapters.map(chapter => [chapter.id, chapter.slug])).toEqual([
+      ['g', 'index'],
+      ['g/setup', 'setup'],
+      ['g/more-info', 'more-info'],
+    ]);
+  });
+
+  it('drafts a reference book chapter as it drafts a guide chapter', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('references/book/SUMMARY.md', '# Book\n\n- [One](one.md)\n- [Two](two.md)\n- [Scratch](_scratch.md)\n');
+    write('references/book/one.md', '# One\n\nkept\n');
+    write('references/book/two.md', `${DRAFT}\nhidden\n`);
+    write('references/book/_scratch.md', '# Scratch\n\nhidden\n');
+    const catalog = openVaultCatalog(vault);
+    const [book] = catalog.published('reference');
+    expect(book.chapters.map(chapter => chapter.path)).toEqual(['one.md']);
+    expect(book.body).toContain('kept');
+    expect(book.body).not.toContain('hidden');
+    expect(catalog.all('reference')[0].chapters.map(chapter => chapter.published)).toEqual([true, false, false]);
+    expect(catalog.isPublishedFile(join(vault, 'references/book/two.md'))).toBe(false);
+    expect(catalog.isPublishedFile(join(vault, 'references/book/_scratch.md'))).toBe(false);
+  });
+
+  it('records unreadable reference frontmatter as an error naming the file', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
+    write('references/broken.md', '---\ntitle: [unclosed\n---\n# Broken\n');
+    write('references/book/SUMMARY.md', '---\ntitle: [unclosed\n---\n- [One](one.md)\n');
+    write('references/book/one.md');
+    write('references/other/SUMMARY.md', '- [One](one.md)\n');
+    write('references/other/one.md', '---\ntitle: [unclosed\n---\n');
+    const catalog = openVaultCatalog(vault);
+    const [book, broken, other] = catalog.all('reference');
+    expect(book.error).toMatch(/^book\/SUMMARY\.md: frontmatter is not valid YAML/);
+    expect(broken.error).toMatch(/^broken\.md: frontmatter is not valid YAML/);
+    expect(other.chapters[0]).toMatchObject({ published: false, error: expect.stringMatching(/not valid YAML/) });
+    expect(catalog.published('reference').map(record => record.id)).toEqual(['other']);
+  });
+
   it('reports guide chapters the site cannot serve', () => {
     vault = mkdtempSync(join(tmpdir(), 'teaman-catalog-'));
     write('guides/g/SUMMARY.md', '- [Here](here.md)\n- [Gone](gone.md)\n- [Out](../elsewhere.md)\n');

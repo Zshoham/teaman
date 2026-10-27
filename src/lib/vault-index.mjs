@@ -6,7 +6,6 @@ import {
   dailyHref,
   dailyIsoDate,
   entryHref,
-  entryId,
   guideChapterHref,
   guideHref,
 } from './entry-identity.mjs';
@@ -36,6 +35,9 @@ const withoutMd = value => value.replace(/\.md$/i, '');
  * @property {string} sourcePath  absolute file (or, for a guide, directory)
  * @property {'file'|'folder'} kind  a guide is linkable by its folder name
  * @property {string} href  site URL, base included
+ * @property {string} [reference]  a reference's: the reference's entry id
+ * @property {string} [anchor]  a reference book chapter's: its anchor in the
+ *   book's page and PDF
  */
 
 /**
@@ -57,8 +59,9 @@ function notePages(catalog, base) {
 function referencePages(catalog, base) {
   return catalog.published('reference').flatMap(document => {
     const href = entryHref(base, 'reference', document.id);
+    const reference = document.id;
     if (document.kind === 'standalone') {
-      return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', href }];
+      return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', href, reference }];
     }
     // A book is one page; each chapter is a section of it.
     return document.chapters.map(chapter => ({
@@ -66,6 +69,8 @@ function referencePages(catalog, base) {
       sourcePath: chapter.sourcePath,
       kind: 'file',
       href: `${href}#${chapter.anchor}`,
+      reference,
+      anchor: chapter.anchor,
     }));
   });
 }
@@ -74,7 +79,7 @@ function guidePages(catalog, base) {
   return catalog.published('guide').flatMap(guide => {
     // Drafted chapters are already gone, as they are on the site, so the first
     // published chapter is the one served at the guide root.
-    const slugs = guide.chapters.map(chapter => entryId('guide', chapter.path));
+    const slugs = guide.chapters.map(chapter => chapter.slug);
     return [
       { type: 'guide', sourcePath: guide.dir, kind: 'folder', href: guideHref(base, guide.id) },
       ...guide.chapters.map((chapter, index) => ({
@@ -98,9 +103,10 @@ function deckPages(catalog, base) {
 
 function dailyPages(catalog, base) {
   return catalog.published('daily').flatMap(({ id, sourcePath, data }) => {
-    const date = data.date instanceof Date ? data.date : new Date(String(data.date ?? ''));
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && Number.isNaN(date.getTime())) return [];
-    return [{ type: 'daily', sourcePath, kind: 'file', href: dailyHref(base, dailyIsoDate(id, date)) }];
+    // The catalog has coerced a valid `date`; an invalid one fails the build.
+    const { date } = data;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && !(date instanceof Date)) return [];
+    return [{ type: 'daily', sourcePath, kind: 'file', href: dailyHref(base, dailyIsoDate(id, /** @type {Date} */ (date))) }];
   });
 }
 

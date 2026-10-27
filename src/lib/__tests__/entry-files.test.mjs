@@ -27,7 +27,34 @@ describe('readEntryFile', () => {
       relPath: 'Team/My Note.md',
       data: { title: 'Hi', slug: 'custom' },
       body: 'Body\n',
+      issues: [],
     });
+  });
+
+  it('normalizes frontmatter with its schema, as the collection does', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-entry-files-'));
+    const path = write('n.md', '---\ntags: a, b\ndate: "2026-03-12"\naliases: [x]\n---\n');
+    const { data, issues } = readEntryFile('note', root, path);
+    expect(data.tags).toEqual(['a', 'b']);
+    expect(data.date).toEqual(new Date('2026-03-12'));
+    expect(data.aliases).toEqual(['x']);
+    expect(issues).toEqual([]);
+  });
+
+  it('keeps frontmatter its schema rejects as written, with the issues', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-entry-files-'));
+    const path = write('adr-0001.md', '---\ntitle: T\ndate: 2026-03-12\nstatus: maybe\ntags: a, b\n---\n');
+    const { data, issues } = readEntryFile('decision', root, path);
+    expect(data.status).toBe('maybe');
+    expect(issues).toEqual([expect.stringMatching(/^status: must be one of/)]);
+  });
+
+  it('validates a guide SUMMARY.md and its chapters against different schemas', () => {
+    root = mkdtempSync(join(tmpdir(), 'teaman-entry-files-'));
+    const summary = write('g/SUMMARY.md', '---\ntags: a, b\n---\n');
+    const chapter = write('g/one.md', '---\ntags: a, b\n---\n');
+    expect(readEntryFile('guide', root, summary).data.tags).toEqual(['a', 'b']);
+    expect(readEntryFile('guide', root, chapter).data.tags).toBe('a, b');
   });
 
   it('reports unreadable frontmatter with its path-derived id', () => {

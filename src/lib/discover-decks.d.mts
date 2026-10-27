@@ -5,7 +5,10 @@ export interface DiscoveredDeck {
   /** Under `slidesRoot`, `/`-separated. */
   relPath: string;
   markdown: string;
+  /** Headmatter as the slides collection's schema reads it. */
   data: Record<string, unknown>;
+  /** What that schema rejects in it. */
+  issues: string[];
   title: string;
   tags: string[];
   slideCount: number;

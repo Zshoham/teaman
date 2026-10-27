@@ -3,14 +3,16 @@
  * mdBook-style. A guide is one (`guides/<slug>/`), and so is a multi-file
  * reference (`references/<slug>/`). What a book's chapters are — listed, in
  * order, once each, existing, and inside its directory — is decided here, so
- * the site, the reference PDF, the wiki-link index, and `doctor` agree on it.
- * Publication (drafted chapters) is the vault catalog's.
+ * the site, the reference PDF, the wiki-link index, Confluence sync, and
+ * `doctor` agree on it — and so is which of them are published, by the same
+ * rule for a guide and a reference book.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
-import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
+import { parseFrontmatter, yamlError } from './entry-files.mjs';
 import { isInside, toPosix } from './fs-walk.mjs';
+import { isPublished } from './publication.mjs';
 
 const summaryMarkdown = new MarkdownIt();
 
@@ -144,26 +146,54 @@ export function onDiskPath(dir, relPath, readdir = readdirSync) {
 }
 
 /**
+ * A book file read on its own, for a caller with no catalog to read it
+ * through.
+ *
+ * @param {string} sourcePath
+ */
+function readBookFile(sourcePath) {
+  try {
+    const { data, content } = parseFrontmatter(readFileSync(sourcePath, 'utf8'));
+    return { data, body: content, issues: [] };
+  } catch (error) {
+    return { data: {}, body: '', issues: [], error: yamlError(error) };
+  }
+}
+
+/**
  * Read the book a SUMMARY.md indexes.
  *
  * - `chapters`: what it lists that is a file inside its directory, in order,
  *   first listing wins — each `{ path, title, depth, sourcePath }`, with
  *   `path` relative to the book's directory, `/`-separated, both spelled as
- *   on disk (`onDiskPath`);
+ *   on disk (`onDiskPath`); plus what `readChapter` read of the file
+ *   (`data`, `body`, `error`, …) and `published`: the publish rule applied
+ *   to the chapter itself (its `draft:`, a `_` segment inside the book, or
+ *   frontmatter that does not parse). Whether the book is published is the
+ *   caller's to add;
  * - `missing` / `invalid`: listed paths that are not a file, or that leave the
- *   directory — the book cannot be built (see `bookProblems`).
+ *   directory — the book cannot be built (see `bookProblems`);
+ * - `data`, `content`, `issues`: SUMMARY.md's frontmatter, body, and what
+ *   its schema rejects;
+ * - `error`: SUMMARY.md's frontmatter does not parse, so it lists nothing.
  *
  * @param {string} summaryPath
- * @param {{ rootRelative?: boolean }} [options]  see `parseSummary`
+ * @param {object} [options]
+ * @param {boolean} [options.rootRelative]  see `parseSummary`
+ * @param {(sourcePath: string) => { data: Record<string, unknown>, body: string, issues: string[], error?: string }} [options.read]
+ *   how SUMMARY.md and each chapter are read: through the caller's catalog
+ *   (`readEntryFile`), so a chapter carries the same id and frontmatter
+ *   there
  */
-export function readBook(summaryPath, { rootRelative = false } = {}) {
+export function readBook(summaryPath, { rootRelative = false, read = readBookFile } = {}) {
   const dir = dirname(summaryPath);
-  const { data, content } = matter(readFileSync(summaryPath, 'utf8'));
   const chapters = [];
   const missing = [];
   const invalid = [];
+  const summary = read(summaryPath);
+  if (summary.error) return { dir, data: {}, content: '', issues: [], chapters, missing, invalid, error: summary.error };
   const seen = new Set();
-  for (const item of parseSummary(content, { rootRelative })) {
+  for (const item of parseSummary(summary.body, { rootRelative })) {
     const listed = resolve(dir, item.path);
     if (!isInside(dir, listed)) {
       invalid.push(item.path);
@@ -174,20 +204,32 @@ export function readBook(summaryPath, { rootRelative = false } = {}) {
     const path = toPosix(relative(dir, sourcePath));
     if (seen.has(path)) continue;
     seen.add(path);
-    if (!exists) missing.push(item.path);
-    else chapters.push({ ...item, path, sourcePath });
+    if (!exists) {
+      missing.push(item.path);
+      continue;
+    }
+    const file = read(sourcePath);
+    chapters.push({
+      ...file,
+      ...item,
+      path,
+      sourcePath,
+      published: !file.error && isPublished({ data: file.data, relPath: path }),
+    });
   }
-  return { dir, data, content, chapters, missing, invalid };
+  return { dir, data: summary.data, content: summary.body, issues: summary.issues, chapters, missing, invalid };
 }
 
 /**
  * What keeps a book — a reference book, or a guide from the vault catalog —
- * from building: an unusable SUMMARY.md, no chapters (a reference book), or
- * a listed chapter that is missing or outside the book's directory. The
- * reference loader, the guide pages, the PDF build, and `doctor` all report
- * through this.
+ * from building: an unusable SUMMARY.md, no chapters (a reference book), a
+ * listed chapter that is missing or outside the book's directory, or (a
+ * reference book) one whose frontmatter does not parse. A guide's chapters
+ * are files of the guides collection, whose unreadable files are reported as
+ * such. The reference loader, the guide pages, the PDF build, and `doctor`
+ * all report through this.
  *
- * @param {{ id?: string, kind?: string, error?: string, chapters?: unknown[], missing?: string[], invalid?: string[] }} book
+ * @param {{ id?: string, kind?: string, error?: string, chapters?: Array<{ path: string, error?: string }>, missing?: string[], invalid?: string[] }} book
  * @returns {string[]}
  */
 export function bookProblems(book) {
@@ -195,6 +237,11 @@ export function bookProblems(book) {
   const problems = [];
   if (book.kind === 'book' && book.chapters.length === 0) {
     problems.push(`${book.id}/SUMMARY.md lists no Markdown chapters`);
+  }
+  if (book.kind === 'book') {
+    for (const chapter of book.chapters) {
+      if (chapter.error) problems.push(`${book.id}/${chapter.path}: ${chapter.error}`);
+    }
   }
   for (const chapter of book.missing ?? []) {
     problems.push(`${book.id}/SUMMARY.md points at missing chapter ${chapter}`);

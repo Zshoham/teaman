@@ -16,7 +16,6 @@ import {
   renderReferenceTypst,
 } from '../src/lib/reference-pdf.mjs';
 import { bookProblems } from '../src/lib/books.mjs';
-import { entryHref } from '../src/lib/entry-identity.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 
@@ -82,19 +81,20 @@ export async function buildReferences({
   let compiler = null;
   for (const document of published) {
     const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir });
-    // A wiki-link the site resolves to a section of this reference becomes a
-    // jump within the PDF; the vault index returns that section as an anchor
-    // on this reference's own URL.
-    const ownHref = entryHref('/', 'reference', document.id);
+    // A wiki-link the site resolves to a chapter of this reference becomes a
+    // jump within the PDF.
     const resolveWikiLink = (target, fromPath) => {
-      const href = vaultIndex.resolve(target, fromPath)?.href ?? '';
-      return href.startsWith(`${ownHref}#`) ? href.slice(ownHref.length + 1) : null;
+      const entry = vaultIndex.resolve(target, fromPath)?.entry;
+      return entry?.reference === document.id ? entry.anchor ?? null : null;
     };
     const rendered = renderReferenceTypst({
       template,
       title: document.title,
       summary: document.data.summary,
       date: document.data.date,
+      // Normalized by the schema; frontmatter it rejects (which `doctor` and
+      // the site build report) is as written. `teaman dev` runs this stage
+      // before Astro validates anything, so it must not crash on that.
       tags: Array.isArray(document.data.tags) ? document.data.tags : [],
       brand,
       body: document.body,

@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, statSync } from 'fs';
+import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { dirname, isAbsolute, join, relative, resolve } from 'path';
+import { join, relative } from 'path';
 import GithubSlugger from 'github-slugger';
 import MarkdownIt from 'markdown-it';
 import {
@@ -11,17 +11,11 @@ import {
   isImageEmbed,
   obsidianDialect,
 } from './obsidian-markdown.mjs';
-import {
-  prepareReferenceChapter,
-  referenceChapterAnchor,
-  withReferenceChapterAnchors,
-} from './reference-documents.mjs';
-import {
-  referenceBookHeadingSlug,
-  referenceBookHtmlAnchor,
-  rewriteReferenceBookUrl,
-} from './remark-reference-books.mjs';
+import { assembleReferenceBook, htmlIds, layoutReferenceBook } from './reference-book.mjs';
+import { engineDir } from './build-env.mjs';
+import { isInside, toPosix } from './fs-walk.mjs';
 import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
+import { assetRoots, resolveVaultAsset } from './vault-assets.mjs';
 import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind } from './diagram-kinds.mjs';
 
 const markdown = new MarkdownIt({
@@ -38,7 +32,6 @@ const SERVER_RENDERERS = { mermaid: renderMermaidSvg, plantuml: renderPlantumlSv
 for (const lang of CLIENT_DIAGRAM_LANGUAGES) {
   if (!SERVER_RENDERERS[lang]) throw new Error(`no server-side renderer for the ${lang} diagram kind`);
 }
-const HTML_ID_RE = /\sid\s*=\s*(["'])([^"']+)\1/gi;
 
 const asTypstString = value => JSON.stringify(String(value ?? ''));
 const asText = value => value ? `#text(${asTypstString(value)})` : '';
@@ -64,10 +57,6 @@ function headingText(tokens) {
     .join('');
 }
 
-function htmlIds(value) {
-  return Array.from(value.matchAll(new RegExp(HTML_ID_RE.source, 'gi')), match => match[2]);
-}
-
 function decodeFragment(value) {
   try { return decodeURIComponent(value); } catch { return value; }
 }
@@ -79,66 +68,34 @@ function typstInternalLabel(anchor) {
   return `teaman-${Buffer.from(anchor, 'utf8').toString('hex') || 'anchor'}`;
 }
 
-function htmlAnchor(id, chapterPath, chapterAnchor) {
-  return chapterPath ? referenceBookHtmlAnchor(id, chapterPath, chapterAnchor) : id;
-}
-
-function analyzeReferenceTokens(tokens, chapterPath, assignedChapterAnchor) {
-  const headingTargets = new Map();
-  const targets = new Set();
-  const slugger = chapterPath ? null : new GithubSlugger();
-  const headingCounts = new Map();
-  const chapterAnchor = chapterPath
-    ? assignedChapterAnchor ?? referenceChapterAnchor(chapterPath)
-    : null;
-  let firstHeading = true;
-
-  for (let index = 0; index < tokens.length; index++) {
-    const token = tokens[index];
-    if (token.type === 'heading_open') {
-      const text = headingText(tokens[index + 1]?.children);
-      let target;
-      if (chapterPath) {
-        const base = referenceBookHeadingSlug(text) || 'section';
-        const count = headingCounts.get(base) ?? 0;
-        headingCounts.set(base, count + 1);
-        target = firstHeading
-          ? chapterAnchor
-          : `${chapterAnchor}--${base}${count ? `-${count}` : ''}`;
-        firstHeading = false;
-      } else {
-        target = slugger.slug(text);
-      }
-      if (target) {
-        headingTargets.set(index, target);
-        targets.add(target);
-      }
-    }
+/**
+ * Parse one document (or one book chapter) and read what its identifiers are
+ * made from: each heading's token index and text, and the ids its raw HTML
+ * declares.
+ */
+function parseReference(source) {
+  const tokens = markdown.parse(sourceWithoutLeadingTitle(source), {});
+  const headings = [];
+  const ids = [];
+  for (const [index, token] of tokens.entries()) {
+    if (token.type === 'heading_open') headings.push({ index, text: headingText(tokens[index + 1]?.children) });
     const htmlTokens = token.type === 'inline'
       ? token.children?.filter(child => child.type === 'html_inline') ?? []
       : token.type === 'html_inline' || token.type === 'html_block' ? [token] : [];
-    for (const htmlToken of htmlTokens) {
-      for (const id of htmlIds(htmlToken.content)) {
-        targets.add(htmlAnchor(id, chapterPath, chapterAnchor));
-      }
-    }
+    for (const htmlToken of htmlTokens) ids.push(...htmlIds(htmlToken.content));
   }
-
-  return { headingTargets, targets };
+  return { tokens, headings, htmlIds: ids };
 }
 
-function parseReference(source, chapterPath, chapterAnchor) {
-  const value = sourceWithoutLeadingTitle(source);
-  const tokens = markdown.parse(value, {});
-  return { tokens, ...analyzeReferenceTokens(tokens, chapterPath, chapterAnchor) };
-}
-
-function firstReferenceHeadingSlug(source) {
-  const { tokens } = parseReference(source);
-  const index = tokens.findIndex(token => token.type === 'heading_open');
-  return index === -1
-    ? 'section'
-    : referenceBookHeadingSlug(headingText(tokens[index + 1]?.children)) || 'section';
+/** A standalone reference's headings take GitHub-style ids, as on the site. */
+function standaloneTargets({ headings, htmlIds: ids }) {
+  const slugger = new GithubSlugger();
+  const headingTargets = new Map();
+  for (const { index, text } of headings) {
+    const target = slugger.slug(text);
+    if (target) headingTargets.set(index, target);
+  }
+  return { headingTargets, targets: new Set([...headingTargets.values(), ...ids]) };
 }
 
 /**
@@ -174,7 +131,7 @@ function renderCalloutOpen(meta, context) {
 function renderHtmlAnchors(value, context) {
   let out = '';
   for (const id of htmlIds(value)) {
-    const target = htmlAnchor(id, context.chapterPath, context.chapterAnchor);
+    const target = context.layout ? context.layout.htmlId(id, context.chapterPath) : id;
     if (context.emittedTargets.has(target)) continue;
     context.emittedTargets.add(target);
     out += `#metadata(none) <${typstInternalLabel(target)}>`;
@@ -183,16 +140,7 @@ function renderHtmlAnchors(value, context) {
 }
 
 function resolvedLink(href, context) {
-  const rewritten = context.chapterPath
-    ? rewriteReferenceBookUrl(
-        href,
-        context.chapterPath,
-        context.titleSlugs,
-        false,
-        context.chapterAnchors,
-        context.internalTargets,
-      )
-    : href;
+  const rewritten = context.layout ? context.layout.rewrite(href, context.chapterPath) : href;
   if (rewritten?.startsWith('#') && rewritten.length > 1) {
     const target = decodeFragment(rewritten.slice(1));
     if (context.internalTargets.has(target)) return { target };
@@ -308,31 +256,40 @@ function renderTable(tokens, start, context) {
 }
 
 /** Convert the Markdown subset used by reference documents into Typst markup. */
-export function markdownToTypst(source, {
+export function markdownToTypst(source, options = {}) {
+  const parsed = parseReference(source);
+  return renderTypst(parsed.tokens, { ...standaloneTargets(parsed), ...options });
+}
+
+/**
+ * Render parsed Markdown as Typst.
+ *
+ * @param {object} options
+ * @param {Map<number, string>} options.headingTargets  heading token index → its id
+ * @param {Set<string>} options.targets  every id the document declares
+ * @param {import('./reference-book.mjs').ReferenceBookLayout} [options.layout]
+ *   with `chapterPath`: the book the tokens are one chapter of
+ */
+function renderTypst(tokens, {
   sourcePath,
   resolveImage,
   resolveEmbed = resolveImage,
   resolveWikiLink,
   diagrams = new Map(),
+  headingTargets,
+  targets,
+  layout,
   chapterPath,
-  chapterAnchor,
-  chapterAnchors = new Map(),
-  titleSlugs = new Map(),
-  internalTargets,
   emittedTargets = new Set(),
-} = {}) {
-  const parsed = parseReference(source, chapterPath, chapterAnchor);
-  const { tokens, headingTargets } = parsed;
+}) {
   const context = {
     sourcePath,
     resolveImage,
     resolveEmbed,
     resolveWikiLink,
+    layout,
     chapterPath,
-    chapterAnchor,
-    chapterAnchors,
-    titleSlugs,
-    internalTargets: internalTargets ?? parsed.targets,
+    internalTargets: targets,
     emittedTargets,
   };
   const lists = [];
@@ -437,30 +394,14 @@ export function referencePdfCacheKey({ typst, images }, vaultDir) {
   return hash.digest('hex');
 }
 
-/** Resolve a Markdown image to a Typst workspace-relative vault path. */
+/**
+ * Resolve a Markdown image as the site does (`resolveVaultAsset`), to a
+ * Typst workspace-relative path. The workspace is the vault, so an image
+ * found outside it (the engine's own public assets) is a placeholder too.
+ */
 export function resolveReferenceImage(source, { sourcePath, vaultDir }) {
-  if (!source || /^(?:[a-z]+:|\/\/|#)/i.test(source)) return null;
-  let clean;
-  try {
-    clean = decodeURIComponent(source.split(/[?#]/, 1)[0]);
-  } catch {
-    clean = source.split(/[?#]/, 1)[0];
-  }
-
-  const candidates = clean.startsWith('/')
-    ? [join(vaultDir, 'public', clean.slice(1)), join(vaultDir, clean.slice(1))]
-    : [
-        resolve(dirname(sourcePath), clean),
-        resolve(vaultDir, clean),
-        resolve(vaultDir, 'public', clean),
-      ];
-
-  for (const candidate of candidates) {
-    const rel = relative(vaultDir, candidate);
-    if (rel.startsWith('..') || isAbsolute(rel)) continue;
-    if (existsSync(candidate) && statSync(candidate).isFile()) return rel.replace(/\\/g, '/');
-  }
-  return null;
+  const found = resolveVaultAsset(source, { fromFile: sourcePath, roots: assetRoots(vaultDir, { engineDir }) });
+  return found && isInside(vaultDir, found) ? toPosix(relative(vaultDir, found)) : null;
 }
 
 function typstTags(tags) {
@@ -503,29 +444,22 @@ export function renderReferenceTypst({
   };
   // Parse book chapters independently so repeated reference-style link names
   // stay chapter-local and relative images resolve from the chapter that owns
-  // them. The resulting Typst fragments still form one continuous document.
-  const preparedChapters = chapters && withReferenceChapterAnchors(chapters).map(chapter => ({
-    ...chapter,
-    preparedBody: prepareReferenceChapter(chapter.body, chapter),
-  }));
-  const titleSlugs = new Map(preparedChapters?.map(chapter => [
-    chapter.path,
-    firstReferenceHeadingSlug(chapter.preparedBody),
-  ]) ?? []);
-  const chapterAnchors = new Map(preparedChapters?.map(chapter => [
-    chapter.path,
-    chapter.anchor ?? referenceChapterAnchor(chapter.path),
-  ]) ?? []);
-  const internalTargets = new Set(preparedChapters?.flatMap(chapter => [
-    ...parseReference(
-      chapter.preparedBody,
-      chapter.path,
-      chapterAnchors.get(chapter.path),
-    ).targets,
-  ]) ?? []);
-  const emittedTargets = new Set();
-  const content = preparedChapters?.length
-    ? preparedChapters.map(chapter => markdownToTypst(chapter.preparedBody, {
+  // them. The resulting Typst fragments still form one continuous document,
+  // laid out as the site lays it out.
+  let content;
+  if (chapters?.length) {
+    const parsed = assembleReferenceBook(chapters).chapters
+      .map(chapter => ({ chapter, ...parseReference(chapter.preparedBody) }));
+    const layout = layoutReferenceBook(parsed.map(({ chapter, headings, htmlIds: ids }) => ({
+      path: chapter.path,
+      anchor: chapter.anchor,
+      headings: headings.map(heading => heading.text),
+      htmlIds: ids,
+    })));
+    const emittedTargets = new Set();
+    content = parsed.map(({ chapter, tokens, headings }) => {
+      const ids = layout.headingIds(chapter.path);
+      return renderTypst(tokens, {
         sourcePath: chapter.sourcePath,
         resolveEmbed: embedResolver(chapter.sourcePath),
         resolveImage: source => emitted(resolveReferenceImage(source, {
@@ -534,20 +468,22 @@ export function renderReferenceTypst({
         })),
         resolveWikiLink: target => resolveWikiLink?.(target, chapter.sourcePath) ?? null,
         diagrams,
+        headingTargets: new Map(headings.map((heading, index) => [heading.index, ids[index]])),
+        targets: layout.targets,
+        layout,
         chapterPath: chapter.path,
-        chapterAnchor: chapterAnchors.get(chapter.path),
-        chapterAnchors,
-        titleSlugs,
-        internalTargets,
         emittedTargets,
-      })).join('\n\n')
-    : markdownToTypst(body, {
-        sourcePath,
-        resolveEmbed: embedResolver(sourcePath),
-        resolveImage: source => emitted(resolveReferenceImage(source, { sourcePath, vaultDir })),
-        resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
-        diagrams,
       });
+    }).join('\n\n');
+  } else {
+    content = markdownToTypst(body, {
+      sourcePath,
+      resolveEmbed: embedResolver(sourcePath),
+      resolveImage: source => emitted(resolveReferenceImage(source, { sourcePath, vaultDir })),
+      resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
+      diagrams,
+    });
+  }
   const updated = date instanceof Date && !Number.isNaN(date.valueOf())
     ? date.toISOString().slice(0, 10)
     : date ? String(date) : null;

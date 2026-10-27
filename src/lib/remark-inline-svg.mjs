@@ -6,33 +6,27 @@
  *  page and the graphic is theme-reactive for free.
  *
  *  In an Obsidian vault attachments live anywhere — next to the note, in an
- *  `attachments/` folder — so a relative URL resolves against the note's own
- *  directory first (the vfile carries the note path), then against `roots` in
- *  order (vault root, the CLI's staged public dir, `<vault>/public`, the
- *  engine's `resources/public/`). Remote URLs and non-SVG images pass through untouched; a
+ *  `attachments/` folder — so a URL resolves as every renderer resolves an
+ *  image (`resolveVaultAsset`): against the note's own directory first (the
+ *  vfile carries the note path), then `roots` (`assetRoots`). Remote URLs
+ *  and non-SVG images pass through untouched; a
  *  local `.svg` that resolves to no file warns and stays an `<img>`. The SVG
  *  is the author's own vault content, inserted raw exactly like inline HTML
  *  in markdown, so it is not sanitized. */
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { readFileSync } from 'fs';
 import { escapeAttr } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { svgRootOf, withSvgClass } from './svg-markup.mjs';
+import { assetPath, isRemoteUrl, resolveVaultAsset } from './vault-assets.mjs';
 
-// A local `.svg` url → absolute file, first hit wins. `false` means "not ours
-// to inline" (remote, non-svg); `null` means "should exist but doesn't" so the
-// caller can warn.
-function resolveSvg(url, roots, noteDir) {
-  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(url)) return false;
-  const path = decodeURIComponent(url.split(/[?#]/)[0]);
-  if (!path.toLowerCase().endsWith('.svg')) return false;
-  const rel = path.replace(/^\/+/, '');
-  if (!rel) return false;
-  const candidates = [
-    ...(noteDir && !path.startsWith('/') ? [resolve(noteDir, path)] : []),
-    ...roots.map((root) => join(root, rel)),
-  ];
-  return candidates.find(existsSync) ?? null;
+// A local `.svg` url → absolute file. `false` means "not ours to inline"
+// (remote, non-svg); `null` means "should exist but doesn't" so the caller
+// can warn.
+function resolveSvg(url, roots, fromFile) {
+  if (isRemoteUrl(url)) return false;
+  const path = assetPath(url);
+  if (!path.toLowerCase().endsWith('.svg') || !path.replace(/^\/+/, '')) return false;
+  return resolveVaultAsset(url, { fromFile, roots });
 }
 
 // Trim to the root <svg> tag (dropping BOM/XML prolog/doctype/comments) and
@@ -76,11 +70,10 @@ function renderBlock(svg, alt) {
 export function remarkInlineSvg({ roots = [] } = {}) {
   return (tree, file) => {
     const notePath = file?.path ?? file?.history?.[0];
-    const noteDir = notePath ? dirname(notePath) : undefined;
 
     // The decorated svg markup for an image node, or null to leave it alone.
     const inlineSvg = (image) => {
-      const svgFile = resolveSvg(image.url, roots, noteDir);
+      const svgFile = resolveSvg(image.url, roots, notePath);
       if (svgFile === false) return null;
       if (svgFile === null) {
         console.warn(`[teaman] svg image not found in vault: ${image.url}`);

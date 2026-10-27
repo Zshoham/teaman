@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { isAbsolute } from 'path';
+import { isAbsolute, join } from 'path';
 
-const VARS = ['TEAMAN_VAULT', 'TEAMAN_OUT', 'TEAMAN_PUBLIC', 'TEAMAN_BASE', 'SITE_BASE', 'TEAMAN_CONFIG', 'TEAMAN_VERSION'];
+const VARS = ['TEAMAN_VAULT', 'TEAMAN_OUT', 'TEAMAN_PUBLIC', 'TEAMAN_BASE', 'SITE_BASE', 'TEAMAN_CONFIG', 'TEAMAN_VERSION', 'TEAMAN_SLIDES_WORK'];
 
 // build-env reads the seam at module-eval time, so each case sets the env then
 // imports a fresh copy of the module.
@@ -76,5 +76,39 @@ describe('build-env', () => {
   it('reports the CLI\'s engine version, else the package version', async () => {
     expect((await load({ TEAMAN_VERSION: '9.9.9' })).engineVersion).toBe('9.9.9');
     expect((await load()).engineVersion).toMatch(/^\d+\.\d+\.\d+/);
+  });
+});
+
+describe('the env seam round trip', () => {
+  it('reads back what the CLI writes', async () => {
+    const { encodeBuildEnv, decodeBuildEnv } = await load();
+    const settings = {
+      vaultDir: '/tmp/vault',
+      config: { title: 'Team', base: '/docs/' },
+      version: '9.9.9',
+      outDir: '/tmp/out',
+      siteBase: 'docs',
+      publicDir: '/tmp/staged',
+      slidesWorkDir: '/tmp/work/slides',
+    };
+    const seam = decodeBuildEnv(encodeBuildEnv(settings), '/engine');
+    expect(seam).toMatchObject({
+      vaultDir: '/tmp/vault',
+      outDir: '/tmp/out',
+      publicDir: '/tmp/staged',
+      siteBase: '/docs/',
+      engineVersion: '9.9.9',
+      slidesWorkDir: '/tmp/work/slides',
+    });
+    expect(seam.siteConfig.title).toBe('Team');
+  });
+
+  it('leaves unset what the CLI does not give, so a stage falls back', async () => {
+    const { encodeBuildEnv, decodeBuildEnv, engineDir } = await load();
+    const env = encodeBuildEnv({ vaultDir: '/tmp/vault', config: {} });
+    expect(Object.keys(env).sort()).toEqual(['TEAMAN_CONFIG', 'TEAMAN_VAULT']);
+    const seam = decodeBuildEnv(env);
+    expect(posix(seam.outDir)).toBe(posix(join(engineDir, 'public')));
+    expect(posix(seam.slidesWorkDir)).toBe(posix(join(engineDir, '.slides-build')));
   });
 });

@@ -348,13 +348,19 @@ describe('sync-confluence svg images', () => {
     ]);
   });
 
-  it('leaves non-svg images on the plain note-relative rule', () => {
+  it('resolves other images the way the site does too', () => {
     mkdirSync(join(vault, 'attachments'));
     writeFileSync(join(vault, 'attachments', 'photo.png'), 'png bytes');
 
     const { images } = markdownToStorage('![photo](attachments/photo.png)', { filePath: notePath, contentDir: vault, svgMacro: 'html' });
 
-    expect(images).toEqual([{ absolutePath: join(vault, 'notes', 'attachments', 'photo.png'), filename: 'photo.png' }]);
+    expect(images).toEqual([{ absolutePath: join(vault, 'attachments', 'photo.png'), filename: 'photo.png' }]);
+  });
+
+  it('keeps the note-relative guess for an image nothing matches, so the upload warns', () => {
+    const { images } = markdownToStorage('![gone](gone.png)', { filePath: notePath, contentDir: vault });
+
+    expect(images).toEqual([{ absolutePath: join(vault, 'notes', 'gone.png'), filename: 'gone.png' }]);
   });
 });
 

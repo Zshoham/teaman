@@ -10,6 +10,10 @@ export interface VaultEntry {
   kind: 'file' | 'folder';
   /** Site URL, base included. */
   href: string;
+  /** A reference's: the reference's entry id. */
+  reference?: string;
+  /** A reference book chapter's: its anchor in the book's page and PDF. */
+  anchor?: string;
 }
 
 export interface WikiLinkResolution {

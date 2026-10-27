@@ -3,6 +3,7 @@ import { assertCoversTypes, collectionFor } from './collections.mjs';
 import { discoverDecisions } from './discover-decisions.mjs';
 import { discoverDecks } from './discover-decks.mjs';
 import { readEntryFile, readEntryFiles } from './entry-files.mjs';
+import { entryId } from './entry-identity.mjs';
 import { toPosix } from './fs-walk.mjs';
 import { isPublished } from './publication.mjs';
 import { discoverReferenceDocuments } from './reference-documents.mjs';
@@ -52,28 +53,27 @@ import { isSummaryFile, readBook } from './books.mjs';
  * serve in `missing` / `invalid`. Spelled exactly `SUMMARY.md`, as the
  * `guideSummaries` collection globs for it.
  *
+ * Each chapter is the guides collection's file, read once: its `id` is the
+ * collection entry's, and its `slug` — its id within the guide — is its URL
+ * segment (`entryId` of its path in the guide, so `intro/index.md` is
+ * `intro`, and a top-level `index.md` is `index`, not the guide's own id).
+ *
  * @param {string} guidesRoot
  * @param {CatalogFile[]} files  every Markdown file under it
  */
 function discoverGuides(guidesRoot, files) {
   const byPath = new Map(files.map(file => [file.sourcePath, file]));
+  const read = path => byPath.get(path) ?? readEntryFile('guide', guidesRoot, path);
   return files.filter(file => isSummaryFile(file.sourcePath, { caseSensitive: true })).map(record => {
     const id = record.id.replace(/\/summary$/, '');
     if (record.error) return { ...record, id, dir: dirname(record.sourcePath), chapters: [], missing: [], invalid: [] };
     // Guides have always accepted `/chapter.md` for a chapter in their folder.
-    const { dir, chapters, missing, invalid } = readBook(record.sourcePath, { rootRelative: true });
+    const { dir, chapters, missing, invalid } = readBook(record.sourcePath, { rootRelative: true, read });
     return {
       ...record,
       id,
       dir,
-      chapters: chapters.map(chapter => ({
-        ...chapter,
-        relPath: toPosix(relative(guidesRoot, chapter.sourcePath)),
-        // Read by the spelling SUMMARY.md uses when the walk found the file
-        // under another (`Intro.md` for `intro.md` on a case-insensitive
-        // filesystem), so a drafted chapter stays drafted.
-        data: (byPath.get(chapter.sourcePath) ?? readEntryFile('guide', guidesRoot, chapter.sourcePath)).data,
-      })),
+      chapters: chapters.map(chapter => ({ ...chapter, slug: entryId('guide', chapter.path) })),
       missing,
       invalid,
     };
@@ -109,18 +109,20 @@ const DISCOVER = {
 };
 assertCoversTypes(DISCOVER, 'the vault catalog\'s discovery');
 
-/** The one place a record's `published` flag is set. */
+/**
+ * The one place a record's `published` flag is set. A book's chapters (a
+ * guide's, a reference book's) were judged one by one as it was read
+ * (`readBook`); a drafted SUMMARY.md hides them all.
+ */
 function withPublication(type, record) {
   const published = !record.error && isPublished({ data: record.data, relPath: record.relPath });
-  if (type !== 'guide') return { ...record, type, published };
-  // A guide's chapters are drafted one by one; a drafted SUMMARY.md hides
-  // them all.
-  const chapters = record.chapters.map(chapter => ({
-    ...chapter,
-    published: published && isPublished({ data: chapter.data, relPath: chapter.relPath }),
-  }));
+  if (!isBook(record)) return { ...record, type, published };
+  const chapters = record.chapters.map(chapter => ({ ...chapter, published: published && chapter.published }));
   return { ...record, type, published, chapters };
 }
+
+/** @param {{ type?: string, kind?: string }} record */
+const isBook = record => record.type === 'guide' || record.kind === 'book';
 
 /**
  * Open the catalog of `vaultDir`. Each type is discovered the first time it is
@@ -158,13 +160,13 @@ export function openVaultCatalog(vaultDir) {
   function all(type) {
     if (!found.has(type)) {
       const records = DISCOVER[type](rootOf(type), () => files(type));
-      found.set(type, records.map(record => withPublication(type, record)));
+      found.set(type, records.map(record => withPublication(type, { ...record, type })));
     }
     return found.get(type);
   }
 
   /**
-   * What the site publishes of `type`. A guide keeps only its published
+   * What the site publishes of `type`. A book keeps only its published
    * chapters.
    *
    * @param {EntryType} type
@@ -172,10 +174,9 @@ export function openVaultCatalog(vaultDir) {
    */
   function published(type) {
     if (!visible.has(type)) {
-      const records = all(type).filter(record => record.published);
-      visible.set(type, type === 'guide'
-        ? records.map(guide => ({ ...guide, chapters: guide.chapters.filter(chapter => chapter.published) }))
-        : records);
+      visible.set(type, all(type).filter(record => record.published).map(record => (isBook(record)
+        ? { ...record, chapters: record.chapters.filter(chapter => chapter.published) }
+        : record)));
     }
     return visible.get(type);
   }
@@ -190,9 +191,7 @@ export function openVaultCatalog(vaultDir) {
    */
   function isPublishedFile(path) {
     pageFiles ??= new Set(Object.keys(DISCOVER).flatMap(type => published(type).flatMap(record =>
-      type === 'guide' || record.kind === 'book'
-        ? record.chapters.map(chapter => chapter.sourcePath)
-        : [record.sourcePath])));
+      isBook(record) ? record.chapters.map(chapter => chapter.sourcePath) : [record.sourcePath])));
     return pageFiles.has(resolve(path));
   }
 

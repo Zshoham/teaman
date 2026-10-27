@@ -3,6 +3,7 @@ import { execFileSync } from 'child_process';
 import { join, extname, dirname } from 'path';
 import { createRequire } from 'module';
 import { renderVarsCss, renderLogoConfig, slidevBuildArgs, renderViteConfig, renderDeckEmbedsModule } from './slides-theme.mjs';
+import { collectionFor } from '../src/lib/collections.mjs';
 import { resolveLogoFile } from '../src/lib/vault-config.mjs';
 import { deckEmbedPlan } from '../src/lib/deck-embeds.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
@@ -57,7 +58,7 @@ export function stageSlidesWorkspace({ catalog, workDir, engineDir, slidesConfig
   const problems = [];
   const warnings = [];
   rmSync(workDir, { recursive: true, force: true });
-  cpSync(join(vaultDir, 'slides'), workDir, { recursive: true });
+  cpSync(join(vaultDir, collectionFor('slides').dir), workDir, { recursive: true });
 
   // Slidev merges a vite.config found in the deck's directory; preserve the
   // shared output tree and mute harmless INVALID_ANNOTATION noise (see
@@ -153,15 +154,15 @@ export function buildSlides({
 }
 
 if (import.meta.main) {
-  const { engineDir, outDir, siteConfig, vaultDir } = await import('../src/lib/build-env.mjs');
-  if (!existsSync(join(vaultDir, 'slides'))) {
+  const { engineDir, outDir, siteConfig, slidesWorkDir, vaultDir } = await import('../src/lib/build-env.mjs');
+  if (!existsSync(join(vaultDir, collectionFor('slides').dir))) {
     console.log('No slides directory, skipping.');
   } else {
     try {
       buildSlides({
         catalog: openVaultCatalog(vaultDir),
         outDir,
-        workDir: process.env.TEAMAN_SLIDES_WORK ?? join(engineDir, '.slides-build'),
+        workDir: slidesWorkDir,
         engineDir,
         slidesConfig: siteConfig.slides ?? {},
       });

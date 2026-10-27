@@ -3,14 +3,9 @@ import { extname, join, relative } from 'node:path';
 import { parseSync } from '@slidev/parser/core';
 import { entryId } from './entry-identity.mjs';
 import { parseFrontmatter, yamlError } from './entry-files.mjs';
+import { normalizeFrontmatter } from './frontmatter-schemas.mjs';
 import { toPosix } from './fs-walk.mjs';
 import { isPublishedPath } from './publication.mjs';
-
-/** `tags: a, b` and `tags: [a, b]` both mean two tags, as in the collection schema. */
-function tagList(value) {
-  if (typeof value === 'string') return value.split(',').map(tag => tag.trim()).filter(Boolean);
-  return Array.isArray(value) ? value.map(String) : [];
-}
 
 /**
  * Every Slidev deck under `slidesRoot`, parsed once with Slidev's own parser.
@@ -46,17 +41,19 @@ export function discoverDecks(slidesRoot) {
       if (!entry.isFile() || extname(entry.name) !== '.md') continue;
       const markdown = readFileSync(path, 'utf8');
       const relPath = toPosix(rel);
-      let data;
+      let parsed;
       try {
-        ({ data } = parseFrontmatter(markdown));
+        parsed = parseFrontmatter(markdown);
       } catch (error) {
         const id = entryId('slides', rel);
         decks.push({
-          id, sourcePath: path, relPath, markdown, data: {},
+          id, sourcePath: path, relPath, markdown, data: {}, issues: [],
           title: id, tags: [], slideCount: 1, text: '', error: yamlError(error),
         });
         continue;
       }
+      // As the slides collection's schema reads it (`tags: a, b` is a list).
+      const { data, issues } = normalizeFrontmatter('deck', parsed.data);
       const id = entryId('slides', rel, data);
       const { slides } = parseSync(markdown, path);
       decks.push({
@@ -66,8 +63,9 @@ export function discoverDecks(slidesRoot) {
         relPath,
         markdown,
         data,
+        issues,
         title: typeof data.title === 'string' && data.title ? data.title : id.replace(/-/g, ' '),
-        tags: tagList(data.tags),
+        tags: Array.isArray(data.tags) ? data.tags : [],
         slideCount: Math.max(1, slides.length),
         // What a reader sees: every slide's content, without per-slide
         // frontmatter, separators, or presenter notes.

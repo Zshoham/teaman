@@ -1,5 +1,27 @@
 import type { EntryType } from './collections.mjs';
 
+/** One chapter of a book (a guide, a reference book), in SUMMARY order. */
+export interface BookChapter {
+  /** Relative to the book's directory, `/`-separated, spelled as on disk. */
+  path: string;
+  title: string;
+  depth: number;
+  /** Absolute file. */
+  sourcePath: string;
+  /** Entry id of the chapter's file in its type's collection. */
+  id: string;
+  /** A guide chapter's id within the guide: its URL segment. */
+  slug?: string;
+  /** A reference book chapter's anchor in the assembled page (published chapters). */
+  anchor?: string;
+  data: Record<string, unknown>;
+  body: string;
+  /** The publish rule, applied to the chapter and to its book. */
+  published: boolean;
+  /** Why its frontmatter cannot be read. Never published. */
+  error?: string;
+}
+
 export interface CatalogRecord {
   type: EntryType;
   /** Entry id; a guide's is its slug, a reference book's its directory's. */
@@ -13,6 +35,10 @@ export interface CatalogRecord {
   published: boolean;
   /** Why the file cannot become an entry. Never published. */
   error?: string;
+  /** What the record's schema rejects in its frontmatter (files read as entries). */
+  issues?: string[];
+  /** A guide's or a reference book's chapters. */
+  chapters?: BookChapter[];
   /** Per-type discovery fields (deck text, ADR number, book chapters, …). */
   [field: string]: unknown;
 }
@@ -24,6 +50,8 @@ export interface CatalogFile {
   relPath: string;
   data: Record<string, unknown>;
   body: string;
+  /** What its schema rejects in its frontmatter. */
+  issues: string[];
   /** Why its frontmatter cannot be read. */
   error?: string;
 }

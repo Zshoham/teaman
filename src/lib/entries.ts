@@ -143,7 +143,7 @@ export async function loadGuideEntries(): Promise<Entry[]> {
     let created = summaryDates.created;
 
     for (const chapter of g.chapters) {
-      const entry = chaptersById.get(`${g.slug}/${chapter.slug}`);
+      const entry = chaptersById.get(chapter.entryId);
       if (!entry) continue;
       const body = entry.body ?? '';
       if (!excerpt) excerpt = extractExcerpt(body);

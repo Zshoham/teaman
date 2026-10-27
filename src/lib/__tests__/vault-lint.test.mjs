@@ -126,6 +126,24 @@ describe('lintVault', () => {
     ]);
   });
 
+  it('reports unreadable reference frontmatter by file rather than crashing', () => {
+    write('references/broken.md', '---\ntitle: [unclosed\n---\n# Broken\n');
+    write('references/book/SUMMARY.md', '- [One](one.md)\n');
+    write('references/book/one.md', '---\ntitle: [unclosed\n---\n');
+    const { problems } = lintVault(vault);
+    expect(problems).toEqual([
+      expect.stringMatching(/^references: book\/one\.md: frontmatter is not valid YAML/),
+      expect.stringMatching(/^references: broken\.md: frontmatter is not valid YAML/),
+    ]);
+  });
+
+  it('accepts a reference whose title is valueless, as the build does', () => {
+    write('references/r.md', '---\ntitle:\ntags: a, b\n---\n# R\n');
+    write('references/book/SUMMARY.md', '---\ntitle:\ntags: a, b\n---\n- [One](one.md)\n');
+    write('references/book/one.md', '# One\n');
+    expect(lintVault(vault)).toEqual({ problems: [], warnings: [] });
+  });
+
   it('skips dot-prefixed folders, which no collection sees', () => {
     write('guides/.wip/SUMMARY.md', '- [Gone](gone.md)\n');
     write('notes/.archive/old.md', '---\ntitle: [unclosed\n---\n[[nowhere]]\n');

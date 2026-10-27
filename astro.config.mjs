@@ -17,7 +17,8 @@ import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
 import { rehypeReferenceSections } from './src/lib/rehype-reference-sections.mjs';
 import { excalidrawAssets } from './src/lib/excalidraw-assets.mjs';
 import { htmlEmbeds } from './src/lib/html-embeds.mjs';
-import { enginePublicDir } from './src/lib/vault-config.mjs';
+import { collectionFor } from './src/lib/collections.mjs';
+import { assetRoots } from './src/lib/vault-assets.mjs';
 import {
   engineDir,
   outDir,
@@ -29,18 +30,10 @@ import {
 
 import react from '@astrojs/react';
 
-// Where remark-inline-svg finds the files behind `![alt](diagram.svg)`.
-// Obsidian keeps attachments anywhere in the vault, so the whole vault root is
-// searched (the plugin also tries the note's own directory for relative URLs),
-// plus the public-asset roots for site-root-style `/images/x.svg` references.
-// De-duplicated because `publicDir` already *is* the engine's public assets
-// when the CLI didn't stage one.
-const svgRoots = [...new Set([
-  vaultDir,
-  publicDir,
-  join(vaultDir, 'public'),
-  enginePublicDir(engineDir),
-])];
+// Where remark-inline-svg finds the files behind `![alt](diagram.svg)` after
+// the note's own directory: the vault root, then the public-asset roots for
+// site-root-style `/images/x.svg` references — as every renderer does.
+const svgRoots = assetRoots(vaultDir, { engineDir, publicDir });
 
 // Smart-link host overrides (`config.smartLinks`) for self-hosted GitLab / Jira
 // Data Center; absent just means the built-in hosts.
@@ -115,7 +108,7 @@ export default defineConfig({
         // Last: heading ids and permalinks are already in place, so wrapping
         // chapters cannot disturb them. References only — see the plugin for
         // why containment is applied per chapter rather than per block.
-        [rehypeReferenceSections, { referencesRoot: join(vaultDir, 'references') }],
+        [rehypeReferenceSections, { referencesRoot: join(vaultDir, collectionFor('reference').dir) }],
       ],
     }),
   },

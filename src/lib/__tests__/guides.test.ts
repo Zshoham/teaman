@@ -40,8 +40,8 @@ const sampleGuide: Guide = {
   slug: 'my-guide',
   title: 'My Guide',
   chapters: [
-    { slug: 'intro', title: 'Introduction' },
-    { slug: 'chapter-2', title: 'Chapter Two' },
+    { slug: 'intro', entryId: 'my-guide/intro', title: 'Introduction' },
+    { slug: 'chapter-2', entryId: 'my-guide/chapter-2', title: 'Chapter Two' },
   ],
   problems: [],
 };
@@ -119,7 +119,10 @@ describe('listGuides', () => {
     });
     const guides = await listGuides(dir);
     expect(guides.map(g => [g.slug, g.title])).toEqual([['alpha', 'Alpha Guide'], ['zebra', 'Zebra Guide']]);
-    expect(guides[0].chapters).toEqual([{ slug: 'part-two', title: 'Two' }, { slug: 'one', title: 'One' }]);
+    expect(guides[0].chapters).toEqual([
+      { slug: 'part-two', entryId: 'alpha/part-two', title: 'Two' },
+      { slug: 'one', entryId: 'alpha/one', title: 'One' },
+    ]);
     expect(guides[0].problems).toEqual([]);
   });
 

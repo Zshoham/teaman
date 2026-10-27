@@ -104,9 +104,11 @@ falls back to the bundled `example/` → `public/` when they are unset** — whi
 exactly why the plain package scripts and the test suite work in place.
 
 `src/lib/build-env.mjs` resolves that seam **once** and is the only module that
-reads these vars. Import `vaultDir` / `outDir` / `publicDir` / `siteBase` /
-`siteConfig` / `engineVersion` / `engineDir` from it — never reach for `process.env` again, and
-never hardcode a path:
+names these vars, on both sides: the CLI writes them with `encodeBuildEnv`, and
+`decodeBuildEnv` reads them back (with the fallbacks) — a round-trip test holds
+the two together. Import `vaultDir` / `outDir` / `publicDir` / `siteBase` /
+`siteConfig` / `engineVersion` / `slidesWorkDir` / `engineDir` from it — never
+reach for `process.env` again, and never hardcode a path:
 
 | Env var | Meaning | Exported by `build-env.mjs` as |
 |---|---|---|
@@ -115,9 +117,7 @@ never hardcode a path:
 | `TEAMAN_BASE` | base URL path | `siteBase`, already `normalizeBase`d (also legacy `SITE_BASE`) |
 | `TEAMAN_CONFIG` | the vault config, serialized to JSON | `siteConfig`, already merged over `DEFAULT_CONFIG` |
 | `TEAMAN_PUBLIC` | staged static dir | `publicDir` (→ `astro.config.mjs` `publicDir`) |
-
-The one exception is `TEAMAN_SLIDES_WORK` (Slidev work dir), read directly by
-`scripts/build-slides.mjs`, which falls back to `<engine>/.slides-build/`.
+| `TEAMAN_SLIDES_WORK` | Slidev work dir | `slidesWorkDir` (falls back to `<engine>/.slides-build/`) |
 
 The staged static dir is the engine's `resources/public/` (the default
 `teacup.svg` logo) plus the vault's `public/`, and with no CLI it is
@@ -198,7 +198,12 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   Confluence. The vault index,
   search, reference PDFs, deck build, Confluence sync, and `doctor` all read
   it; never filter drafts by hand. Frontmatter schemas are one per file kind
-  in `frontmatter-schemas.mjs`, shared by `content.config.ts` and `doctor`.
+  in `frontmatter-schemas.mjs`, shared by `content.config.ts` and the
+  catalog: `entry-files.mjs` reads every file uncached (gray-matter's cache
+  hides broken YAML) and normalizes its frontmatter with its schema
+  (`normalizeFrontmatter`: `tags: a, b` is a list, a quoted date a Date),
+  keeping what the schema rejects in `issues`, which `doctor` reports — so
+  catalog readers see the frontmatter the site sees and never re-coerce it.
 - `discoverDecks` (`discover-decks.mjs`) parses each deck once with
   `@slidev/parser`: id, title, tags, slide count, and visible text. It
   returns drafts too (the slides collection stores them for `getPublished` to
@@ -211,12 +216,17 @@ digest skipping, dev watching), fed by `discoverReferenceDocuments` and
   chapters. So is a multi-file reference (`references/<slug>/SUMMARY.md`).
   `src/lib/books.mjs` owns books: `parseSummary` (the mdBook chapter list),
   `readBook` (which listed chapters exist, inside the directory, once each —
-  the rest in `missing`/`invalid`), and `bookProblems` (what keeps a book
+  the rest in `missing`/`invalid` — each read through the caller's
+  `readEntryFile` and judged by the publish rule, the same for a guide's
+  chapters and a reference book's), and `bookProblems` (what keeps a book
   from building). Reference discovery, the catalog's guides, the reference
-  loader, the PDF build, the guide pages, and `doctor` all read it. The
-  site's guide list (`listGuides`, `guides.ts`) is the catalog's published
-  guides, so it matches the wiki-link index and Confluence; the guide route
-  fails the build on a guide's `problems`.
+  loader, the PDF build, the guide pages, and `doctor` all read it. A
+  catalog guide chapter carries its `guides` collection `id` and its `slug`
+  (URL segment within the guide): join chapters to collection entries by
+  `id`, never by rebuilding `<guide>/<slug>` (a chapter `index.md` breaks
+  that). The site's guide list (`listGuides`, `guides.ts`) is the catalog's
+  published guides, so it matches the wiki-link index and Confluence; the
+  guide route fails the build on a guide's `problems`.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
 - `references/*.md` are standalone long-form documents with a dedicated reader
@@ -268,8 +278,10 @@ Adding a kind is a row there plus its adapters.
 
 The Markdown pipeline (`astro.config.mjs`) also runs `remarkStripLeadingH1` (pages
 render the title themselves),
-`remarkInlineSvg` (inlines local `.svg` markdown images — resolved note-relative,
-then vault root, then public roots — as theme-reactive inline svg; standalone
+`remarkInlineSvg` (inlines local `.svg` markdown images — resolved by
+`vault-assets.mjs` `resolveVaultAsset`, the one image lookup the PDF and
+Confluence also use: note-relative, then vault root, then `assetRoots`'
+public roots — as theme-reactive inline svg; standalone
 images become a `<figure>` with the alt as caption), `remarkDiagramFences`
 (`remark-fence-svg.mjs`: client kinds — ` ```mermaid ` / ` ```plantuml ` — become
 `<pre class="mermaid">` / `<pre class="plantuml">` so Shiki skips them and
@@ -320,8 +332,17 @@ with a fake for that dependency.
 2. `scripts/build-references.mjs` → converts publishable Markdown under
    `<vault>/references/` to Typst, applies `resources/reference-template.typ`,
    and writes `<out>/references/<slug>/reference.pdf` using the bundled native
-   compiler. Local images stay inside the vault workspace; unresolved/remote
-   images become labelled placeholders rather than breaking the PDF. The
+   compiler. Local images resolve as on the site (`resolveVaultAsset`) and
+   must stay inside the vault workspace; unresolved/remote images (and the
+   engine's own public assets) become labelled placeholders rather than
+   breaking the PDF. A reference book's layout — its chapters joined
+   (`assembleReferenceBook`), each chapter's anchor, its heading and raw-HTML
+   ids, and where a link between chapter files lands — is
+   `src/lib/reference-book.mjs` (`layoutReferenceBook`); the site's
+   `remarkReferenceBooks` and the PDF's `renderReferenceTypst` each read
+   heading texts and HTML ids from their own syntax tree and take every
+   identifier from it, and `__tests__/reference-book.test.mjs` runs one book
+   through both. The
    template's callouts come from **showybox** and its code blocks from **codly**;
    both are vendored under `resources/typst-packages/` and mounted as compiler
    shadow files by `src/lib/typst-packages.mjs` (imported as
@@ -339,7 +360,7 @@ with a fake for that dependency.
    the search records, so the cards, the built decks, and the index always
    agree): every subdirectory, minus `_` paths and `draft: true` decks; nested
    decks (e.g. `nested/deck`) build to `<out>/slides/nested/deck/`. Decks are
-   copied into the work dir first — the CLI-provided `TEAMAN_SLIDES_WORK` temp
+   copied into the work dir first — the CLI-provided `slidesWorkDir` temp
    dir, falling back to `<engine>/.slides-build/` only when that env var is
    unset (plain `bun run build:slides`) — because Slidev resolves themes relative to
    the deck file and needs to walk up to the engine's `node_modules`. Every
@@ -363,6 +384,14 @@ with a fake for that dependency.
 4. `scripts/build-search.mjs` → Pagefind index over built HTML (excluding the Slidev
    SPAs, whose bodies are JS-rendered) plus custom records for each deck (the
    catalog's `text`) and each ADR (`adrSearchText`).
+
+`teaman sync-confluence` (`scripts/sync-confluence.mjs`) is shaped like a
+stage: `syncVault({ catalog, client, folders, roots, … })` syncs what the
+catalog publishes and returns the operations it made. The client is
+`scripts/confluence-client.mjs`: `createConfluenceClient` (REST, `fetch`
+injected), or `planningClient` around it for the dry run — reads go through,
+writes only pretend — so a dry run walks the same code as `--apply`, and
+`scripts/__tests__/sync-vault.test.mjs` drives it with an in-memory instance.
 
 ### Frontend
 

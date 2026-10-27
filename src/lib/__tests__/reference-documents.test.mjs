@@ -3,11 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  discoverReferenceDocuments,
-  prepareReferenceChapter,
-  referenceChapterAnchor,
-} from '../reference-documents.mjs';
+import { discoverReferenceDocuments } from '../reference-documents.mjs';
 
 const roots = [];
 afterEach(() => {
@@ -28,6 +24,21 @@ describe('reference document discovery', () => {
     writeFileSync(join(root, 'book', 'chapter.md'), '# Chapter\n');
     const [book] = discoverReferenceDocuments(root);
     expect(book.data.title).toBe('Real title');
+  });
+
+  // The fallback is filled in before the schema runs: a null title must not
+  // turn the rest of the frontmatter back into what was written.
+  it('normalizes frontmatter whose title is valueless, for a standalone reference and a book', () => {
+    const root = fixture();
+    mkdirSync(join(root, 'book'));
+    writeFileSync(join(root, 'standalone.md'), '---\ntitle:\ntags: a, b\n---\n# Standalone\n');
+    writeFileSync(join(root, 'book', 'SUMMARY.md'), '---\ntitle:\ntags: a, b\n---\n# Book\n\n- [One](one.md)\n');
+    writeFileSync(join(root, 'book', 'one.md'), '# One\n');
+    for (const document of discoverReferenceDocuments(root)) {
+      expect(document.issues, document.id).toEqual([]);
+      expect(document.data.tags, document.id).toEqual(['a', 'b']);
+      expect(document.data.title, document.id).toBe(document.title);
+    }
   });
 
   it('names references with the site entry id', () => {
@@ -126,88 +137,5 @@ describe('reference document discovery', () => {
     const [book] = discoverReferenceDocuments(root);
     expect(book.chapters.map(chapter => chapter.anchor)).toEqual(['foo-bar', 'foo-bar--2']);
     expect(new Set(book.chapters.map(chapter => chapter.anchor)).size).toBe(2);
-  });
-});
-
-describe('reference chapter preparation', () => {
-  it('does not reinterpret headings or rule labels inside fenced code', () => {
-    const body = prepareReferenceChapter([
-      '# Chapter',
-      '```text,ignore',
-      '# code heading',
-      'r[not.an.anchor]',
-      '```',
-    ].join('\n'), { path: 'nested/chapter.md', title: 'Chapter', depth: 1 });
-
-    expect(referenceChapterAnchor('nested/chapter.md')).toBe('nested--chapter');
-    expect(body).toContain('### Chapter');
-    expect(body).toContain('```text\n# code heading\nr[not.an.anchor]\n```');
-    expect(body).not.toContain('r-not.an.anchor');
-  });
-
-  it('demotes a setext title instead of adding a second one', () => {
-    const body = prepareReferenceChapter([
-      'Chapter',
-      '=======',
-      '',
-      'Body.',
-      '',
-      'Not a heading',
-      '',
-      '=== still not a heading',
-    ].join('\n'), { path: 'chapter.md', title: 'Chapter' });
-
-    expect(body).toContain('## Chapter');
-    expect(body).not.toContain('=======');
-    expect(body.match(/^## Chapter$/gm)).toHaveLength(1);
-    expect(body).toContain('=== still not a heading');
-  });
-
-  it('demotes level-two setext sections along with their chapter', () => {
-    const body = prepareReferenceChapter([
-      '# Chapter',
-      '',
-      'Section',
-      '-------',
-      '',
-      'Body.',
-    ].join('\n'), { path: 'chapter.md', title: 'Chapter', depth: 1 });
-
-    expect(body).toContain('### Chapter');
-    expect(body).toContain('#### Section');
-    expect(body).not.toContain('-------');
-  });
-
-  it('emits link targets for productions in generic grammar fences', () => {
-    const body = prepareReferenceChapter([
-      '# Syntax',
-      '',
-      '```grammar',
-      '@root Document -> Block*',
-      '',
-      'Block -> `text`',
-      '```',
-    ].join('\n'), { path: 'syntax.md', title: 'Syntax' });
-
-    expect(body).toContain('<a id="grammar-Document"');
-    expect(body).toContain('<a id="grammar-Block"');
-    expect(body).toContain('```text\n@root Document -> Block*');
-    expect(body.indexOf('grammar-Document')).toBeLessThan(body.indexOf('```text'));
-  });
-
-  it('normalizes mdBook test annotations on blockquoted Rust fences', () => {
-    const body = prepareReferenceChapter([
-      '# Chapter',
-      '> ```rust,edition2024,compile_fail',
-      '> let type = 1;',
-      '> ```',
-      '',
-      '  ```compile_fail',
-      '  let type = 1;',
-      '  ```',
-    ].join('\n'), { path: 'chapter.md', title: 'Chapter' });
-
-    expect(body).toContain('> ```rust\n> let type = 1;');
-    expect(body).toContain('  ```rust\n  let type = 1;');
   });
 });

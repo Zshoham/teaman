@@ -93,18 +93,37 @@ export const FRONTMATTER_SCHEMAS = {
 };
 
 /**
- * Validate one file's frontmatter. Returns one line per problem, e.g.
- * `status: must be one of accepted | proposed | superseded`; empty when valid.
+ * One file's frontmatter as the site sees it. Valid data comes back with the
+ * schema's coercions applied (`tags: a, b` as a list, a quoted `date` as a
+ * Date) over the keys the schema does not know, which pass through untouched
+ * (`slug`, Slidev's own); invalid data comes back as written, with one line
+ * per problem in `issues`, e.g. `status: must be one of accepted | proposed |
+ * superseded`.
+ *
+ * @param {keyof typeof FRONTMATTER_SCHEMAS} kind
+ * @param {Record<string, unknown> | null | undefined} data
+ * @returns {{ data: Record<string, unknown>, issues: string[] }}
+ */
+export function normalizeFrontmatter(kind, data) {
+  const raw = data ?? {};
+  const result = FRONTMATTER_SCHEMAS[kind].safeParse(raw);
+  if (result.success) return { data: { ...raw, ...result.data }, issues: [] };
+  return {
+    data: raw,
+    issues: result.error.issues.map(issue => {
+      const field = issue.path.join('.');
+      return field ? `${field}: ${issue.message}` : issue.message;
+    }),
+  };
+}
+
+/**
+ * Validate one file's frontmatter: `normalizeFrontmatter`'s `issues`.
  *
  * @param {keyof typeof FRONTMATTER_SCHEMAS} kind
  * @param {unknown} data
  * @returns {string[]}
  */
 export function frontmatterProblems(kind, data) {
-  const result = FRONTMATTER_SCHEMAS[kind].safeParse(data ?? {});
-  if (result.success) return [];
-  return result.error.issues.map(issue => {
-    const field = issue.path.join('.');
-    return field ? `${field}: ${issue.message}` : issue.message;
-  });
+  return normalizeFrontmatter(kind, /** @type {Record<string, unknown>} */ (data)).issues;
 }

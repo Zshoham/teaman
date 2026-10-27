@@ -225,9 +225,9 @@ the essentials are `--content-dir <vault>`, `--base-url`, credentials
 (`--user`/`--token` or `--pat`), and `--roots folder=pageId,…` (content
 folders only — `notes`, `guides`, …). Each can also come from a `CONFLUENCE_*`
 env var. It syncs exactly what the site publishes: drafts, `_`-prefixed
-paths, and `SUMMARY.md` indexes stay behind. Local `.svg` images resolve the same way
+paths, and `SUMMARY.md` indexes stay behind. Local images resolve the same way
 the site build does (note's directory, then the vault root, then `public/`)
-and upload as attachments; since Confluence Server/DC won't preview those
+and upload as attachments; since Confluence Server/DC won't preview `.svg` ones
 inline, `--svg-macro <name>` (e.g. the stock `html` macro) inlines the svg
 markup into that macro instead. ` ```tikz `/` ```typst ` fences compile to
 svg during the sync (sharing the site build's diagram cache) and then sync

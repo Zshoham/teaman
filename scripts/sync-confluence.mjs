@@ -1,17 +1,19 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve, sep } from 'path';
 import { parseArgs as parseCliArgs } from 'util';
-import { fileURLToPath } from 'url';
 
-import matter from 'gray-matter';
 import MarkdownIt from 'markdown-it';
 
+import { createConfluenceClient, planningClient } from './confluence-client.mjs';
+import { engineDir, vaultDir as defaultContentDir } from '../src/lib/build-env.mjs';
 import { renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
 import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from '../src/lib/diagram-kinds.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
+import { parseFrontmatter } from '../src/lib/entry-files.mjs';
 import { walkMarkdown } from '../src/lib/fs-walk.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
+import { assetPath, assetRoots, resolveVaultAsset } from '../src/lib/vault-assets.mjs';
 import {
   compileDiagramFences,
   diagramKey,
@@ -21,9 +23,6 @@ import {
   isImageEmbed,
   obsidianDialect,
 } from '../src/lib/obsidian-markdown.mjs';
-
-const engineDir = fileURLToPath(new URL('..', import.meta.url));
-const defaultContentDir = join(engineDir, 'example');
 
 // Same cache the site build uses (astro.config.mjs), so a vault that has been
 // built locally never recompiles a diagram just to sync it.
@@ -86,9 +85,10 @@ Markdown support:
   Confluence task lists. Local images — markdown \`![alt](path)\` or Obsidian
   embeds \`![[image.png]]\` — are uploaded as page attachments; images with a
   URL scheme (http, https, data, ...) link out instead of uploading. Local
-  \`.svg\` images resolve the way the site build does — against the note's own
-  directory, then the vault root, then \`<vault>/public\` — and upload as
-  attachments by default; pass --svg-macro to inline their markup instead.
+  images resolve the way the site build does — against the note's own
+  directory, then the vault root, then the public assets — and \`.svg\` ones
+  upload as attachments by default; pass --svg-macro to inline their markup
+  instead.
   \`\`\`tikz and \`\`\`typst fences compile to svg during the sync (sharing the
   site build's diagram cache) and then sync like local .svg images; a fence
   that fails to compile syncs as a labeled source block.
@@ -202,7 +202,7 @@ function folderPages(catalog, folder) {
 }
 
 function pageTitle(markdown, filePath) {
-  const parsed = matter(markdown);
+  const parsed = parseFrontmatter(markdown);
   const title = frontmatterTitle(parsed.data) ?? firstHeading(parsed.content);
   return title ?? segmentTitle(basename(filePath, '.md'));
 }
@@ -244,7 +244,7 @@ function buildLinkTitles(contentDir, index = existsSync(contentDir) ? createVaul
 }
 
 function storageBody(markdown, title, context = {}) {
-  const parsed = matter(markdown);
+  const parsed = parseFrontmatter(markdown);
   return markdownToStorage(stripMatchingLeadingH1(parsed.content, title), context);
 }
 
@@ -434,7 +434,7 @@ markdownRenderer.renderer.rules.image = (tokens, idx, options, env) => {
   if (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//')) {
     return `<ac:image ac:alt="${alt}"><ri:url ri:value="${markdownRenderer.utils.escapeHtml(src)}" /></ac:image>`;
   }
-  return renderImageRef(decodePath(src), alt, env);
+  return renderImageRef(src, alt, env);
 };
 
 function decodePath(src) {
@@ -445,24 +445,14 @@ function decodePath(src) {
   }
 }
 
-// Local `.svg` images resolve the way the site build does (remark-inline-svg):
-// against the note's own directory first, then the vault root, then
-// `<vault>/public` — in an Obsidian vault attachments live anywhere, and the
-// site also accepts site-root-style `/images/x.svg` references. Other images
-// keep the plain note-relative rule. When no candidate exists, the
-// note-relative guess is returned so the upload step warns with a sensible
-// path instead of failing silently here.
+// Local images resolve as on the site and in the PDF (`resolveVaultAsset`):
+// the note's own directory, then the vault root, then the public roots. When
+// nothing matches, the note-relative guess is returned so the upload step
+// warns with a sensible path instead of failing silently here.
 function resolveImagePath(path, env) {
-  const noteDir = dirname(env.filePath);
-  const clean = path.split(/[?#]/)[0];
-  if (!clean.toLowerCase().endsWith('.svg')) return resolve(noteDir, path);
-
-  const rel = clean.replace(/^\/+/, '');
-  const candidates = [
-    ...(clean.startsWith('/') ? [] : [resolve(noteDir, clean)]),
-    ...(env.contentDir ? [join(env.contentDir, rel), join(env.contentDir, 'public', rel)] : []),
-  ];
-  return candidates.find(existsSync) ?? candidates[0] ?? resolve(noteDir, clean);
+  const roots = env.contentDir ? assetRoots(env.contentDir, { engineDir }) : [];
+  return resolveVaultAsset(path, { fromFile: env.filePath, roots })
+    ?? resolve(dirname(env.filePath), assetPath(path));
 }
 
 // The svg file's markup, trimmed to the root <svg> tag (dropping BOM/XML
@@ -481,7 +471,7 @@ function svgSource(absolutePath) {
 
 function renderImageRef(path, alt, env) {
   if (!env.filePath) {
-    return `<img src="${markdownRenderer.utils.escapeHtml(path)}" alt="${alt}" />`;
+    return `<img src="${markdownRenderer.utils.escapeHtml(decodePath(path))}" alt="${alt}" />`;
   }
   return renderImageFile(resolveImagePath(path, env), alt, env);
 }
@@ -618,7 +608,7 @@ markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:tas
 // compile maps to `{ error }` (renderCodeToken then falls back to the labeled
 // source block) with a console warning, like the site build's visible notice.
 async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compilers } = {}) {
-  return compileDiagramFences(markdownRenderer.parse(matter(markdown).content, {}), {
+  return compileDiagramFences(markdownRenderer.parse(parseFrontmatter(markdown).content, {}), {
     languages: BUILD_DIAGRAM_LANGUAGES,
     cacheDir,
     compilers,
@@ -669,277 +659,150 @@ function stripMatchingLeadingH1(markdown, title) {
   return lines.join('\n');
 }
 
-class ConfluenceClient {
-  constructor({ baseUrl, user, token, pat, timeoutMs }) {
-    this.baseUrl = baseUrl;
-    this.timeoutMs = timeoutMs;
-    this.auth = pat ? `Bearer ${pat}` : `Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`;
+/**
+ * @typedef {import('./confluence-client.mjs').ConfluenceClient} ConfluenceClient
+ * @typedef {import('./confluence-client.mjs').ConfluencePage} ConfluencePage
+ *
+ * One change a sync makes (or, through `planningClient`, would make). `file`
+ * is vault-relative.
+ * @typedef {{ action: 'create-folder', title: string, parent: string }
+ *   | { action: 'create-page', title: string, parent: string, file: string }
+ *   | { action: 'update-page', title: string, page: string, file: string }
+ *   | { action: 'create-attachment' | 'update-attachment', filename: string, page: string, file: string }} SyncOperation
+ */
+
+/** One line of the sync's log for an operation. */
+export function describeOperation(operation) {
+  switch (operation.action) {
+    case 'create-folder': return `create folder page "${operation.title}" under ${operation.parent}`;
+    case 'create-page': return `create page "${operation.title}" under ${operation.parent} from ${operation.file}`;
+    case 'update-page': return `update page "${operation.title}" (${operation.page}) from ${operation.file}`;
+    case 'create-attachment': return `upload attachment "${operation.filename}" (${operation.file}) to ${operation.page}`;
+    case 'update-attachment': return `update attachment "${operation.filename}" (${operation.file}) on ${operation.page}`;
+  }
+}
+
+/**
+ * Sync the pages the site publishes from each of `folders` under that
+ * folder's root page: a page per Markdown file, titled as `pageTitle` titles
+ * it, under a folder page per subdirectory, with its local images attached.
+ * A page or attachment that exists (by title, by filename) is updated.
+ *
+ * @param {object} options
+ * @param {import('../src/lib/vault-catalog.mjs').VaultCatalog} options.catalog
+ * @param {ConfluenceClient} options.client  `createConfluenceClient`, or
+ *   `planningClient` around it for a dry run
+ * @param {string[]} options.folders  content folders, each with a root
+ * @param {Record<string, string>} options.roots  folder → root page id
+ * @param {string} [options.space]  the space every root must be in
+ * @param {{ mermaid?: string | null, plantuml?: string | null, svg?: string | null }} [options.macros]
+ * @param {(operation: SyncOperation) => void} [options.onOperation]  called as
+ *   each operation is made
+ * @param {(message: string) => void} [options.warn]
+ * @returns {Promise<SyncOperation[]>}
+ */
+export async function syncVault({
+  catalog,
+  client,
+  folders,
+  roots,
+  space,
+  macros = {},
+  onOperation = () => {},
+  warn = message => console.warn(message),
+}) {
+  const vaultDir = catalog.vaultDir;
+  const vaultIndex = createVaultIndex(vaultDir, { catalog });
+  const context = {
+    contentDir: vaultDir,
+    linkTitle: buildLinkTitles(vaultDir, vaultIndex),
+    resolveAttachment: vaultIndex.resolveAttachment,
+    mermaidMacro: macros.mermaid ?? null,
+    plantumlMacro: macros.plantuml ?? null,
+    svgMacro: macros.svg ?? null,
+  };
+  const operations = [];
+  const record = operation => {
+    operations.push(operation);
+    onOperation(operation);
+  };
+  const vaultPath = path => relative(vaultDir, path);
+
+  async function ensureFolderPage(parent, title) {
+    const existing = await client.findChild(parent.id, title);
+    if (existing) return existing;
+    record({ action: 'create-folder', title, parent: parent.id });
+    return client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body: '<p></p>' });
   }
 
-  async request(path, options = {}) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          Authorization: this.auth,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      });
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error(`${options.method ?? 'GET'} ${path} timed out after ${this.timeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-    const text = await response.text();
-    let data = null;
-    if (text) {
+  async function syncAttachments(page, images) {
+    for (const image of images) {
+      let stat;
       try {
-        data = JSON.parse(text);
-      } catch (error) {
-        if (response.ok) throw new Error(`${options.method ?? 'GET'} ${path} returned invalid JSON`);
+        stat = statSync(image.absolutePath);
+      } catch {
+        warn(`Warning: image not found, skipping: ${vaultPath(image.absolutePath)}`);
+        continue;
+      }
+      if (!stat.isFile()) continue;
+      const file = vaultPath(image.absolutePath);
+      const existing = await client.findAttachment(page.id, image.filename);
+      const buffer = readFileSync(image.absolutePath);
+      if (existing) {
+        record({ action: 'update-attachment', filename: image.filename, page: page.id, file });
+        await client.updateAttachmentData(page.id, existing.id, buffer, image.filename);
+      } else {
+        record({ action: 'create-attachment', filename: image.filename, page: page.id, file });
+        await client.createAttachment(page.id, buffer, image.filename);
       }
     }
-    if (!response.ok) {
-      const message = data?.message ?? data?.statusMessage ?? text;
-      throw new Error(`${options.method ?? 'GET'} ${path} failed: ${response.status} ${message}`);
-    }
-    return data;
   }
 
-  // Separate from request(): Confluence's attachment endpoints take
-  // multipart/form-data, not JSON, and require the X-Atlassian-Token header
-  // to bypass XSRF protection on non-JSON writes.
-  async requestForm(path, { method = 'POST', formData }) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        method,
-        body: formData,
-        signal: controller.signal,
-        headers: {
-          Authorization: this.auth,
-          Accept: 'application/json',
-          'X-Atlassian-Token': 'no-check',
-        },
-      });
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error(`${method} ${path} timed out after ${this.timeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
-    const text = await response.text();
-    let data = null;
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch (error) {
-        if (response.ok) throw new Error(`${method} ${path} returned invalid JSON`);
-      }
-    }
-    if (!response.ok) {
-      const message = data?.message ?? data?.statusMessage ?? text;
-      throw new Error(`${method} ${path} failed: ${response.status} ${message}`);
-    }
-    return data;
-  }
-
-  getPage(id) {
-    return this.request(`/rest/api/content/${encodeURIComponent(id)}?expand=version,space`);
-  }
-
-  async findChild(parentId, title) {
-    let start = 0;
-    const limit = 200;
-
-    while (true) {
-      const data = await this.request(`/rest/api/content/${encodeURIComponent(parentId)}/child/page?limit=${limit}&start=${start}&expand=version,space`);
-      const match = data.results.find(page => page.title === title);
-      if (match) return match;
-      if (data.results.length < limit) return null;
-      start += data.results.length;
-    }
-  }
-
-  async findAttachment(pageId, filename) {
-    const data = await this.request(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment?filename=${encodeURIComponent(filename)}`);
-    return data.results[0] ?? null;
-  }
-
-  async createAttachment(pageId, buffer, filename) {
-    const form = new FormData();
-    form.append('file', new Blob([buffer]), filename);
-    const data = await this.requestForm(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment`, { formData: form });
-    return data.results[0];
-  }
-
-  updateAttachmentData(pageId, attachmentId, buffer, filename) {
-    const form = new FormData();
-    form.append('file', new Blob([buffer]), filename);
-    return this.requestForm(`/rest/api/content/${encodeURIComponent(pageId)}/child/attachment/${encodeURIComponent(attachmentId)}/data`, { formData: form });
-  }
-
-  createPage({ parentId, spaceKey, title, body }) {
-    return this.request('/rest/api/content', {
-      method: 'POST',
-      body: JSON.stringify({
-        type: 'page',
-        title,
-        space: { key: spaceKey },
-        ancestors: [{ id: String(parentId) }],
-        body: { storage: { value: body, representation: 'storage' } },
-      }),
-    });
-  }
-
-  updatePage({ page, title, body }) {
-    return this.request(`/rest/api/content/${encodeURIComponent(page.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        id: page.id,
-        type: 'page',
-        title,
-        version: { number: page.version.number + 1 },
-        body: { storage: { value: body, representation: 'storage' } },
-      }),
-    });
-  }
-}
-
-function isDryPage(page) {
-  return String(page.id).startsWith('dry:');
-}
-
-async function ensureFolderPage({ client, parent, title, args }) {
-  const existing = isDryPage(parent) ? null : await client.findChild(parent.id, title);
-  if (existing) return existing;
-  if (!args.apply) {
-    console.log(`[dry-run] create folder page "${title}" under ${parent.id}`);
-    return { id: `dry:${parent.id}/${title}`, title, space: parent.space, version: { number: 1 } };
-  }
-  console.log(`Creating folder page "${title}" under ${parent.id}`);
-  return client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body: '<p></p>' });
-}
-
-function resolveImageFiles(images, args) {
-  const files = [];
-  for (const image of images) {
-    let stat;
-    try {
-      stat = statSync(image.absolutePath);
-    } catch {
-      console.warn(`Warning: image not found, skipping: ${relative(args.contentDir, image.absolutePath)}`);
-      continue;
-    }
-    if (!stat.isFile()) continue;
-    files.push(image);
-  }
-  return files;
-}
-
-async function syncAttachments({ client, page, images, args }) {
-  for (const image of resolveImageFiles(images, args)) {
-    const relPath = relative(args.contentDir, image.absolutePath);
-    if (!args.apply) {
-      console.log(`[dry-run] upload attachment "${image.filename}" (${relPath}) to ${page.id}`);
-      continue;
-    }
-
-    const buffer = readFileSync(image.absolutePath);
-    const existing = await client.findAttachment(page.id, image.filename);
-    if (existing) {
-      console.log(`Updating attachment "${image.filename}" on "${page.title}" (${page.id})`);
-      await client.updateAttachmentData(page.id, existing.id, buffer, image.filename);
-    } else {
-      console.log(`Creating attachment "${image.filename}" on "${page.title}" (${page.id})`);
-      await client.createAttachment(page.id, buffer, image.filename);
-    }
-  }
-}
-
-async function syncFile({ client, parent, filePath, title, rendered, args }) {
-  const { html: body, images } = rendered;
-  const existing = isDryPage(parent) ? null : await client.findChild(parent.id, title);
-  const relPath = relative(args.contentDir, filePath);
-
-  let page;
-  if (!existing) {
-    if (!args.apply) {
-      console.log(`[dry-run] create page "${title}" under ${parent.id} from ${relPath}`);
-      for (const image of resolveImageFiles(images, args)) {
-        console.log(`[dry-run] upload attachment "${image.filename}" (${relative(args.contentDir, image.absolutePath)})`);
-      }
-      return;
-    }
-    console.log(`Creating page "${title}" from ${relPath}`);
-    // Some deployments answer content writes with an empty body, which
-    // request() surfaces as null; recover the page id rather than crashing
-    // after the write already succeeded.
-    page = await client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body })
-      ?? await client.findChild(parent.id, title);
-  } else {
-    if (!args.apply) {
-      console.log(`[dry-run] update page "${title}" (${existing.id}) from ${relPath}`);
-      for (const image of resolveImageFiles(images, args)) {
-        console.log(`[dry-run] upload attachment "${image.filename}" (${relative(args.contentDir, image.absolutePath)})`);
-      }
-      return;
-    }
-    console.log(`Updating page "${title}" (${existing.id}) from ${relPath}`);
-    page = (await client.updatePage({ page: existing, title, body })) ?? existing;
-  }
-
-  if (!page) {
-    if (images.length > 0) console.warn(`Warning: could not determine the page id for "${title}"; skipping ${images.length} attachment(s).`);
-    return;
-  }
-  await syncAttachments({ client, page, images, args });
-}
-
-async function syncFolder({ client, folder, rootId, args }) {
-  const root = await client.getPage(rootId);
-  if (args.space && args.space !== root.space.key) {
-    throw new Error(`Root ${rootId} for ${folder} is in space ${root.space.key}, not ${args.space}`);
-  }
-
-  const folderDir = join(args.contentDir, folder);
-  for (const filePath of folderPages(args.catalog, folder)) {
+  async function syncFile(parent, filePath) {
     const markdown = readFileSync(filePath, 'utf8');
-    const rel = relative(folderDir, dirname(filePath));
-    let parent = root;
-
-    if (rel !== '') {
-      for (const segment of rel.split(sep)) {
-        parent = await ensureFolderPage({ client, parent, title: segmentTitle(segment), args });
-      }
-    }
-
     const title = pageTitle(markdown, filePath);
-    const rendered = storageBody(markdown, title, {
+    const { html: body, images } = storageBody(markdown, title, {
+      ...context,
       filePath,
-      contentDir: args.contentDir,
-      linkTitle: args.linkTitle,
-      resolveAttachment: args.vaultIndex?.resolveAttachment,
-      mermaidMacro: args.mermaidMacro,
-      plantumlMacro: args.plantumlMacro,
-      svgMacro: args.svgMacro,
       fenceSvgs: await compileFenceSvgs(markdown),
     });
-    await syncFile({ client, parent, filePath, title, rendered, args });
+    const file = vaultPath(filePath);
+    const existing = await client.findChild(parent.id, title);
+    let page;
+    if (existing) {
+      record({ action: 'update-page', title, page: existing.id, file });
+      page = (await client.updatePage({ page: existing, title, body })) ?? existing;
+    } else {
+      record({ action: 'create-page', title, parent: parent.id, file });
+      // Some deployments answer content writes with an empty body; recover
+      // the page id rather than losing its attachments after the write
+      // already succeeded.
+      page = await client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body })
+        ?? await client.findChild(parent.id, title);
+    }
+    if (!page) {
+      if (images.length > 0) warn(`Warning: could not determine the page id for "${title}"; skipping ${images.length} attachment(s).`);
+      return;
+    }
+    await syncAttachments(page, images);
   }
+
+  for (const folder of folders) {
+    const root = await client.getPage(roots[folder]);
+    if (space && space !== root.space.key) {
+      throw new Error(`Root ${roots[folder]} for ${folder} is in space ${root.space.key}, not ${space}`);
+    }
+    const folderDir = join(vaultDir, folder);
+    for (const filePath of folderPages(catalog, folder)) {
+      const rel = relative(folderDir, dirname(filePath));
+      let parent = root;
+      for (const segment of rel ? rel.split(sep) : []) {
+        parent = await ensureFolderPage(parent, segmentTitle(segment));
+      }
+      await syncFile(parent, filePath);
+    }
+  }
+  return operations;
 }
 
 function segmentTitle(segment) {
@@ -961,18 +824,20 @@ async function main() {
   const ignored = Object.keys(args.roots).filter(folder => !CONTENT_DIRS.includes(folder));
   if (ignored.length > 0) console.warn(`Ignoring roots for non-content folders: ${ignored.join(', ')}`);
 
-  args.catalog = openVaultCatalog(args.contentDir);
-  args.vaultIndex = createVaultIndex(args.contentDir, { catalog: args.catalog });
-  args.linkTitle = buildLinkTitles(args.contentDir, args.vaultIndex);
-
   console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
-  const client = new ConfluenceClient(args);
-  for (const folder of folders) {
-    await syncFolder({ client, folder, rootId: args.roots[folder], args });
-  }
+  const client = createConfluenceClient(args);
+  await syncVault({
+    catalog: openVaultCatalog(args.contentDir),
+    client: args.apply ? client : planningClient(client),
+    folders,
+    roots: args.roots,
+    space: args.space,
+    macros: { mermaid: args.mermaidMacro, plantuml: args.plantumlMacro, svg: args.svgMacro },
+    onOperation: operation => console.log(`${args.apply ? '' : '[dry-run] '}${describeOperation(operation)}`),
+  });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   main().catch(error => {
     console.error(error.message);
     process.exitCode = 1;

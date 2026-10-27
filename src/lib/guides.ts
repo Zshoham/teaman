@@ -1,11 +1,13 @@
 import { bookProblems } from './books.mjs';
 import { contentRoot } from './content-paths';
-import { entryId, guideChapterHref } from './entry-identity.mjs';
+import { guideChapterHref } from './entry-identity.mjs';
 import { openVaultCatalog, type VaultCatalog } from './vault-catalog.mjs';
 
 export interface GuideChapter {
   /** Entry id within the guide — the chapter's URL segment. */
   slug: string;
+  /** Id of the chapter's entry in the `guides` collection. */
+  entryId: string;
   title: string;
 }
 
@@ -54,8 +56,8 @@ export async function listGuides(vaultDir: string = contentRoot): Promise<Guide[
     .map(guide => ({
       slug: guide.id,
       title: guideTitle(guide.id, guide.body),
-      chapters: (guide.chapters as Array<{ path: string; title: string }>)
-        .map(chapter => ({ title: chapter.title, slug: entryId('guide', chapter.path) })),
+      chapters: (guide.chapters ?? [])
+        .map(chapter => ({ title: chapter.title, slug: chapter.slug ?? chapter.id, entryId: chapter.id })),
       problems: bookProblems(guide),
     }))
     .sort((a, b) => a.slug.localeCompare(b.slug));
