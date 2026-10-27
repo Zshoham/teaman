@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// @vitest-environment-options {"settings":{"enableIframePageLoading":true}}
+// (happy-dom ≥ 21 logs an error for every connected iframe it may not load.)
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { initHtmlEmbeds } from '../html-embeds';
