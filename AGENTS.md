@@ -35,6 +35,7 @@ bun run test:watch     # vitest watch
 bun run test:e2e       # Playwright e2e (auto-starts the dev server)
 bun run test:e2e:ui    # Playwright interactive UI
 bun run test:integration  # pack → install tarball outside repo → build example/ (slow)
+bun run test:confluence-e2e  # throwaway Confluence in Docker → live sync suites (slow; --keep)
 ```
 
 **Bun is the runtime and package manager** (version pinned in `package.json`
@@ -454,8 +455,21 @@ and the title heading dropped, diagrams compiled, links and embeds through the
 index. The client is
 `scripts/confluence-client.mjs`: `createConfluenceClient` (REST, `fetch`
 injected), or `planningClient` around it for the dry run — reads go through,
-writes only pretend — so a dry run walks the same code as `--apply`, and
-`scripts/__tests__/sync-vault.test.mjs` drives it with an in-memory instance.
+writes only pretend — so a dry run walks the same code as `--apply`. The tests
+never mock the client: `scripts/__tests__/fake-confluence.mjs` is an
+instance in memory behind the `fetch` the real client is handed, refusing
+writes as Confluence does (a title taken in the space ignoring case, a
+version not bumped by one, storage that is not well-formed XHTML), and
+`sync-vault.test.mjs` syncs `example/` through it. Each rule the fake
+enforces is a case in `confluence-contract.test.mjs`, which runs against the
+fake always and against a real instance when `CONFLUENCE_CONTRACT_URL`,
+`_PAT` (or `_USER`/`_TOKEN`), and `_ROOT` (a scratch page) are set — teach
+the fake a rule only with its contract case. `sync-live.test.mjs` needs the
+same env: it runs `teaman sync-confluence --apply` of `example/` into a space
+of its own and checks every page renders. `bun run test:confluence-e2e`
+(`scripts/confluence-e2e.mjs`) provides the instance: Confluence Data Center
+in Docker with Atlassian's published 3-hour test license, set up by posting
+its setup wizard's forms, then both suites, then teardown.
 
 ### Frontend
 
@@ -523,7 +537,7 @@ until their behavior has been assessed separately.
   for component filenames, kebab-case lowercase for routed content slugs.
 - Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `build:`); imperative,
   one change per subject.
-- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with six jobs.
+- CI is GitHub Actions, one workflow (`.github/workflows/ci.yml`) with seven jobs.
   Every job installs Bun with `oven-sh/setup-bun` (version from `packageManager`).
   The `test` job runs `bun run typecheck` + `bun run build:all` + `bun run test`, the `integration` job
   runs `bun run test:integration` (the packaged consumer path), and the `e2e`
@@ -531,7 +545,9 @@ until their behavior has been assessed separately.
   `playwright.config.ts` webServer builds the production site and serves it via
   `astro preview`), and the `binaries` job cross-compiles the single-file
   binary for every target and builds `example/` with the Linux one on an empty
-  `PATH` — all four on every push/PR. On a `vX.Y.Z` tag, the `release` job
+  `PATH` — all four on every push/PR. The `confluence-e2e` job runs
+  `bun run test:confluence-e2e` on every push/PR too, but gates nothing: it
+  depends on Docker Hub and Atlassian's license page. On a `vX.Y.Z` tag, the `release` job
   (after all four) attaches the binaries to that GitHub release
   (`contents: write`). The `publish` job has
   `needs: [test, integration, e2e, binaries]` (so a release can

@@ -42,6 +42,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:integration": "bun scripts/integration-test.mjs",
+    "test:confluence-e2e": "bun scripts/confluence-e2e.mjs",
     "sync:confluence": "bun scripts/sync-confluence.mjs",
     "build:binary": "bun scripts/build-binary.mjs"
   },

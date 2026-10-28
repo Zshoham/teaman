@@ -9,6 +9,9 @@ name: CI
 # `publish` runs only after all of those pass, and only on main pushes /
 #   version tags — so a release can never ship untested or unpackageable.
 #
+# `confluence-e2e` syncs the example vault into a throwaway Confluence in
+#   Docker; it does not gate publishing (see the job).
+#
 # Two release channels to the public npm registry:
 #   - push to main        -> prerelease  X.Y.Z-dev.g<sha> @ dist-tag `dev`
 #   - push tag vX.Y.Z     -> release      X.Y.Z           @ dist-tag `latest`
@@ -98,6 +101,20 @@ jobs:
           path: dist-bin/
           compression-level: 0 # already zstd inside
           retention-days: 7
+
+  # Confluence sync against a real Confluence Data Center: a throwaway instance
+  # in Docker (with Atlassian's published 3-hour test license), set up through
+  # its wizard, then the contract suite and a live `sync-confluence --apply` of
+  # the example vault. It leans on Docker Hub and Atlassian's license page, so
+  # an outage there fails this job but never blocks `release` or `publish`.
+  confluence-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2 # the version in package.json `packageManager`
+      - run: bun install --frozen-lockfile
+      - run: bun run test:confluence-e2e
 
   # A version tag's binaries go on its GitHub release, once everything passed.
   release:
