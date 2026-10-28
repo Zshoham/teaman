@@ -9,8 +9,8 @@ import {
   htmlEmbedElement,
   htmlEmbedHref,
   htmlEmbeds,
-  parseHtmlEmbed,
 } from '../html-embeds.mjs';
+import { readEmbed } from '../embeds.mjs';
 import { deckEmbedPlan, htmlEmbedEdits } from '../deck-embeds.mjs';
 
 const dirs = [];
@@ -28,20 +28,6 @@ function scratch(files = {}) {
   return dir;
 }
 
-describe('parseHtmlEmbed', () => {
-  it('reads a number as the height, WxH as width and height, anything else as the caption', () => {
-    expect(parseHtmlEmbed('solar-system.html')).toEqual({ path: 'solar-system.html', suffix: '', title: 'Solar system' });
-    expect(parseHtmlEmbed('x.html', ' 600 ')).toMatchObject({ title: 'X', height: 600 });
-    expect(parseHtmlEmbed('x.html', '800x600')).toMatchObject({ width: 800, height: 600 });
-    expect(parseHtmlEmbed('x.html', 'Our solar system')).toMatchObject({ title: 'Our solar system', caption: 'Our solar system' });
-  });
-
-  it('splits the path the vault is searched by from the query or fragment the embed reads', () => {
-    expect(parseHtmlEmbed(' ./viz/My Viz.html#planet=mars ')).toMatchObject({ path: 'viz/My Viz.html', suffix: '#planet=mars' });
-    expect(parseHtmlEmbed('/a.htm?x=1')).toMatchObject({ path: 'a.htm', suffix: '?x=1', title: 'A' });
-  });
-});
-
 describe('htmlEmbedHref', () => {
   it('serves from <base>embeds/ with every segment encoded', () => {
     expect(htmlEmbedHref('/', 'attachments/solar-system.html')).toBe('/embeds/attachments/solar-system.html');
@@ -51,12 +37,12 @@ describe('htmlEmbedHref', () => {
 
 describe('htmlEmbedElement', () => {
   it('names the frame after the file unless titled, and fixes only an authored height', () => {
-    const frame = htmlEmbedElement({ src: '/embeds/x.html', target: 'solar-system.html' });
+    const frame = htmlEmbedElement(readEmbed('solar-system.html'), { src: '/embeds/x.html' });
     expect(frame.tagName).toBe('span');
     expect(frame.children[0].properties).toMatchObject({ title: 'Solar system', height: '480', sandbox: 'allow-scripts allow-popups' });
     expect(frame.children[0].properties).not.toHaveProperty('dataFixedHeight');
 
-    const fixed = htmlEmbedElement({ src: '/embeds/x.html', target: 'x.html', label: '640x400', block: true });
+    const fixed = htmlEmbedElement(readEmbed('x.html', '640x400'), { src: '/embeds/x.html', block: true });
     expect(fixed.tagName).toBe('figure');
     expect(fixed.children).toHaveLength(1); // a size is not a caption
     expect(fixed.children[0].properties).toMatchObject({ width: '640', height: '400', dataFixedHeight: true });
@@ -191,8 +177,8 @@ describe('deck embeds (slide theme transformer)', () => {
     const resolve = (target, from) => (resolved.push([target, from]), target === 'gone.html' ? null : `/v/attachments/${target}`);
     const plan = deckEmbedPlan({ markdown: '![[viz.html]] ![[viz.html|300]] ![[gone.html]]', sourcePath: '/v/slides/t.md', relPath: 't.md' }, resolve);
     expect(plan).toEqual([
-      { target: 'viz.html', file: '/v/attachments/viz.html', dest: 'public/embeds/viz.html' },
-      { target: 'gone.html', file: null, dest: 'public/embeds/gone.html' },
+      { target: 'viz.html', file: '/v/attachments/viz.html', problem: null, dest: 'public/embeds/viz.html' },
+      { target: 'gone.html', file: null, problem: '![[gone.html]]: no HTML file named “gone.html” in the vault', dest: 'public/embeds/gone.html' },
     ]);
     expect(resolved.every(([, from]) => from === '/v/slides/t.md')).toBe(true);
   });

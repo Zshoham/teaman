@@ -213,7 +213,7 @@ Fences are self-contained: imports from vault files are not supported.
 | `teaman preview [vault]` | Serve a previously built site. |
 | `teaman init [vault]` | Scaffold `teaman.config.js` + content dirs. |
 | `teaman doctor [vault]` | Validate config and lint content **without** building. Exits non-zero on problems — gate CI with it. |
-| `teaman sync-confluence` | Publish vault markdown to Confluence Server/Data Center. Dry-run by default; pass `--apply` to write. |
+| `teaman sync-confluence [vault]` | Publish vault markdown to Confluence Server/Data Center. Dry-run by default; pass `--apply` to write. |
 
 Options: `--out <dir>`, `--base <path>` (e.g. `/my-site/` for sub-path hosting),
 `--port <n>` and `--host [addr]` (dev/preview — bare `--host` serves on every
@@ -221,11 +221,14 @@ interface, which is what makes the server reachable from outside a container or
 VM). `[vault]` defaults to the current directory.
 
 `sync-confluence` takes its own flags (run `teaman sync-confluence --help`);
-the essentials are `--content-dir <vault>`, `--base-url`, credentials
+the essentials are `[vault]` (the current directory by default, as for every
+command; `--content-dir <vault>` also works), `--base-url`, credentials
 (`--user`/`--token` or `--pat`), and `--roots folder=pageId,…` (content
 folders only — `notes`, `guides`, …). Each can also come from a `CONFLUENCE_*`
-env var. It syncs exactly what the site publishes: drafts, `_`-prefixed
-paths, and `SUMMARY.md` indexes stay behind. Local images resolve the same way
+env var. It syncs exactly what the site publishes, titled as the site titles
+it: drafts, `_`-prefixed paths, and `SUMMARY.md` indexes stay behind, a guide
+chapter is titled by its `SUMMARY.md` entry, and a guide's or reference
+book's folder page by the book's title. Local images resolve the same way
 the site build does (note's directory, then the vault root, then `public/`)
 and upload as attachments; since Confluence Server/DC won't preview `.svg` ones
 inline, `--svg-macro <name>` (e.g. the stock `html` macro) inlines the svg

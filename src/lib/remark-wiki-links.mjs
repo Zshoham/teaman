@@ -22,8 +22,8 @@ import { dirname, relative } from 'path';
 import { cachedVaultIndex } from './vault-index.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { forEachSourceNode } from './remark-reference-books.mjs';
-import { isImageEmbed } from './obsidian-markdown.mjs';
-import { htmlEmbedElement, htmlEmbedHref, isHtmlEmbed, parseHtmlEmbed } from './html-embeds.mjs';
+import { EMBED_RE, resolveEmbed, splitWikiTarget } from './embeds.mjs';
+import { htmlEmbedElement, htmlEmbedHref } from './html-embeds.mjs';
 
 const indexes = new Map();
 
@@ -54,9 +54,6 @@ export function remarkWikiLinks({ vaultDir, base }) {
   });
 }
 
-const EMBED_RE = /!\[\[([^\]\n]+?)\]\]/g;
-const SIZE_RE = /^(\d+)(?:x(\d+))?$/;
-
 // Astro's content loaders catch a render error, log it, and carry on — the
 // entry just renders empty — so throwing alone cannot fail a build. Each
 // failure is also recorded here, and `failOnEmbedErrors` (an integration in
@@ -83,38 +80,34 @@ export function failOnEmbedErrors() {
 }
 
 /**
- * `![[target|label]]` as an mdast image. Obsidian reads a numeric label as a
- * size (`|300`, `|300x200`); anything else is the alt text. Found from
- * `sourcePath`, the file it was written in; its URL is relative to the file
- * being rendered, which is what Astro resolves it against.
+ * An image embed (`embeds.mjs`) as an mdast image of its file, by a URL
+ * relative to the file being rendered, which is what Astro resolves it
+ * against.
  */
-function embedImage(target, label, file, sourcePath, node, vaultDir, base) {
-  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, sourcePath);
-  if (!found) fail(file, `![[${target}]]: no image named “${target}” in the vault`, node);
+function embedImage(embed, file, vaultDir) {
   const from = file?.path ? dirname(file.path) : vaultDir;
-  const rel = relative(from, found).split('\\').join('/');
-  const url = rel.startsWith('.') ? rel : `./${rel}`;
-  const size = label ? SIZE_RE.exec(label) : null;
+  const rel = relative(from, embed.file).split('\\').join('/');
+  const { caption, width, height } = embed;
   return {
     type: 'image',
-    url,
-    alt: size ? '' : label ?? '',
-    ...(size ? { data: { hProperties: { width: size[1], ...(size[2] ? { height: size[2] } : {}) } } } : {}),
+    url: rel.startsWith('.') ? rel : `./${rel}`,
+    alt: caption ?? '',
+    ...(width || height ? {
+      data: { hProperties: { ...(width ? { width: String(width) } : {}), ...(height ? { height: String(height) } : {}) } },
+    } : {}),
   };
 }
 
 /**
- * `![[page.html|label]]` as an mdast node carrying its frame's hast. It starts
- * inline; `remarkWikiEmbeds` promotes it to a figure when it is alone in its
+ * An HTML embed as an mdast node carrying its frame's hast. It starts inline;
+ * `remarkWikiEmbeds` promotes it to a figure when it is alone in its
  * paragraph.
  */
-function embedHtml(target, label, file, sourcePath, node, vaultDir, base) {
-  const found = vaultIndexFor(vaultDir, base).resolveAttachment(target, sourcePath);
-  if (!found) fail(file, `![[${target}]]: no HTML file named “${target}” in the vault`, node);
-  const relPath = relative(vaultDir, found).split('\\').join('/');
+function embedHtml(embed, vaultDir, base) {
+  const relPath = relative(vaultDir, embed.file).split('\\').join('/');
   // `![[viz.html#planet=mars]]`: a query or fragment rides along to the embed.
-  const embed = { src: htmlEmbedHref(base, relPath) + parseHtmlEmbed(target).suffix, target, label };
-  return { type: 'htmlEmbed', embed, data: hastData(htmlEmbedElement(embed)) };
+  const src = htmlEmbedHref(base, relPath) + embed.suffix;
+  return { type: 'htmlEmbed', embed, src, data: hastData(htmlEmbedElement(embed, { src })) };
 }
 
 const hastData = element => ({
@@ -140,17 +133,12 @@ export function remarkWikiEmbeds({ vaultDir, base }) {
         let last = 0;
         for (const match of node.value.matchAll(EMBED_RE)) {
           const [whole, inner] = match;
-          const pipe = inner.indexOf('|');
-          const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim();
-          const label = pipe === -1 ? undefined : inner.slice(pipe + 1).trim();
-          const html = isHtmlEmbed(target);
-          if (!html && !isImageEmbed(target)) {
-            fail(file, `![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`, node);
-          }
+          const { target, label } = splitWikiTarget(inner);
+          const { resolveAttachment } = vaultIndexFor(vaultDir, base);
+          const embed = resolveEmbed(target, label, { resolveAttachment, fromFile: sourcePath });
+          if (embed.problem) fail(file, embed.problem, node);
           if (match.index > last) out.push({ type: 'text', value: node.value.slice(last, match.index) });
-          out.push(html
-            ? embedHtml(target, label, file, sourcePath, node, vaultDir, base)
-            : embedImage(target, label, file, sourcePath, node, vaultDir, base));
+          out.push(embed.kind === 'html' ? embedHtml(embed, vaultDir, base) : embedImage(embed, file, vaultDir));
           last = match.index + whole.length;
         }
         if (last < node.value.length) out.push({ type: 'text', value: node.value.slice(last) });
@@ -164,8 +152,8 @@ export function remarkWikiEmbeds({ vaultDir, base }) {
       if (node.type !== 'paragraph') return undefined;
       const content = node.children.filter(child => !isBlank(child));
       if (content.length !== 1 || content[0].type !== 'htmlEmbed') return null;
-      const { embed } = content[0];
-      return { type: 'htmlEmbed', embed, data: hastData(htmlEmbedElement({ ...embed, block: true })) };
+      const { embed, src } = content[0];
+      return { type: 'htmlEmbed', embed, src, data: hastData(htmlEmbedElement(embed, { src, block: true })) };
     });
   };
 }

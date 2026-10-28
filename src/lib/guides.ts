@@ -1,11 +1,8 @@
 import type { CollectionEntry } from 'astro:content';
 import { resolve } from 'path';
 import { engineDir } from './build-env.mjs';
-import { contentRoot } from './content-paths';
 import { guideChapterHref } from './entry-identity.mjs';
-import { guideIndex } from './guide-loader.mjs';
 import { getPublished } from './published';
-import { openVaultCatalog, type VaultCatalog } from './vault-catalog.mjs';
 
 export interface GuideChapter {
   /** Entry id within the guide — the chapter's URL segment. */
@@ -33,36 +30,6 @@ const base = import.meta.env.BASE_URL;
 /** URL for a chapter. The first chapter of a guide is served at the guide root. */
 export function chapterHref(guide: Guide, chapterSlug: string): string {
   return guideChapterHref(base, guide.slug, guide.chapters.map(chapter => chapter.slug), chapterSlug);
-}
-
-// A build renders a snapshot of the vault, and the header lists guides on every
-// page, so a build reads the guides once per vault. The dev server re-reads
-// them per call, so an edit shows on the next request.
-const buildCatalogs = new Map<string, VaultCatalog>();
-
-function guideCatalog(vaultDir: string): VaultCatalog {
-  if (import.meta.env.DEV) return openVaultCatalog(vaultDir);
-  let catalog = buildCatalogs.get(vaultDir);
-  if (!catalog) buildCatalogs.set(vaultDir, catalog = openVaultCatalog(vaultDir));
-  return catalog;
-}
-
-/**
- * Every published guide, with its published chapters in SUMMARY order — the
- * vault catalog's guides, so the site lists exactly what the wiki-link index,
- * `doctor`, and Confluence sync see. A drafted (or `_`-prefixed) SUMMARY.md
- * hides the guide; a drafted chapter drops out of the chapter list, so the
- * next chapter takes its place — including at the guide root. A chapter the
- * SUMMARY lists but the guide cannot serve is left out (and fails the build:
- * `guide-loader.mjs`).
- */
-export async function listGuides(vaultDir: string = contentRoot): Promise<Guide[]> {
-  return guideCatalog(vaultDir).published('guide')
-    .map(record => {
-      const { title, chapters } = guideIndex(record);
-      return { slug: record.id, title, chapters };
-    })
-    .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 /**

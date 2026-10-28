@@ -8,6 +8,8 @@ export interface VaultEntry {
   /** Absolute file, or directory for a guide. */
   sourcePath: string;
   kind: 'file' | 'folder';
+  /** The page's title, as the site titles it; a book chapter's is its SUMMARY.md link text. */
+  title: string;
   /** Site URL, base included. */
   href: string;
   /** A reference's: the reference's entry id. */

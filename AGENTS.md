@@ -227,9 +227,9 @@ re-runs `getStaticPaths` only when the content store changes. Notes about the mo
   catalog guide chapter carries its `guides` collection `id` and its `slug`
   (URL segment within the guide): join chapters to collection entries by
   `id`, never by rebuilding `<guide>/<slug>` (a chapter `index.md` breaks
-  that). The site's guide list (`listGuides`, `guides.ts`) is the catalog's
-  published guides, so it matches the wiki-link index and Confluence.
-  `loadGuides` is the one place the two collections meet: each `guideIndexes`
+  that). The site lists guides from the `guideIndexes` collection — the
+  catalog's published guides, so the header, the guide pages, the wiki-link
+  index, and Confluence all see the same ones. `loadGuides` is the one place the two collections meet: each `guideIndexes`
   chapter paired with its `guides` collection entry, the SUMMARY.md's tags and
   body alongside — the guide route, the feed, and the source route read it,
   never a collection and the catalog side by side.
@@ -246,7 +246,10 @@ re-runs `getStaticPaths` only when the content store changes. Notes about the mo
   every renderer drops the title heading (`withoutTitleHeading`; on the site
   `remarkStripLeadingH1`, which `entry-title.test.mjs` holds to the same
   heading). The note and reference pages, the feed, reference discovery,
-  guides, the PDF, and Confluence all title through it.
+  guides, the PDF, and Confluence all title through it. Every vault index
+  entry carries its page's `title` (a book chapter's is its SUMMARY.md link
+  text, as the guide pages show it), which is what Confluence titles pages
+  and wiki-links by.
 - `dailies` are `YYYY-MM-DD.md`; the schema **requires** a `date` field (the filename
   only supplies the URL slug). `doctor` enforces this before the build does.
 - `references/*.md` are standalone long-form documents with a dedicated reader
@@ -265,6 +268,15 @@ re-runs `getStaticPaths` only when the content store changes. Notes about the mo
   markdown-it plugin plus `compileDiagramFences`/`wikiLinks` — shared by the
   reference PDF, Confluence sync, and `doctor`. `__tests__/obsidian-dialect.test.mjs`
   runs one case table through both; add a case there when the dialect changes.
+- **Embeds** (`![[target|label]]`) are read once, by `embeds.mjs`, for the
+  site, decks, the PDF, Confluence, and `doctor`: `splitWikiTarget` (the
+  pipe), `readEmbed` (kind — image, HTML page, or note — path, `?`/`#`
+  suffix, caption, and size: an image's lone `|300` is its width, a frame's
+  its height), and `resolveEmbed`, which finds the file through the vault
+  index's `resolveAttachment` and names the one `problem` (a note embed, or
+  no such file) that every renderer throws on and `doctor` reports. A
+  renderer only formats the result; the dialect test's embed table runs each
+  case through all of them.
 - **HTML embeds** (`![[viz.html]]`) live in `html-embeds.mjs`: a self-contained
   vault `.html` file becomes a sandboxed `<iframe>` (no `allow-same-origin`)
   loading `<base>embeds/<vault path>`. The `htmlEmbeds()` integration serves
@@ -277,11 +289,10 @@ re-runs `getStaticPaths` only when the content store changes. Notes about the mo
   `HtmlEmbed.vue` that loads `embeds/<target>`. The theme's
   `setup/transformers.ts` rewrites with it (via the staged `deck-embeds.ts`,
   re-pointed by absolute path), and `deckEmbedPlan` turns the same scan into
-  `{ target, file, dest }` — `build-slides` stages from it, `doctor` reports
-  the unresolved ones — so they cannot disagree. `parseHtmlEmbed` is the one
-  reading of `![[target|label]]` (path, `?`/`#` suffix, title, size) for the
-  site and decks; `isAttachmentPath` (`fs-walk.mjs`) is the one rule for which
-  vault files can be embedded at all.
+  `{ target, file, problem, dest }` — `build-slides` stages from it, `doctor`
+  reports the problems — so they cannot disagree. `isAttachmentPath`
+  (`fs-walk.mjs`) is the one rule for which vault files can be embedded at
+  all.
 - Wiki-links (`[[name]]`) are parsed by `remark-wiki-link` and resolved by
   `remark-wiki-links.mjs` against `createVaultIndex` (`src/lib/vault-index.mjs`):
   every page the site renders, matched Obsidian-style (bare name or trailing
@@ -292,7 +303,11 @@ re-runs `getStaticPaths` only when the content store changes. Notes about the mo
 
 The diagram fence languages are listed once, in `src/lib/diagram-kinds.mjs`
 (`lang`, `label`, and whether the site renders it on the `client` or at
-`build` time). Every renderer reads it, and each per-kind adapter table — the
+`build` time), and so is how a fence names one: `fenceInfoLanguage` reads an
+info string (first word, lowercased, mdBook's `rust,ignore` annotations split
+off) and `fenceDiagramKind` the kind it names, so ```` ```Mermaid ```` is a
+diagram in a note, a book chapter, the PDF, and Confluence alike. Every
+renderer reads it, and each per-kind adapter table — the
 build compilers in `remark-fence-svg.mjs`, the PDF's server renderers in
 `reference-pdf.mjs` — throws at load if it misses a kind; a unit test checks
 each client kind has its `src/scripts/<lang>.ts` loaded by `Layout.astro`.
@@ -378,6 +393,11 @@ with a fake for that dependency.
    heading texts and HTML ids from their own syntax tree and take every
    identifier from it, and `__tests__/reference-book.test.mjs` runs one vault's
    book through discovery, the site's real pipeline, and the PDF stage. The
+   stage hands each catalog document to `renderReferenceDocument` (with the
+   vault index and the diagram cache dir), which compiles its diagram fences,
+   resolves its embeds, and turns a wiki-link to a part of the same reference
+   into a jump within the PDF; `renderReferenceTypst` is its synchronous
+   formatting. The
    template's callouts come from **showybox** and its code blocks from **codly**;
    both are vendored under `resources/typst-packages/` and mounted as compiler
    shadow files by `src/lib/typst-packages.mjs` (imported as
@@ -402,7 +422,7 @@ with a fake for that dependency.
    deck is built with `--theme` pointing at a staged copy of the engine theme
    `resources/slidev-theme-teaman/` (in `<work dir>/theme/`); the build personalizes that
    copy from the vault's `config.slides` knobs via `scripts/slides-theme.mjs`
-   (`renderVarsCss` → `styles/vars.css`, `resolveLogoSource` +
+   (`renderVarsCss` → `styles/vars.css`, `resolveLogoFile` +
    `renderLogoConfig` → `logo.config.ts` + a staged logo asset). The committed
    theme keeps sane defaults; no deck frontmatter is ever rewritten. The theme is
    shipped in the npm package (`files` in `package.json`). Decks build with
@@ -420,9 +440,18 @@ with a fake for that dependency.
    SPAs, whose bodies are JS-rendered) plus custom records for each deck (the
    catalog's `text`) and each ADR (`adrSearchText`).
 
-`teaman sync-confluence` (`scripts/sync-confluence.mjs`) is shaped like a
-stage: `syncVault({ catalog, client, folders, roots, … })` syncs what the
-catalog publishes and returns the operations it made. The client is
+`teaman sync-confluence [vault]` (`scripts/sync-confluence.mjs`) is shaped
+like a stage: the CLI opens its vault like any command's (the current
+directory by default) and hands it over through the env seam, and
+`syncVault({ catalog, client, folders, roots, … })` syncs what the catalog
+publishes and returns the operations it made. `folderPagePlan` lays the pages
+out from the vault index (one per page file the site renders, titled as the
+site titles it, under a folder page per directory — a guide's or reference
+book's titled as the book; `pageTitles` titles every page and folder page,
+telling apart those that share a title by their vault path, since Confluence
+addresses pages by title), and `pageStorage` renders one page: frontmatter
+and the title heading dropped, diagrams compiled, links and embeds through the
+index. The client is
 `scripts/confluence-client.mjs`: `createConfluenceClient` (REST, `fetch`
 injected), or `planningClient` around it for the dry run — reads go through,
 writes only pretend — so a dry run walks the same code as `--apply`, and

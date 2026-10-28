@@ -7,26 +7,19 @@
  *
  * What the dialect adds to CommonMark:
  * - `[[target]]`, `[[target|label]]`, `![[embed]]` — `wiki_link` inline tokens.
- *   Being tokens, they never form inside code spans or fences.
+ *   Being tokens, they never form inside code spans or fences. What an embed
+ *   is (`embed: true`) is read by `embeds.mjs`.
  * - `> [!type]± Title` callouts — `meta.callout` on the blockquote tokens.
  * - diagram fences (`diagram-kinds.mjs`), compiled ahead of the
  *   synchronous render by `compileDiagramFences`.
  */
 import MarkdownIt from 'markdown-it';
 import { renderFenceSvg } from './remark-fence-svg.mjs';
+import { fenceInfoLanguage } from './diagram-kinds.mjs';
+import { splitWikiTarget } from './embeds.mjs';
 
 /** `[!type]` then an optional fold marker and title, on a callout's first line. */
 export const CALLOUT_MARKER_RE = /^\[!([\w-]+)\]([+-])?[ \t]*(.*)$/;
-
-const IMAGE_EMBED_RE = /\.(png|jpe?g|gif|svg|webp|bmp|avif)$/i;
-
-/** Whether an `![[embed]]` target is an image (vs. a note transclusion). */
-export function isImageEmbed(target) {
-  return IMAGE_EMBED_RE.test(target.split(/[?#]/, 1)[0]);
-}
-
-// Whether an `![[embed]]` target is a self-contained HTML page.
-export { isHtmlEmbed } from './html-embeds.mjs';
 
 function wikiLinkRule(state, silent) {
   let pos = state.pos;
@@ -39,9 +32,7 @@ function wikiLinkRule(state, silent) {
   const inner = state.src.slice(pos + 2, end);
   if (!inner || inner.includes('\n')) return false;
 
-  const pipe = inner.indexOf('|');
-  const target = (pipe === -1 ? inner : inner.slice(0, pipe)).trim();
-  const label = (pipe === -1 ? '' : inner.slice(pipe + 1)).trim();
+  const { target, label } = splitWikiTarget(inner);
   if (!target) return false;
 
   if (!silent) {
@@ -96,9 +87,10 @@ export function obsidianDialect(md) {
   md.core.ruler.push('obsidian_callouts', calloutRule);
 }
 
-/** A fence token's language: the first info word, normalized. */
+/** A fence token's language (`fenceInfoLanguage`), reduced to the characters
+ *  a highlighter's language name can hold. */
 export function fenceLanguage(token) {
-  return token.info?.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9_+.-]/g, '') ?? '';
+  return fenceInfoLanguage(token.info).replace(/[^a-z0-9_+.-]/g, '');
 }
 
 /** A fence token's source, without the newline markdown-it keeps after it. */

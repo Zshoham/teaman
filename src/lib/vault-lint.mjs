@@ -4,7 +4,8 @@ import { isSummaryFile } from './books.mjs';
 import { buildProblems } from './build-problems.mjs';
 import { assertCoversTypes, COLLECTIONS, collectionFor } from './collections.mjs';
 import { adrNum, SLUG_OVERRIDE_TYPES } from './entry-identity.mjs';
-import { isHtmlEmbed, isImageEmbed, wikiLinks } from './obsidian-markdown.mjs';
+import { resolveEmbed } from './embeds.mjs';
+import { wikiLinks } from './obsidian-markdown.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 import { createVaultIndex } from './vault-index.mjs';
 
@@ -114,11 +115,8 @@ assertCoversTypes(FRONTMATTER, "doctor's frontmatter check");
 function lintLinks(source, file, at, index, problems, warnings) {
   for (const { target, embed } of wikiLinks(source)) {
     if (embed) {
-      if (!isImageEmbed(target) && !isHtmlEmbed(target)) {
-        problems.push(`${at} embeds ![[${target}]]: note embeds are not supported; link it with [[${target}]]`);
-      } else if (!index.resolveAttachment(target, file)) {
-        problems.push(`${at} embeds missing ${isHtmlEmbed(target) ? 'HTML file' : 'image'} ![[${target}]]`);
-      }
+      const { problem } = resolveEmbed(target, undefined, { resolveAttachment: index.resolveAttachment, fromFile: file });
+      if (problem) problems.push(`${at}: ${problem}`);
       continue;
     }
     const link = `[[${target}]]`;

@@ -1,7 +1,6 @@
 import { getPublished } from './published';
 import { COLLECTIONS, type EntryType } from './collections.mjs';
 import { loadDailyWeeks, weekHref } from './dailies';
-import { listGuides } from './guides';
 
 export interface NavSection {
   id: string;
@@ -29,7 +28,7 @@ export async function loadNavSections(): Promise<NavSection[]> {
     getPublished('notes'),
     getPublished('references'),
     getPublished('slides'),
-    listGuides(),
+    getPublished('guideIndexes'),
     loadDailyWeeks(),
     getPublished('decisions'),
   ]);

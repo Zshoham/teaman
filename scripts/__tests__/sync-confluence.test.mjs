@@ -3,7 +3,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openVaultCatalog } from '../../src/lib/vault-catalog.mjs';
-import { buildLinkTitles, compileFenceSvgs, folderPages, markdownToStorage, pageTitle, parseArgs, storageBody } from '../sync-confluence.mjs';
+import { createVaultIndex } from '../../src/lib/vault-index.mjs';
+import { buildLinkTitles, folderPagePlan, markdownToStorage, pageStorage, parseArgs } from '../sync-confluence.mjs';
 
 const confluenceEnv = [
   'CONFLUENCE_BASE_URL',
@@ -36,12 +37,18 @@ afterEach(() => {
   originalEnv.clear();
 });
 
+// An index stand-in: one page, and attachments wherever `attachments` says.
+const indexOf = ({ pages = {}, attachments = () => null } = {}) => ({
+  resolve: target => (pages[target] ? { entry: { title: pages[target] } } : null),
+  resolveAttachment: attachments,
+});
+const cadenceIndex = indexOf({ pages: { 'shipping-cadence': 'Shipping Cadence' } });
+
 describe('sync-confluence markdown rendering', () => {
-  it('uses frontmatter titles and removes a duplicate leading H1 from storage body', () => {
+  it('removes a duplicate leading H1 from storage body', async () => {
     const markdown = '---\ntitle: Vault Static Site Architecture\ntags: [architecture]\n---\n\n# Vault Static Site Architecture\n\nIntro paragraph.';
 
-    expect(pageTitle(markdown, '/content/notes/vault-architecture.md')).toBe('Vault Static Site Architecture');
-    expect(storageBody(markdown).html).toBe('<p>Intro paragraph.</p>');
+    expect((await pageStorage(markdown)).html).toBe('<p>Intro paragraph.</p>');
   });
 
   it('renders markdown tables with the markdown parser instead of treating them as paragraphs', () => {
@@ -104,22 +111,20 @@ describe('sync-confluence markdown rendering', () => {
   });
 
   it('emits a native diagram macro when a mermaid macro name is configured', () => {
-    const { html } = markdownToStorage('```mermaid\ngraph TD; A-->B;\n```', { mermaidMacro: 'mermaid-cloud' });
+    const { html } = markdownToStorage('```mermaid\ngraph TD; A-->B;\n```', { macros: { mermaid: 'mermaid-cloud' } });
 
     expect(html).toBe('<ac:structured-macro ac:name="mermaid-cloud"><ac:plain-text-body><![CDATA[graph TD; A-->B;]]></ac:plain-text-body></ac:structured-macro>');
   });
 
   it('resolves wiki-links to Confluence page links by title, and guesses a title otherwise', () => {
-    const linkTitle = target => (target === 'shipping-cadence' ? 'Shipping Cadence' : null);
-    const { html } = markdownToStorage('See [[shipping-cadence|the cadence guide]] and [[missing-note]].', { linkTitle });
+    const { html } = markdownToStorage('See [[shipping-cadence|the cadence guide]] and [[missing-note]].', { index: cadenceIndex });
 
     expect(html).toContain('<ac:link><ri:page ri:content-title="Shipping Cadence" /><ac:plain-text-link-body><![CDATA[the cadence guide]]></ac:plain-text-link-body></ac:link>');
     expect(html).toContain('<ac:link><ri:page ri:content-title="Missing Note" /><ac:plain-text-link-body><![CDATA[missing-note]]></ac:plain-text-link-body></ac:link>');
   });
 
   it('strips heading anchors from wiki-links before resolving the page', () => {
-    const linkTitle = target => (target === 'shipping-cadence' ? 'Shipping Cadence' : null);
-    const { html } = markdownToStorage('See [[shipping-cadence#History]] and [[#local heading]].', { linkTitle });
+    const { html } = markdownToStorage('See [[shipping-cadence#History]] and [[#local heading]].', { index: cadenceIndex });
 
     expect(html).toContain('<ri:page ri:content-title="Shipping Cadence" />');
     expect(html).toContain('<![CDATA[shipping-cadence#History]]>');
@@ -135,33 +140,46 @@ describe('sync-confluence markdown rendering', () => {
       writeFileSync(join(vault, 'notes', 'sub', 'deep.md'), '---\ntitle: Deep Dive\n---\n');
       writeFileSync(join(vault, 'guides', 'using-it', 'SUMMARY.md'), '# Using\n\n- [Intro](intro.md)\n');
       writeFileSync(join(vault, 'guides', 'using-it', 'intro.md'), '# Getting Started\n');
-      const linkTitle = buildLinkTitles(vault);
+      const linkTitle = buildLinkTitles(createVaultIndex(vault));
 
       expect(linkTitle('deep')).toBe('Deep Dive');
-      expect(linkTitle('intro')).toBe('Getting Started');
-      expect(linkTitle('using-it')).toBe('Using It');
+      // A guide chapter is titled by its SUMMARY.md entry, as on the site;
+      // the guide itself is its folder page.
+      expect(linkTitle('intro')).toBe('Intro');
+      expect(linkTitle('using-it')).toBe('Using');
       expect(linkTitle('nowhere')).toBeNull();
     } finally {
       rmSync(vault, { recursive: true, force: true });
     }
   });
 
-  it('uploads Obsidian image embeds as attachments', () => {
-    const { html, images } = markdownToStorage('![[diagram.png]]', { filePath: '/vault/notes/page.md' });
+  it('uploads Obsidian image embeds as attachments, sized as on the site', () => {
+    const index = indexOf({ attachments: target => `/vault/notes/${target}` });
+    const { html, images } = markdownToStorage('![[diagram.png]] ![[wide.png|300]]', { filePath: '/vault/notes/page.md', index });
 
     expect(html).toContain('<ac:image ac:alt="diagram.png"><ri:attachment ri:filename="diagram.png" /></ac:image>');
+    expect(html).toContain('<ac:image ac:alt="wide.png" ac:width="300"><ri:attachment ri:filename="wide.png" /></ac:image>');
     expect(html).not.toContain('!<ac:');
-    expect(images).toEqual([{ absolutePath: '/vault/notes/diagram.png', filename: 'diagram.png' }]);
+    expect(images).toEqual([
+      { absolutePath: '/vault/notes/diagram.png', filename: 'diagram.png' },
+      { absolutePath: '/vault/notes/wide.png', filename: 'wide.png' },
+    ]);
+  });
+
+  it('refuses to sync an embed of a file the vault does not have', () => {
+    expect(() => markdownToStorage('![[gone.png]]', { filePath: '/vault/notes/page.md', index: indexOf() }))
+      .toThrow('/vault/notes/page.md: ![[gone.png]]: no image named “gone.png” in the vault');
   });
 
   it('finds an embedded image anywhere in the vault through the index', () => {
-    const resolveAttachment = target => (target === 'diagram.png' ? '/vault/attachments/diagram.png' : null);
-    const { images } = markdownToStorage('![[diagram.png]]', { filePath: '/vault/notes/page.md', resolveAttachment });
+    const index = indexOf({ attachments: target => (target === 'diagram.png' ? '/vault/attachments/diagram.png' : null) });
+    const { images } = markdownToStorage('![[diagram.png]]', { filePath: '/vault/notes/page.md', index });
     expect(images).toEqual([{ absolutePath: '/vault/attachments/diagram.png', filename: 'diagram.png' }]);
   });
 
   it('leaves a labelled note where an HTML embed sits', () => {
-    const { html, images } = markdownToStorage('![[solar-system.html|The planets]]', { filePath: '/vault/notes/page.md' });
+    const index = indexOf({ attachments: target => `/vault/attachments/${target}` });
+    const { html, images } = markdownToStorage('![[solar-system.html|The planets]]', { filePath: '/vault/notes/page.md', index });
     expect(html).toContain('<p><em>Interactive embed: The planets — open the online version to use it.</em></p>');
     expect(images).toEqual([]);
   });
@@ -284,7 +302,7 @@ describe('sync-confluence svg images', () => {
     mkdirSync(join(vault, 'attachments'));
     writeFileSync(join(vault, 'attachments', 'flow.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
 
-    const { html, images } = markdownToStorage('![flow](attachments/flow.svg)', { filePath: notePath, contentDir: vault });
+    const { html, images } = markdownToStorage('![flow](attachments/flow.svg)', { filePath: notePath, vaultDir: vault });
 
     expect(html).toContain('<ri:attachment ri:filename="flow.svg" />');
     expect(images).toEqual([{ absolutePath: join(vault, 'attachments', 'flow.svg'), filename: 'flow.svg' }]);
@@ -296,7 +314,7 @@ describe('sync-confluence svg images', () => {
     writeFileSync(join(vault, 'notes', 'assets', 'cup.svg'), '<svg></svg>');
     writeFileSync(join(vault, 'assets', 'cup.svg'), '<svg></svg>');
 
-    const { images } = markdownToStorage('![cup](assets/cup.svg)', { filePath: notePath, contentDir: vault });
+    const { images } = markdownToStorage('![cup](assets/cup.svg)', { filePath: notePath, vaultDir: vault });
 
     expect(images).toEqual([{ absolutePath: join(vault, 'notes', 'assets', 'cup.svg'), filename: 'cup.svg' }]);
   });
@@ -305,13 +323,13 @@ describe('sync-confluence svg images', () => {
     mkdirSync(join(vault, 'public', 'images'), { recursive: true });
     writeFileSync(join(vault, 'public', 'images', 'logo.svg'), '<svg></svg>');
 
-    const { images } = markdownToStorage('![logo](/images/logo.svg)', { filePath: notePath, contentDir: vault });
+    const { images } = markdownToStorage('![logo](/images/logo.svg)', { filePath: notePath, vaultDir: vault });
 
     expect(images).toEqual([{ absolutePath: join(vault, 'public', 'images', 'logo.svg'), filename: 'logo.svg' }]);
   });
 
   it('keeps the note-relative guess for a missing svg so the upload step can warn', () => {
-    const { images } = markdownToStorage('![gone](missing.svg)', { filePath: notePath, contentDir: vault });
+    const { images } = markdownToStorage('![gone](missing.svg)', { filePath: notePath, vaultDir: vault });
 
     expect(images).toEqual([{ absolutePath: join(vault, 'notes', 'missing.svg'), filename: 'missing.svg' }]);
   });
@@ -319,7 +337,7 @@ describe('sync-confluence svg images', () => {
   it('inlines the svg markup into the configured macro instead of uploading', () => {
     writeFileSync(join(vault, 'notes', 'cup.svg'), '<?xml version="1.0"?>\n<!-- a cup -->\n<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0" /></svg>\n');
 
-    const { html, images } = markdownToStorage('![cup](cup.svg)', { filePath: notePath, contentDir: vault, svgMacro: 'html' });
+    const { html, images } = markdownToStorage('![cup](cup.svg)', { filePath: notePath, vaultDir: vault, macros: { svg: 'html' } });
 
     expect(html).toContain('<ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0" /></svg>]]></ac:plain-text-body></ac:structured-macro>');
     expect(html).not.toContain('<?xml');
@@ -330,7 +348,7 @@ describe('sync-confluence svg images', () => {
   it('inlines Obsidian svg embeds through the same macro path', () => {
     writeFileSync(join(vault, 'notes', 'cup.svg'), '<svg><circle r="1" /></svg>');
 
-    const { html, images } = markdownToStorage('![[cup.svg]]', { filePath: notePath, contentDir: vault, svgMacro: 'html' });
+    const { html, images } = markdownToStorage('![[cup.svg]]', { filePath: notePath, vaultDir: vault, macros: { svg: 'html' }, index: createVaultIndex(vault) });
 
     expect(html).toContain('<ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[<svg><circle r="1" /></svg>]]></ac:plain-text-body></ac:structured-macro>');
     expect(images).toEqual([]);
@@ -339,7 +357,7 @@ describe('sync-confluence svg images', () => {
   it('falls back to the attachment path when the macro is set but the svg is missing or malformed', () => {
     writeFileSync(join(vault, 'notes', 'not-really.svg'), 'just text, no svg root');
 
-    const { html, images } = markdownToStorage('![a](not-really.svg) ![b](gone.svg)', { filePath: notePath, contentDir: vault, svgMacro: 'html' });
+    const { html, images } = markdownToStorage('![a](not-really.svg) ![b](gone.svg)', { filePath: notePath, vaultDir: vault, macros: { svg: 'html' } });
 
     expect(html).not.toContain('ac:structured-macro');
     expect(images).toEqual([
@@ -352,22 +370,22 @@ describe('sync-confluence svg images', () => {
     mkdirSync(join(vault, 'attachments'));
     writeFileSync(join(vault, 'attachments', 'photo.png'), 'png bytes');
 
-    const { images } = markdownToStorage('![photo](attachments/photo.png)', { filePath: notePath, contentDir: vault, svgMacro: 'html' });
+    const { images } = markdownToStorage('![photo](attachments/photo.png)', { filePath: notePath, vaultDir: vault, macros: { svg: 'html' } });
 
     expect(images).toEqual([{ absolutePath: join(vault, 'attachments', 'photo.png'), filename: 'photo.png' }]);
   });
 
   it('keeps the note-relative guess for an image nothing matches, so the upload warns', () => {
-    const { images } = markdownToStorage('![gone](gone.png)', { filePath: notePath, contentDir: vault });
+    const { images } = markdownToStorage('![gone](gone.png)', { filePath: notePath, vaultDir: vault });
 
     expect(images).toEqual([{ absolutePath: join(vault, 'notes', 'gone.png'), filename: 'gone.png' }]);
   });
 });
 
-// tikz/typst fences: compileFenceSvgs pre-compiles (markdown-it renders
-// synchronously), renderCodeToken looks the results up and emits them like
-// local .svg images. Compilers are injected fakes — the real ones have their
-// own smoke tests in remark-fence-svg.test.ts.
+// tikz/typst fences: pageStorage compiles them (markdown-it renders
+// synchronously, so in a pre-pass) and they sync like local .svg images.
+// Compilers are injected fakes — the real ones have their own smoke tests in
+// remark-fence-svg.test.ts.
 describe('sync-confluence tikz/typst fences', () => {
   let cacheDir;
 
@@ -380,26 +398,25 @@ describe('sync-confluence tikz/typst fences', () => {
     vi.restoreAllMocks();
   });
 
-  it('inlines a compiled diagram through the svg macro', () => {
-    const fenceSvgs = new Map([['tikz\0\\draw (0,0);', { svg: '<svg class="content-svg tikz-svg"/>', path: '/cache/tikz-abc.svg' }]]);
+  const tikz = vi.fn(async () => '<svg><circle r="1"/></svg>');
 
-    const { html, images } = markdownToStorage('```tikz\n\\draw (0,0);\n```', { fenceSvgs, svgMacro: 'html' });
+  it('inlines a compiled diagram through the svg macro', async () => {
+    const { html, images } = await pageStorage('```tikz\n\\draw (0,0);\n```', { cacheDir, compilers: { tikz }, macros: { svg: 'html' } });
 
-    expect(html).toBe('<ac:structured-macro ac:name="html"><ac:plain-text-body><![CDATA[<svg class="content-svg tikz-svg"/>]]></ac:plain-text-body></ac:structured-macro>');
+    expect(html).toMatch(/^<ac:structured-macro ac:name="html"><ac:plain-text-body><!\[CDATA\[<svg class="[^"]*content-svg tikz-svg"/);
     expect(images).toEqual([]);
   });
 
-  it('uploads the cached render as an attachment when no svg macro is set', () => {
-    const fenceSvgs = new Map([['typst\0$ x^2 $', { svg: '<svg/>', path: '/cache/typst-abc.svg' }]]);
+  it('uploads the cached render as an attachment when no svg macro is set', async () => {
+    const { html, images } = await pageStorage('```tikz\n\\draw (0,0);\n```', { cacheDir, compilers: { tikz } });
 
-    const { html, images } = markdownToStorage('```typst\n$ x^2 $\n```', { fenceSvgs });
-
-    expect(html).toBe('<ac:image ac:alt="typst diagram"><ri:attachment ri:filename="typst-abc.svg" /></ac:image>');
-    expect(images).toEqual([{ absolutePath: '/cache/typst-abc.svg', filename: 'typst-abc.svg' }]);
+    expect(html).toMatch(/^<ac:image ac:alt="tikz diagram"><ri:attachment ri:filename="tikz-[0-9a-f]{16}\.svg" \/><\/ac:image>$/);
+    expect(images).toHaveLength(1);
+    expect(images[0].absolutePath.startsWith(cacheDir)).toBe(true);
   });
 
-  it('falls back to a labeled source block when there is no compiled entry', () => {
-    const { html, images } = markdownToStorage('```tikz\n\\draw (0,0);\n```', { fenceSvgs: new Map() });
+  it('syncs a labeled source block when no compile ran', () => {
+    const { html, images } = markdownToStorage('```tikz\n\\draw (0,0);\n```');
 
     expect(html).toContain('<ac:parameter ac:name="title">TikZ diagram (source)</ac:parameter>');
     expect(html).toContain('<ac:parameter ac:name="language">none</ac:parameter>');
@@ -407,33 +424,20 @@ describe('sync-confluence tikz/typst fences', () => {
     expect(images).toEqual([]);
   });
 
-  it('compiles each unique fence once and records failures', async () => {
+  it('compiles each unique fence once, and syncs the source of one that fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const tikz = vi.fn(async () => '<svg><path d="M0 0"/></svg>');
+    const once = vi.fn(async () => '<svg><path d="M0 0"/></svg>');
     const typst = vi.fn(async () => {
       throw new Error('expected expression, found <eof>\nmore log lines');
     });
     const markdown = '---\ntitle: T\n---\n\n```tikz\na\n```\n\nprose\n\n```tikz\na\n```\n\n```typst\nb\n```\n';
 
-    const fenceSvgs = await compileFenceSvgs(markdown, { cacheDir, compilers: { tikz, typst } });
+    const { html, images } = await pageStorage(markdown, { cacheDir, compilers: { tikz: once, typst } });
 
-    expect(tikz).toHaveBeenCalledTimes(1);
-    expect(fenceSvgs.get('tikz\0a').svg).toContain('content-svg tikz-svg');
-    expect(fenceSvgs.get('typst\0b')).toEqual({ error: 'expected expression, found <eof>' });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('typst fence failed to compile'));
-  });
-
-  it('round-trips compileFenceSvgs output into the rendered body', async () => {
-    const tikz = vi.fn(async () => '<svg><circle r="1"/></svg>');
-    const markdown = '```tikz\n\\draw (0,0);\n```';
-
-    const fenceSvgs = await compileFenceSvgs(markdown, { cacheDir, compilers: { tikz } });
-    const { html, images } = markdownToStorage(markdown, { fenceSvgs });
-
-    expect(html).toContain('<ac:image ac:alt="tikz diagram"><ri:attachment ri:filename="');
+    expect(once).toHaveBeenCalledTimes(1);
     expect(images).toHaveLength(1);
-    expect(images[0].absolutePath.startsWith(cacheDir)).toBe(true);
-    expect(images[0].filename).toMatch(/^tikz-[0-9a-f]{16}\.svg$/);
+    expect(html).toContain('<ac:parameter ac:name="title">Typst diagram (source)</ac:parameter>');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('typst fence failed to compile, syncing its source instead: expected expression, found <eof>'));
   });
 });
 
@@ -455,10 +459,51 @@ describe('sync-confluence page selection', () => {
     write('guides/intro/two.md', '---\ndraft: true\n---\n# Two\n');
     write('guides/intro/unlisted.md');
     const catalog = openVaultCatalog(vault);
-    const rel = paths => paths.map(path => path.slice(vault.length + 1));
+    const index = createVaultIndex(vault, { catalog });
+    const rel = pages => pages.map(page => page.sourcePath.slice(vault.length + 1));
 
-    expect(rel(folderPages(catalog, 'notes'))).toEqual(['notes/live.md']);
-    expect(rel(folderPages(catalog, 'guides'))).toEqual(['guides/intro/one.md']);
+    expect(rel(folderPagePlan(catalog, index, 'notes'))).toEqual(['notes/live.md']);
+    expect(rel(folderPagePlan(catalog, index, 'guides'))).toEqual(['guides/intro/one.md']);
+  });
+
+  it('titles pages and book folder pages as the site titles them', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-titles-'));
+    const write = (path, content) => {
+      mkdirSync(join(vault, path, '..'), { recursive: true });
+      writeFileSync(join(vault, path), content);
+    };
+    write('notes/foo/index.md', 'No title here.\n');
+    write('notes/team-notes/plan.md', '# The Plan\n');
+    write('guides/setup/SUMMARY.md', '---\ntitle: Setting Up\n---\n\n- [First steps](one.md)\n');
+    write('guides/setup/one.md', '# One\n');
+    write('references/lang/SUMMARY.md', '# The Language\n\n- [Syntax](syntax.md)\n');
+    write('references/lang/syntax.md', '# Syntax rules\n');
+    const catalog = openVaultCatalog(vault);
+    const index = createVaultIndex(vault, { catalog });
+    const plan = folder => folderPagePlan(catalog, index, folder).map(({ title, folders }) => ({ title, folders }));
+
+    // `foo` and its folder `Foo` are one title to Confluence, which ignores case.
+    expect(plan('notes')).toEqual([
+      { title: 'foo (notes/foo/index)', folders: ['Foo (notes/foo)'] },
+      { title: 'The Plan', folders: ['Team Notes'] },
+    ]);
+    expect(plan('guides')).toEqual([{ title: 'First steps', folders: ['Setting Up'] }]);
+    expect(plan('references')).toEqual([{ title: 'Syntax', folders: ['The Language'] }]);
+  });
+
+  it('refuses to sync two pages under one title it cannot tell apart', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-clash-'));
+    for (const [path, content] of Object.entries({
+      'notes/a.md': '# Plan\n',
+      'notes/b.md': '# Plan\n',
+      'notes/c.md': '# Plan (notes/a)\n',
+    })) {
+      mkdirSync(join(vault, path, '..'), { recursive: true });
+      writeFileSync(join(vault, path), content);
+    }
+    const catalog = openVaultCatalog(vault);
+    expect(() => folderPagePlan(catalog, createVaultIndex(vault, { catalog }), 'notes'))
+      .toThrow('Two pages would sync as "Plan (notes/a)"');
   });
 });
 

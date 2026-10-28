@@ -30,7 +30,7 @@ import { escapeHtml } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
 import { svgRootOf, withSvgClass } from './svg-markup.mjs';
 import { themeAdaptSvg, themeD2Svg } from './svg-theme.mjs';
-import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from './diagram-kinds.mjs';
+import { BUILD_DIAGRAM_LANGUAGES, fenceDiagramKind } from './diagram-kinds.mjs';
 export { themeAdaptSvg } from './svg-theme.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
@@ -141,24 +141,22 @@ export async function renderFenceSvg(lang, source, { cacheDir, compilers } = {})
 
 // ── the plugin ───────────────────────────────────────────────────────────────
 export function remarkDiagramFences({ cacheDir, compilers } = {}) {
-  const compile = { ...DEFAULT_COMPILERS, ...compilers };
-
   return async (tree) => {
     // Collect first, then compile: the transformer must be async and mdast
     // mutation during an async walk is easier to reason about in two phases.
     const fences = [];
     replaceChildren(tree, (node, parent, index) => {
       if (node.type !== 'code') return undefined;
-      if (diagramKind(node.lang)?.render === 'client') {
-        return { type: 'html', value: `<pre class="${node.lang}">${escapeHtml(node.value)}</pre>` };
+      const kind = fenceDiagramKind(node.lang);
+      if (kind?.render === 'client') {
+        return { type: 'html', value: `<pre class="${kind.lang}">${escapeHtml(node.value)}</pre>` };
       }
-      if (!(node.lang in compile)) return undefined;
-      fences.push({ parent, index, node });
+      if (kind?.render !== 'build') return undefined;
+      fences.push({ parent, index, lang: kind.lang, source: node.value });
       return null;
     });
 
-    for (const { parent, index, node } of fences) {
-      const { lang, value: source } = node;
+    for (const { parent, index, lang, source } of fences) {
       try {
         const { svg } = await renderFenceSvg(lang, source, { cacheDir, compilers });
         parent.children[index] = { type: 'html', value: svg };

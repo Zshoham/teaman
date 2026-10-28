@@ -44,8 +44,8 @@ const PARTS = {
   // stages the file it loads; planned from the theme's own scan.
   slides: (catalog, index) => catalog.published('slides').flatMap(deck =>
     deckEmbedPlan(deck, index().resolveAttachment)
-      .filter(({ file }) => !file)
-      .map(({ target }) => at('slides', `${deck.relPath} embeds missing HTML file ![[${target}]]`))),
+      .filter(({ problem }) => problem)
+      .map(({ problem }) => at('slides', `${deck.relPath}: ${problem}`))),
 };
 
 /**

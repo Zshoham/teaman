@@ -1,4 +1,5 @@
 import { dirname, posix as path } from 'path';
+import { fenceInfoLanguage } from './diagram-kinds.mjs';
 
 /**
  * A reference book's layout: how its chapters are joined into one document,
@@ -68,12 +69,8 @@ export function parseChapterMarker(value) {
   return { path, anchor: anchor || referenceChapterAnchor(path) };
 }
 
-function fenceLanguage(info) {
-  return info.trim().split(/[\s,]+/, 1)[0]?.toLowerCase() ?? '';
-}
-
 function normalizeFenceLanguage(info) {
-  const language = fenceLanguage(info);
+  const language = fenceInfoLanguage(info);
   if (/^(?:compile_fail|ignore|no_run|should_panic|edition\d+|e\d+)$/i.test(language)) return 'rust';
   return language === 'grammar' ? 'text' : language;
 }
@@ -120,7 +117,7 @@ export function prepareReferenceChapter(source, {
       if (!fence) {
         fence = {
           marker,
-          grammar: fenceLanguage(fenceMatch[3]) === 'grammar',
+          grammar: fenceInfoLanguage(fenceMatch[3]) === 'grammar',
           outIndex: out.length,
           prefix,
           productionNames: new Set(),

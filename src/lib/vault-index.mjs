@@ -10,6 +10,7 @@ import {
   guideHref,
 } from './entry-identity.mjs';
 import { assertCoversTypes } from './collections.mjs';
+import { entryTitle } from './entry-title.mjs';
 import { isAttachmentPath } from './fs-walk.mjs';
 import { openVaultCatalog } from './vault-catalog.mjs';
 
@@ -34,6 +35,8 @@ const withoutMd = value => value.replace(/\.md$/i, '');
  *   path-qualified link (`[[guides/intro/setup]]`) is matched against
  * @property {string} sourcePath  absolute file (or, for a guide, directory)
  * @property {'file'|'folder'} kind  a guide is linkable by its folder name
+ * @property {string} title  the page's title, as the site titles it: a
+ *   book chapter's is its SUMMARY.md link text
  * @property {string} href  site URL, base included
  * @property {string} [reference]  a reference's: the reference's entry id
  * @property {string} [anchor]  a reference book chapter's: its anchor in the
@@ -51,9 +54,12 @@ const withoutMd = value => value.replace(/\.md$/i, '');
  * @property {VaultEntry[]} alternatives  other entries the link also matched
  */
 
+/** A file entry's title (`entry-title.mjs`). */
+const titleOf = record => entryTitle({ data: record.data, body: record.body, id: record.id });
+
 function notePages(catalog, base) {
   return catalog.published('note').map(note => (
-    { type: 'note', sourcePath: note.sourcePath, kind: 'file', href: entryHref(base, 'note', note.id) }));
+    { type: 'note', sourcePath: note.sourcePath, kind: 'file', title: titleOf(note), href: entryHref(base, 'note', note.id) }));
 }
 
 function referencePages(catalog, base) {
@@ -61,13 +67,14 @@ function referencePages(catalog, base) {
     const href = entryHref(base, 'reference', document.id);
     const reference = document.id;
     if (document.kind === 'standalone') {
-      return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', href, reference }];
+      return [{ type: 'reference', sourcePath: document.sourcePath, kind: 'file', title: document.title, href, reference }];
     }
     // A book is one page; each chapter is a section of it.
     return document.chapters.map(chapter => ({
       type: 'reference',
       sourcePath: chapter.sourcePath,
       kind: 'file',
+      title: chapter.title,
       href: `${href}#${chapter.anchor}`,
       reference,
       anchor: chapter.anchor,
@@ -81,11 +88,12 @@ function guidePages(catalog, base) {
     // published chapter is the one served at the guide root.
     const slugs = guide.chapters.map(chapter => chapter.slug);
     return [
-      { type: 'guide', sourcePath: guide.dir, kind: 'folder', href: guideHref(base, guide.id) },
+      { type: 'guide', sourcePath: guide.dir, kind: 'folder', title: titleOf(guide), href: guideHref(base, guide.id) },
       ...guide.chapters.map((chapter, index) => ({
         type: 'guide',
         sourcePath: chapter.sourcePath,
         kind: 'file',
+        title: chapter.title,
         href: guideChapterHref(base, guide.id, slugs, slugs[index]),
       })),
     ];
@@ -97,16 +105,18 @@ function deckPages(catalog, base) {
     type: 'slides',
     sourcePath: deck.sourcePath,
     kind: 'file',
+    title: deck.title,
     href: entryHref(base, 'slides', deck.id),
   }));
 }
 
 function dailyPages(catalog, base) {
-  return catalog.published('daily').flatMap(({ id, sourcePath, data }) => {
+  return catalog.published('daily').flatMap(({ id, sourcePath, data, body }) => {
     // The catalog has coerced a valid `date`; an invalid one fails the build.
     const { date } = data;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(id) && !(date instanceof Date)) return [];
-    return [{ type: 'daily', sourcePath, kind: 'file', href: dailyHref(base, dailyIsoDate(id, /** @type {Date} */ (date))) }];
+    const href = dailyHref(base, dailyIsoDate(id, /** @type {Date} */ (date)));
+    return [{ type: 'daily', sourcePath, kind: 'file', title: entryTitle({ data, body, id }), href }];
   });
 }
 
@@ -115,6 +125,7 @@ function decisionPages(catalog, base) {
     type: 'decision',
     sourcePath: record.sourcePath,
     kind: 'file',
+    title: titleOf(record),
     href: adrHref(base, record.num),
   }));
 }

@@ -44,6 +44,28 @@ export function diagramKind(lang) {
   return DIAGRAM_KINDS.find(kind => kind.lang === lang);
 }
 
+/**
+ * The language a fence's info string names: its first word, lowercased, with
+ * mdBook's comma annotations (`rust,ignore`) split off. Every renderer reads a
+ * fence through this, so ```` ```Mermaid ```` is the same fence everywhere.
+ *
+ * @param {string | null | undefined} info
+ * @returns {string}
+ */
+export function fenceInfoLanguage(info) {
+  return (info ?? '').trim().split(/[\s,]+/, 1)[0].toLowerCase();
+}
+
+/**
+ * The diagram kind a fence's info string names, or undefined for ordinary code.
+ *
+ * @param {string | null | undefined} info
+ * @returns {DiagramKind | undefined}
+ */
+export function fenceDiagramKind(info) {
+  return diagramKind(fenceInfoLanguage(info));
+}
+
 /** Languages the browser renders. */
 export const CLIENT_DIAGRAM_LANGUAGES = DIAGRAM_KINDS.filter(kind => kind.render === 'client').map(kind => kind.lang);
 

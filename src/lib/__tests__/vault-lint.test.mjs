@@ -201,8 +201,8 @@ describe('lintVault', () => {
     write('notes/a.md', '![[Gone]] ![[pic.png]] ![[nope.png]] `![[in code]]`\n\n```\n[[fenced]]\n```\n');
     const { problems, warnings } = lintVault(vault);
     expect(problems).toEqual([
-      'notes: a.md embeds ![[Gone]]: note embeds are not supported; link it with [[Gone]]',
-      'notes: a.md embeds missing image ![[nope.png]]',
+      'notes: a.md: ![[Gone]] embeds a note, which teaman does not support — link it with [[Gone]] instead',
+      'notes: a.md: ![[nope.png]]: no image named “nope.png” in the vault',
     ]);
     expect(warnings).toEqual([]);
   });
@@ -213,9 +213,9 @@ describe('lintVault', () => {
     write('slides/deck.md', '# Deck\n\n![[viz.html|380]]\n\n---\n\n![[lost.html]] `![[in-code.html]]`\n\n<div>\n![[wrapped.html]]\n</div>\n');
     const { problems } = lintVault(vault);
     expect(problems).toEqual([
-      'slides: deck.md embeds missing HTML file ![[lost.html]]',
-      'slides: deck.md embeds missing HTML file ![[wrapped.html]]',
-      'notes: a.md embeds missing HTML file ![[gone.html]]',
+      'slides: deck.md: ![[lost.html]]: no HTML file named “lost.html” in the vault',
+      'slides: deck.md: ![[wrapped.html]]: no HTML file named “wrapped.html” in the vault',
+      'notes: a.md: ![[gone.html]]: no HTML file named “gone.html” in the vault',
     ]);
   });
 

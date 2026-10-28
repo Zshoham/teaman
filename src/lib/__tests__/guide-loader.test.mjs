@@ -60,6 +60,23 @@ describe('guideLoader', () => {
     expect(context.entries.get('g').filePath).toBe('guides/g/SUMMARY.md');
   });
 
+  it('stores chapters in SUMMARY order, and no _-prefixed guide', async () => {
+    write({
+      'guides/alpha/SUMMARY.md': '# Alpha Guide\n- [Two](<Part Two.md>)\n- [One](one.md)\n',
+      'guides/alpha/one.md': '# One',
+      'guides/alpha/Part Two.md': '# Two',
+      'guides/_tpl/SUMMARY.md': '- [A](a.md)\n',
+      'guides/_tpl/a.md': '# A',
+    });
+    const context = createContext();
+    await guideLoader({ vaultDir: vault }).load(context);
+    expect([...context.entries.keys()]).toEqual(['alpha']);
+    expect(context.entries.get('alpha').data.chapters).toEqual([
+      { slug: 'part-two', entryId: 'alpha/part-two', title: 'Two' },
+      { slug: 'one', entryId: 'alpha/one', title: 'One' },
+    ]);
+  });
+
   // What makes Astro's dev server re-run the guide routes' getStaticPaths.
   it('updates the store when a SUMMARY.md changes', async () => {
     write({ 'guides/g/SUMMARY.md': '# Before edit\n\n- [A](a.md)\n', 'guides/g/a.md': '# A' });

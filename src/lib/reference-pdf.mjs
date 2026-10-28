@@ -7,8 +7,6 @@ import {
   compileDiagramFences,
   diagramKey,
   fenceLanguage,
-  isHtmlEmbed,
-  isImageEmbed,
   obsidianDialect,
 } from './obsidian-markdown.mjs';
 import { htmlIds, layoutReferenceBook } from './reference-book.mjs';
@@ -18,6 +16,7 @@ import { isInside, toPosix } from './fs-walk.mjs';
 import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
 import { assetRoots, resolveVaultAsset } from './vault-assets.mjs';
 import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind } from './diagram-kinds.mjs';
+import { resolveEmbed } from './embeds.mjs';
 
 const markdown = new MarkdownIt({
   html: true,
@@ -100,7 +99,7 @@ function standaloneTargets({ headings, htmlIds: ids }) {
  * in the returned map (`{ error }`) so the converter can render a visible
  * fallback without aborting the rest of the reference document.
  */
-export async function compileReferenceDiagrams(source, {
+async function compileReferenceDiagrams(source, {
   cacheDir,
   compilers = {},
   warn = message => console.warn(message),
@@ -173,16 +172,14 @@ function renderInline(tokens, context) {
         break;
       case 'wiki_link': {
         const { target, label, embed } = token.meta;
-        if (embed && isHtmlEmbed(target)) {
-          // A PDF cannot run the page; leave a labelled box where it sits.
-          out += `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Interactive embed: ${label === target ? target : label} — open the online version to use it`)}]`;
-          break;
-        }
-        if (embed && !isImageEmbed(target)) {
-          throw new Error(`${context.sourcePath ?? 'reference'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
-        }
         if (embed) {
-          out += renderImage(target, label === target ? target : label, context, context.resolveEmbed);
+          const found = resolveEmbed(target, label, { resolveAttachment: context.resolveAttachment, fromFile: context.sourcePath });
+          if (found.problem) throw new Error(`${context.sourcePath ?? 'reference'}: ${found.problem}`);
+          const name = found.caption ?? found.target;
+          // A PDF cannot run the page; leave a labelled box where it sits.
+          out += found.kind === 'html'
+            ? `#box(stroke: 0.5pt + rgb("#c9c4ba"), inset: 6pt)[${asText(`Interactive embed: ${name} — open the online version to use it`)}]`
+            : renderImage(found.file, name, context, context.attachmentPath);
           break;
         }
         // A wiki-link to a section of this PDF jumps there; one to anywhere
@@ -270,7 +267,8 @@ export function markdownToTypst(source, options = {}) {
 function renderTypst(tokens, {
   sourcePath,
   resolveImage,
-  resolveEmbed = resolveImage,
+  resolveAttachment,
+  attachmentPath = file => file,
   resolveWikiLink,
   diagrams = new Map(),
   headingTargets,
@@ -282,7 +280,8 @@ function renderTypst(tokens, {
   const context = {
     sourcePath,
     resolveImage,
-    resolveEmbed,
+    resolveAttachment,
+    attachmentPath,
     resolveWikiLink,
     layout,
     chapterPath,
@@ -407,6 +406,51 @@ function typstTags(tags) {
 }
 
 /**
+ * A published reference of the vault catalog as the Typst of its PDF: its
+ * diagram fences compiled (through the shared diagram cache), its frontmatter
+ * on the title page, a book laid out from its prepared chapters, embeds
+ * found and wiki-links resolved through the vault index — a link to a part of
+ * this reference jumps there; one to anywhere else keeps its text. Returns the
+ * Typst and the vault-relative images it names, for `referencePdfCacheKey`.
+ *
+ * @param {import('./vault-catalog.mjs').CatalogRecord & { title: string, kind: 'standalone' | 'book', chapters?: object[] }} document
+ * @param {object} options
+ * @param {string} options.template  the Typst reference template
+ * @param {string} [options.brand]
+ * @param {string} options.vaultDir
+ * @param {Pick<import('./vault-index.mjs').VaultIndex, 'resolve' | 'resolveAttachment'>} options.index
+ * @param {string} options.diagramCacheDir
+ * @param {object} [options.compilers]  replace the diagram compilers
+ * @param {(message: string) => void} [options.warn]  a diagram that failed to compile
+ * @returns {Promise<{ typst: string, images: string[] }>}
+ */
+export async function renderReferenceDocument(document, { template, brand, vaultDir, index, diagramCacheDir, compilers, warn }) {
+  const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir, compilers, warn });
+  const { data } = document;
+  return renderReferenceTypst({
+    template,
+    title: document.title,
+    summary: data.summary,
+    date: data.date,
+    // Normalized by the schema; frontmatter it rejects (which `doctor` and
+    // the site build report) is as written. `teaman dev` renders references
+    // before Astro validates anything, so this must not crash on that.
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    brand,
+    body: document.body,
+    chapters: document.kind === 'book' ? document.chapters : undefined,
+    sourcePath: document.sourcePath,
+    vaultDir,
+    diagrams,
+    resolveWikiLink: (target, fromPath) => {
+      const entry = index.resolve(target, fromPath)?.entry;
+      return entry?.reference === document.id ? entry.anchor ?? null : null;
+    },
+    resolveAttachment: index.resolveAttachment,
+  });
+}
+
+/**
  * Fill the bundled Typst reference template with converted document content.
  * Returns the Typst source and the vault-relative images it names, in order.
  *
@@ -437,13 +481,9 @@ export function renderReferenceTypst({
     if (path) images.add(path);
     return path;
   };
-  // `![[image.png]]` names an attachment anywhere in the vault, the way the
-  // site resolves it; a Markdown image path resolves relative to its file.
-  const embedResolver = from => target => {
-    const found = resolveAttachment?.(target, from);
-    if (found) return emitted(relative(vaultDir, found).replace(/\\/g, '/'));
-    return emitted(resolveReferenceImage(target, { sourcePath: from, vaultDir }));
-  };
+  // `![[image.png]]` names an attachment anywhere in the vault, found by
+  // `resolveEmbed` the way the site finds it; the workspace is the vault.
+  const attachmentPath = file => emitted(isInside(vaultDir, file) ? toPosix(relative(vaultDir, file)) : null);
   // Parse book chapters independently so repeated reference-style link names
   // stay chapter-local and relative images resolve from the chapter that owns
   // them. The resulting Typst fragments still form one continuous document,
@@ -462,7 +502,8 @@ export function renderReferenceTypst({
       const ids = layout.headingIds(chapter.path);
       return renderTypst(tokens, {
         sourcePath: chapter.sourcePath,
-        resolveEmbed: embedResolver(chapter.sourcePath),
+        resolveAttachment,
+        attachmentPath,
         resolveImage: source => emitted(resolveReferenceImage(source, {
           sourcePath: chapter.sourcePath,
           vaultDir,
@@ -479,7 +520,8 @@ export function renderReferenceTypst({
   } else {
     content = markdownToTypst(body, {
       sourcePath,
-      resolveEmbed: embedResolver(sourcePath),
+      resolveAttachment,
+      attachmentPath,
       resolveImage: source => emitted(resolveReferenceImage(source, { sourcePath, vaultDir })),
       resolveWikiLink: target => resolveWikiLink?.(target, sourcePath) ?? null,
       diagrams,

@@ -133,8 +133,31 @@ describe('teaman sync-confluence', () => {
     expect(stderr).not.toMatch(/exited with code/);
   });
 
+  // An unreachable Confluence: the sync names its vault, then fails to connect.
+  const unreachable = ['--base-url', 'http://127.0.0.1:9', '--pat', 'x', '--roots', 'notes=1'];
+
+  it('syncs the current directory by default, like every command', () => {
+    mkdirSync(join(dir, 'notes'));
+    writeFileSync(join(dir, 'notes', 'a.md'), '# A\n');
+    const { code, stdout } = cli(['sync-confluence', ...unreachable], { cwd: dir });
+    expect(stdout).toContain(`Planning ${dir}: notes`);
+    expect(code).toBe(1);
+  });
+
+  it('takes the vault as a positional, read from the caller\'s directory', () => {
+    mkdirSync(join(dir, 'vault', 'notes'), { recursive: true });
+    writeFileSync(join(dir, 'vault', 'notes', 'a.md'), '# A\n');
+    const { stdout } = cli(['sync-confluence', 'vault', ...unreachable], { cwd: dir });
+    expect(stdout).toContain(`Planning ${join(dir, 'vault')}: notes`);
+  });
+
+  it('refuses a vault that is not a directory, and a flag it does not know', () => {
+    expect(cli(['sync-confluence', join(dir, 'nope'), ...unreachable]).stderr).toMatch(/vault path is not a directory/);
+    expect(cli(['sync-confluence', '--frobnicate']).stderr).toMatch(/Unknown option '--frobnicate'/);
+  });
+
   it('listed in the top-level help', () => {
-    expect(cli(['help']).stdout).toMatch(/sync-confluence/);
+    expect(cli(['help']).stdout).toMatch(/sync-confluence \[vault\]/);
   });
 });
 

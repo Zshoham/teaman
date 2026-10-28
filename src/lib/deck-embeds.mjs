@@ -19,11 +19,10 @@
  */
 import { dirname } from 'path';
 import MarkdownIt from 'markdown-it';
-import { EMBEDS_DIR, isHtmlEmbed, parseHtmlEmbed } from './html-embeds.mjs';
+import { EMBED_RE, readEmbed, resolveEmbed, splitWikiTarget } from './embeds.mjs';
+import { EMBEDS_DIR } from './html-embeds.mjs';
 
 const parser = new MarkdownIt({ html: true });
-
-const EMBED_RE = /!\[\[([^\]\n|]+)(?:\|([^\]\n]*))?\]\]/g;
 
 /**
  * Code spans in `text`: a run of N backticks opens a span that only a run of
@@ -86,8 +85,7 @@ const escapeAttr = value =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /** The `<HtmlEmbed>` for one embed; its `src` is where build-slides stages the file. */
-function componentFor(target, label) {
-  const { path, suffix, title, width, height } = parseHtmlEmbed(target, label);
+function componentFor({ path, suffix, title, width, height }) {
   // A `#fragment` or `?query` rides along: the embed may read it.
   const src = `${EMBEDS_DIR}/${path.split('/').map(encodeURIComponent).join('/')}${suffix}`;
   const attrs = [`src="${escapeAttr(src)}"`, `title="${escapeAttr(title)}"`];
@@ -114,14 +112,16 @@ export function htmlEmbedEdits(markdown) {
     block = null;
     const spans = codeSpans(text);
     for (const match of text.matchAll(EMBED_RE)) {
-      const [whole, target, label] = match;
-      if (!isHtmlEmbed(parseHtmlEmbed(target).path)) continue;
+      const [whole, inner] = match;
+      const { target, label } = splitWikiTarget(inner);
+      const embed = readEmbed(target, label);
+      if (embed.kind !== 'html') continue;
       if (spans.some(([from, to]) => match.index >= from && match.index < to)) continue;
       edits.push({
         start: start + match.index,
         end: start + match.index + whole.length,
-        target,
-        replacement: componentFor(target, label),
+        target: embed.target,
+        replacement: componentFor(embed),
       });
     }
   };
@@ -143,21 +143,20 @@ export function htmlEmbedEdits(markdown) {
 
 /**
  * Where each of a deck's embeds comes from and where it is staged: `file` is
- * the vault file `![[target]]` resolves to (null when there is none), `dest`
- * the path — relative to the slides root — that the deck's `<HtmlEmbed>`
- * loads, in the public dir Slidev serves beside the deck. One entry per
- * distinct target.
+ * the vault file `![[target]]` resolves to (null, with the `problem`, when
+ * there is none), `dest` the path — relative to the slides root — that the
+ * deck's `<HtmlEmbed>` loads, in the public dir Slidev serves beside the deck.
+ * One entry per distinct target.
  *
  * @param {{ markdown: string, sourcePath: string, relPath: string }} deck
- * @param {(target: string, fromPath: string) => string | null} resolveAttachment
- * @returns {Array<{ target: string, file: string | null, dest: string }>}
+ * @param {(target: string, fromPath?: string) => string | null} resolveAttachment
+ * @returns {Array<{ target: string, file: string | null, problem: string | null, dest: string }>}
  */
 export function deckEmbedPlan(deck, resolveAttachment) {
   const folder = dirname(deck.relPath);
   const targets = [...new Set(htmlEmbedEdits(deck.markdown).map(edit => edit.target))];
-  return targets.map(target => ({
-    target,
-    file: resolveAttachment(target, deck.sourcePath),
-    dest: [folder === '.' ? '' : `${folder}/`, `public/${EMBEDS_DIR}/`, parseHtmlEmbed(target).path].join(''),
-  }));
+  return targets.map(target => {
+    const { path, file, problem } = resolveEmbed(target, undefined, { resolveAttachment, fromFile: deck.sourcePath });
+    return { target, file, problem, dest: [folder === '.' ? '' : `${folder}/`, `public/${EMBEDS_DIR}/`, path].join('') };
+  });
 }

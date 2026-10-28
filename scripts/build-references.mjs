@@ -10,11 +10,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { join } from 'path';
-import {
-  compileReferenceDiagrams,
-  referencePdfCacheKey,
-  renderReferenceTypst,
-} from '../src/lib/reference-pdf.mjs';
+import { referencePdfCacheKey, renderReferenceDocument } from '../src/lib/reference-pdf.mjs';
 import { assertBuildable } from '../src/lib/build-problems.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
@@ -76,30 +72,12 @@ export async function buildReferences({
   const vaultIndex = createVaultIndex(vaultDir, { catalog });
   let compiler = null;
   for (const document of published) {
-    const diagrams = await compileReferenceDiagrams(document.body, { cacheDir: diagramCacheDir });
-    // A wiki-link the site resolves to a chapter of this reference becomes a
-    // jump within the PDF.
-    const resolveWikiLink = (target, fromPath) => {
-      const entry = vaultIndex.resolve(target, fromPath)?.entry;
-      return entry?.reference === document.id ? entry.anchor ?? null : null;
-    };
-    const rendered = renderReferenceTypst({
+    const rendered = await renderReferenceDocument(document, {
       template,
-      title: document.title,
-      summary: document.data.summary,
-      date: document.data.date,
-      // Normalized by the schema; frontmatter it rejects (which `doctor` and
-      // the site build report) is as written. `teaman dev` runs this stage
-      // before Astro validates anything, so it must not crash on that.
-      tags: Array.isArray(document.data.tags) ? document.data.tags : [],
       brand,
-      body: document.body,
-      chapters: document.kind === 'book' ? document.chapters : undefined,
-      sourcePath: document.sourcePath,
       vaultDir,
-      diagrams,
-      resolveWikiLink,
-      resolveAttachment: (target, fromPath) => vaultIndex.resolveAttachment(target, fromPath),
+      index: vaultIndex,
+      diagramCacheDir,
     });
     const targetDir = join(outDir, 'references', ...document.id.split('/'));
     mkdirSync(targetDir, { recursive: true });

@@ -77,7 +77,7 @@ const CASES = [
   {
     name: 'a deck embedding an HTML file the vault lacks',
     files: { 'slides/talk.md': '# Talk\n\n![[gone.html]]\n', 'slides/viz/ok.html': '<p>ok</p>' },
-    problems: { slides: ['slides: talk.md embeds missing HTML file ![[gone.html]]'] },
+    problems: { slides: ['slides: talk.md: ![[gone.html]]: no HTML file named “gone.html” in the vault'] },
   },
 ];
 

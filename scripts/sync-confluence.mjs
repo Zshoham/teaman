@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve, sep } from 'path';
 import { parseArgs as parseCliArgs } from 'util';
 
@@ -7,11 +7,12 @@ import MarkdownIt from 'markdown-it';
 import { createConfluenceClient, planningClient } from './confluence-client.mjs';
 import { engineDir, vaultDir as defaultContentDir } from '../src/lib/build-env.mjs';
 import { renderFenceSvg } from '../src/lib/remark-fence-svg.mjs';
-import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from '../src/lib/diagram-kinds.mjs';
+import { BUILD_DIAGRAM_LANGUAGES, diagramKind, fenceInfoLanguage } from '../src/lib/diagram-kinds.mjs';
+import { resolveEmbed } from '../src/lib/embeds.mjs';
 import { CONTENT_DIRS } from '../src/lib/collections.mjs';
 import { parseFrontmatter } from '../src/lib/entry-files.mjs';
-import { entryTitle, withoutTitleHeading } from '../src/lib/entry-title.mjs';
-import { walkMarkdown } from '../src/lib/fs-walk.mjs';
+import { withoutTitleHeading } from '../src/lib/entry-title.mjs';
+import { isInside, toPosix } from '../src/lib/fs-walk.mjs';
 import { openVaultCatalog } from '../src/lib/vault-catalog.mjs';
 import { createVaultIndex } from '../src/lib/vault-index.mjs';
 import { assetPath, assetRoots, resolveVaultAsset } from '../src/lib/vault-assets.mjs';
@@ -20,8 +21,6 @@ import {
   diagramKey,
   fenceLanguage,
   fenceSource,
-  isHtmlEmbed,
-  isImageEmbed,
   obsidianDialect,
 } from '../src/lib/obsidian-markdown.mjs';
 
@@ -41,6 +40,10 @@ const STATIC_ROOTS = {
 function usage() {
   console.log(`Sync repository markdown content to Confluence Server/Data Center.
 
+Usage: teaman sync-confluence [vault] [options]
+
+  [vault] defaults to the current directory, as for every teaman command.
+
 Required:
   --base-url URL          Confluence base URL, e.g. https://wiki.example.com
   --user USER             Confluence username or email (or CONFLUENCE_USER)
@@ -50,7 +53,7 @@ Required:
                          May also be JSON via CONFLUENCE_ROOTS='{"guides":"123"}'
 
 Options:
-  --content-dir PATH      Content directory (default: ./example)
+  --content-dir PATH      The vault, as an option rather than [vault]
   --space KEY             Space key for newly created pages if roots are not enough
   --apply                 Write changes. Without this, prints a dry-run plan.
   --only FOLDERS          Comma-separated content folders to sync.
@@ -69,11 +72,11 @@ Options:
   --help                  Show this help.
 
 Examples:
-  node scripts/sync-confluence.mjs --base-url https://wiki.local --user alice \\
+  teaman sync-confluence ./vault --base-url https://wiki.local --user alice \\
     --token "$CONFLUENCE_TOKEN" --roots guides=111,notes=222 --apply
 
   CONFLUENCE_BASE_URL=https://wiki.local CONFLUENCE_PAT=secret \\
-  CONFLUENCE_ROOTS='{"guides":"111"}' bun run sync:confluence -- --apply
+  CONFLUENCE_ROOTS='{"guides":"111"}' teaman sync-confluence --apply
 
 Markdown support:
   Tables, strikethrough, headings, lists, links, images, and fenced code (with
@@ -96,8 +99,16 @@ Markdown support:
 `);
 }
 
+/**
+ * The sync's arguments. `vaultArg` is the vault as given, `[vault]` or
+ * `--content-dir` (the CLI opens it like any vault); `contentDir` falls back
+ * to the env seam's vault, which under the CLI is that one, or the current
+ * directory. `help` is all there is when it is asked for.
+ *
+ * @param {string[]} argv
+ */
 function parseArgs(argv) {
-  const { values } = parseCliArgs({
+  const { values, positionals } = parseCliArgs({
     args: argv,
     options: {
       help: { type: 'boolean', short: 'h' },
@@ -115,13 +126,15 @@ function parseArgs(argv) {
       'plantuml-macro': { type: 'string' },
       'svg-macro': { type: 'string' },
     },
-    allowPositionals: false,
+    allowPositionals: true,
   });
 
-  if (values.help) {
-    usage();
-    process.exit(0);
+  if (values.help) return { help: true };
+  if (positionals.length > 1) throw new Error(`Expected one vault, got: ${positionals.join(' ')}`);
+  if (positionals.length === 1 && values['content-dir']) {
+    throw new Error('Name the vault once: as [vault] or as --content-dir, not both');
   }
+  const vaultArg = positionals[0] ?? values['content-dir'];
 
   let roots = parseRoots(process.env.CONFLUENCE_ROOTS);
   for (const value of values.roots ?? []) {
@@ -134,7 +147,8 @@ function parseArgs(argv) {
     token: values.token ?? process.env.CONFLUENCE_TOKEN,
     pat: values.pat ?? process.env.CONFLUENCE_PAT,
     roots: { ...STATIC_ROOTS, ...roots },
-    contentDir: values['content-dir'] ?? defaultContentDir,
+    vaultArg,
+    contentDir: vaultArg ?? defaultContentDir,
     apply: values.apply ?? false,
     only: values.only ? new Set(values.only.split(',').map(s => s.trim()).filter(Boolean)) : null,
     space: values.space ?? process.env.CONFLUENCE_SPACE,
@@ -191,46 +205,97 @@ function listFolders(contentDir, roots, only) {
 }
 
 /**
- * The Markdown files in one content folder that become Confluence pages:
- * exactly the files of pages the site publishes (`vault-catalog.mjs`). Drafts,
- * `_`-prefixed paths, and SUMMARY.md indexes stay behind.
+ * The pages a sync makes of one content folder: a page per file of a page the
+ * site renders under it (the vault index's file entries, so drafts, `_` paths,
+ * SUMMARY.md indexes, and chapters no SUMMARY.md lists stay behind), in path
+ * order. `folders` are the folder pages it sits under, one per directory
+ * between the content folder and the file. Every title is `pageTitles`'.
  *
  * @param {import('../src/lib/vault-catalog.mjs').VaultCatalog} catalog
+ * @param {import('../src/lib/vault-index.mjs').VaultIndex} index  the catalog's
  * @param {string} folder
+ * @returns {Array<{ sourcePath: string, title: string, folders: string[] }>}
  */
-function folderPages(catalog, folder) {
-  return walkMarkdown(join(catalog.vaultDir, folder)).filter(path => catalog.isPublishedFile(path));
+function folderPagePlan(catalog, index, folder) {
+  const folderDir = join(catalog.vaultDir, folder);
+  const titles = pageTitles(catalog, index);
+  return index.entries
+    .filter(entry => entry.kind === 'file' && isInside(folderDir, entry.sourcePath))
+    .sort((a, b) => a.sourcePath.localeCompare(b.sourcePath))
+    .map(({ sourcePath }) => {
+      const rel = relative(folderDir, dirname(sourcePath));
+      const segments = rel ? rel.split(sep) : [];
+      const folders = segments.map((segment, at) => titles.get(join(folderDir, ...segments.slice(0, at + 1))));
+      return { sourcePath, title: titles.get(sourcePath), folders };
+    });
 }
 
-function pageTitle(markdown, filePath) {
-  const { data, content } = parseFrontmatter(markdown);
-  return entryTitle({ data, body: content, id: basename(filePath, '.md') });
+const titleCache = new WeakMap();
+
+/**
+ * The Confluence title of every page a sync of the vault can make: a page per
+ * file the site renders, titled as the site titles it, and a folder page per
+ * directory between a content folder and such a file — a guide's or a
+ * reference book's titled as the site titles the book, any other after its
+ * name. Confluence addresses a page by its title — once per space, ignoring
+ * case — and the sync finds the page to update or the folder to reuse by it,
+ * so pages that share a title would merge, each sync overwriting the last.
+ * Each of those is told apart by its vault path instead
+ * (`Overview (guides/setup/one)`, `Manual (guides/a)`). Worked out over the
+ * whole vault, so a page and every link to it agree whichever folders a run
+ * syncs.
+ *
+ * @param {import('../src/lib/vault-catalog.mjs').VaultCatalog} catalog
+ * @param {import('../src/lib/vault-index.mjs').VaultIndex} index  the catalog's
+ * @returns {Map<string, string>}  absolute file or directory → title
+ */
+function pageTitles(catalog, index) {
+  if (titleCache.has(index)) return titleCache.get(index);
+  const { vaultDir } = catalog;
+  const bookTitles = new Map([
+    ...index.entries.filter(entry => entry.kind === 'folder').map(entry => [entry.sourcePath, entry.title]),
+    ...catalog.published('reference').filter(document => document.kind === 'book')
+      .map(document => [dirname(document.sourcePath), document.title]),
+  ]);
+  /** @type {Map<string, { title: string, path: string }>} */
+  const pages = new Map();
+  for (const entry of index.entries) {
+    if (entry.kind !== 'file') continue;
+    pages.set(entry.sourcePath, { title: entry.title, path: entry.path });
+    const [top, ...rest] = entry.path.split('/');
+    let dir = join(vaultDir, top);
+    for (const segment of rest.slice(0, -1)) {
+      dir = join(dir, segment);
+      if (!pages.has(dir)) pages.set(dir, { title: bookTitles.get(dir) ?? segmentTitle(segment), path: toPosix(relative(vaultDir, dir)) });
+    }
+  }
+
+  const key = title => title.toLowerCase();
+  const sharing = new Map();
+  for (const { title } of pages.values()) sharing.set(key(title), (sharing.get(key(title)) ?? 0) + 1);
+  const titles = new Map([...pages].map(([sourcePath, { title, path }]) =>
+    [sourcePath, sharing.get(key(title)) > 1 ? `${title} (${path})` : title]));
+  // A told-apart title can still meet a page titled that way on purpose.
+  const seen = new Map();
+  for (const [sourcePath, title] of titles) {
+    const other = seen.get(key(title));
+    if (other) throw new Error(`Two pages would sync as "${title}": ${other} and ${sourcePath} — give one a different title`);
+    seen.set(key(title), sourcePath);
+  }
+  titleCache.set(index, titles);
+  return titles;
 }
 
 // Resolves a wiki-link to the title of the Confluence page for the file it
-// names — Confluence addresses pages by title. Resolution is the site's own
-// (vault-index.mjs: any rendered type, Obsidian's tie-breaks), so a link lands
-// on the same document in both places, whichever folders this run syncs.
-function buildLinkTitles(contentDir, index = existsSync(contentDir) ? createVaultIndex(contentDir) : null) {
-  if (!index) return () => null;
-  const titles = new Map();
+// names. Resolution is the site's own (vault-index.mjs: any rendered type,
+// Obsidian's tie-breaks) and the title is the page's (`pageTitles`), so a
+// link lands on the same document in both places. A guide resolves to its
+// folder page.
+function buildLinkTitles(index, titles = new Map()) {
   return (target, fromPath) => {
-    const resolution = index.resolve(target, fromPath ?? undefined);
-    if (!resolution) return null;
-    const { entry } = resolution;
-    if (!titles.has(entry.sourcePath)) {
-      // A guide folder syncs as a folder page, titled like ensureFolderPage does.
-      titles.set(entry.sourcePath, entry.kind === 'folder'
-        ? segmentTitle(basename(entry.sourcePath))
-        : pageTitle(readFileSync(entry.sourcePath, 'utf8'), entry.sourcePath));
-    }
-    return titles.get(entry.sourcePath);
+    const entry = index.resolve(target, fromPath ?? undefined)?.entry;
+    return entry ? titles.get(entry.sourcePath) ?? entry.title : null;
   };
-}
-
-function storageBody(markdown, context = {}) {
-  const parsed = parseFrontmatter(markdown);
-  return markdownToStorage(withoutTitleHeading(parsed.content), context);
 }
 
 function codeMacro(lines, { language, title } = {}) {
@@ -345,7 +410,7 @@ function renderCodeToken(tokens, idx, options, env) {
   const lang = fenceLanguage(token);
   // The code macro takes the author's language as written (`c#`, `c++`);
   // the normalized one only decides whether this is a diagram fence.
-  const rawLang = (token.info || '').trim().split(/\s+/)[0].toLowerCase();
+  const rawLang = fenceInfoLanguage(token.info);
   const source = fenceSource(token);
   const kind = diagramKind(lang);
   const sourceBlock = () => `${codeMacro(source.split('\n'), { language: 'none', title: `${kind.label} diagram (source)` })}\n`;
@@ -357,10 +422,10 @@ function renderCodeToken(tokens, idx, options, env) {
     return macro ? diagramMacro(macro, source) : sourceBlock();
   }
 
-  // Build-time diagrams were compiled to svg by compileFenceSvgs before this
-  // (synchronous) render; the results ride in env and sync exactly like local
-  // .svg images. No compiled entry (compile failed, or the caller skipped the
-  // pre-pass, as unit tests do) syncs the source.
+  // Build-time diagrams were compiled to svg by pageStorage's pre-pass before
+  // this (synchronous) render; the results ride in env and sync exactly like
+  // local .svg images. No compiled entry (compile failed, or no pre-pass ran)
+  // syncs the source.
   if (kind?.render === 'build') {
     const found = env.fenceSvgs?.get(diagramKey(token));
     const compiled = found && !found.error ? found : null;
@@ -379,22 +444,15 @@ function renderCodeToken(tokens, idx, options, env) {
 // tokenized by the shared dialect.
 markdownRenderer.renderer.rules.wiki_link = (tokens, idx, options, env) => {
   const { target, label: alias, embed } = tokens[idx].meta;
-  if (embed && isHtmlEmbed(target)) {
-    // Confluence cannot run the page; leave a labelled note where it sits,
-    // as the reference PDF does, instead of failing the sync. Inline, since
-    // the embed sits inside a paragraph.
-    const name = markdownRenderer.utils.escapeHtml(alias === target ? target : alias);
-    return `<em>Interactive embed: ${name} — open the online version to use it.</em>`;
-  }
-  if (embed && !isImageEmbed(target)) {
-    throw new Error(`${env.filePath ?? 'page'}: ![[${target}]] embeds a note, which teaman does not support — link it with [[${target}]] instead`);
-  }
   if (embed) {
-    // Obsidian finds an embedded attachment anywhere in the vault, as the
-    // site does; fall back to the note-relative rule without an index.
-    const found = env.resolveAttachment?.(target, env.filePath);
-    const alt = markdownRenderer.utils.escapeHtml(alias);
-    return found ? renderImageFile(found, alt, env) : renderImageRef(target, alt, env);
+    const found = resolveEmbed(target, alias, { resolveAttachment: env.resolveAttachment, fromFile: env.filePath });
+    if (found.problem) throw new Error(`${env.filePath ?? 'page'}: ${found.problem}`);
+    const name = markdownRenderer.utils.escapeHtml(found.caption ?? found.target);
+    // Confluence cannot run the page; leave a labelled note where it sits,
+    // as the reference PDF does. Inline, since the embed sits inside a
+    // paragraph.
+    if (found.kind === 'html') return `<em>Interactive embed: ${name} — open the online version to use it.</em>`;
+    return renderImageFile(found.file, name, env, found);
   }
 
   // `#section` / `#^block` anchors have no stable Confluence equivalent:
@@ -461,7 +519,7 @@ function renderImageRef(path, alt, env) {
   return renderImageFile(resolveImagePath(path, env), alt, env);
 }
 
-function renderImageFile(absolutePath, alt, env) {
+function renderImageFile(absolutePath, alt, env, { width, height } = {}) {
   if (env.svgMacro && absolutePath.toLowerCase().endsWith('.svg')) {
     const svg = svgSource(absolutePath);
     if (svg !== null) return diagramMacro(env.svgMacro, svg);
@@ -469,7 +527,8 @@ function renderImageFile(absolutePath, alt, env) {
     // the upload step surfaces the standard "image not found" warning.
   }
   const filename = queueImage(absolutePath, env);
-  return `<ac:image ac:alt="${alt}"><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>`;
+  const size = `${width ? ` ac:width="${width}"` : ''}${height ? ` ac:height="${height}"` : ''}`;
+  return `<ac:image ac:alt="${alt}"${size}><ri:attachment ri:filename="${markdownRenderer.utils.escapeHtml(filename)}" /></ac:image>`;
 }
 
 // Confluence attachment filenames are flat per page, so same-named images
@@ -588,12 +647,12 @@ markdownRenderer.renderer.rules.task_item_close = () => '</ac:task-body></ac:tas
 
 // markdown-it rendering is synchronous but the tikz/typst compilers are not,
 // so fences compile in this pre-pass (the shared dialect's) and
-// renderCodeToken looks the results up by diagramKey. Renders come from the
-// site build's content-hash cache when available; a fence that fails to
-// compile maps to `{ error }` (renderCodeToken then falls back to the labeled
-// source block) with a console warning, like the site build's visible notice.
-async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compilers } = {}) {
-  return compileDiagramFences(markdownRenderer.parse(parseFrontmatter(markdown).content, {}), {
+// renderCodeToken looks the results up. Renders come from the site build's
+// content-hash cache when available; a fence that fails to compile syncs as
+// its labeled source block, with a console warning, like the site build's
+// visible notice.
+async function compileFenceSvgs(body, { cacheDir, compilers }) {
+  return compileDiagramFences(markdownRenderer.parse(body, {}), {
     languages: BUILD_DIAGRAM_LANGUAGES,
     cacheDir,
     compilers,
@@ -601,29 +660,58 @@ async function compileFenceSvgs(markdown, { cacheDir = diagramCacheDir, compiler
   });
 }
 
-// context: { filePath, contentDir, linkTitle, resolveAttachment, mermaidMacro, plantumlMacro,
-// svgMacro, fenceSvgs }, threaded through markdown-it's per-render `env` so
-// every custom rule sees it. filePath/contentDir/linkTitle are needed to
-// resolve wiki-links and local image paths, fenceSvgs (from compileFenceSvgs)
-// to render tikz/typst fences; omit them (as the unit tests do) to render
-// markdown in isolation, with wiki-links falling back to a guessed title,
-// images to plain <img> tags, and diagram fences to source blocks.
-function markdownToStorage(markdown, context = {}) {
+/**
+ * @typedef {object} StoragePage
+ * @property {string} [filePath]  the file being synced: wiki-links and images
+ *   resolve from it
+ * @property {string} [vaultDir]  whose public roots images also resolve against
+ * @property {Pick<import('../src/lib/vault-index.mjs').VaultIndex, 'resolve' | 'resolveAttachment'>} [index]
+ *   the vault index, which resolves wiki-links and finds embeds; without one
+ *   a link gets a guessed title and every embed is missing
+ * @property {Map<string, string>} [titles]  the sync's page titles
+ *   (`pageTitles`), which links are titled by; without them, a link takes
+ *   its target's site title
+ * @property {{ mermaid?: string | null, plantuml?: string | null, svg?: string | null }} [macros]
+ *   Confluence macros for client diagrams and for svg markup
+ */
+
+/**
+ * One vault page as Confluence storage: frontmatter and the title heading
+ * dropped, diagram fences compiled (through the site's diagram cache), local
+ * images collected in `images` for upload.
+ *
+ * @param {string} markdown  the file as written
+ * @param {StoragePage & { cacheDir?: string, compilers?: object }} [page]
+ *   `compilers` replace the diagram compilers, as in `renderFenceSvg`
+ * @returns {Promise<{ html: string, images: Array<{ absolutePath: string, filename: string }> }>}
+ */
+async function pageStorage(markdown, { cacheDir = diagramCacheDir, compilers, ...page } = {}) {
+  const body = withoutTitleHeading(parseFrontmatter(markdown).content);
+  return markdownToStorage(body, { ...page, fenceSvgs: await compileFenceSvgs(body, { cacheDir, compilers }) });
+}
+
+/**
+ * The formatting `pageStorage` does, synchronously, on a body: diagram fences
+ * render from `fenceSvgs` (its pre-pass), and as their source without it.
+ *
+ * @param {string} markdown  frontmatter removed
+ * @param {StoragePage & { fenceSvgs?: Map<string, object> }} [page]
+ */
+function markdownToStorage(markdown, { filePath, vaultDir, index, titles, macros = {}, fenceSvgs } = {}) {
   const env = {
-    filePath: context.filePath ?? null,
-    contentDir: context.contentDir ?? null,
-    linkTitle: context.linkTitle ?? null,
-    resolveAttachment: context.resolveAttachment ?? null,
-    mermaidMacro: context.mermaidMacro ?? null,
-    plantumlMacro: context.plantumlMacro ?? null,
-    svgMacro: context.svgMacro ?? null,
-    fenceSvgs: context.fenceSvgs ?? null,
+    filePath: filePath ?? null,
+    contentDir: vaultDir ?? null,
+    linkTitle: index ? buildLinkTitles(index, titles) : null,
+    resolveAttachment: index?.resolveAttachment ?? null,
+    mermaidMacro: macros.mermaid ?? null,
+    plantumlMacro: macros.plantuml ?? null,
+    svgMacro: macros.svg ?? null,
+    fenceSvgs: fenceSvgs ?? null,
     images: [],
     taskId: 0,
   };
   return { html: markdownRenderer.render(markdown, env).trimEnd(), images: env.images };
 }
-
 
 /**
  * @typedef {import('./confluence-client.mjs').ConfluenceClient} ConfluenceClient
@@ -650,8 +738,8 @@ export function describeOperation(operation) {
 
 /**
  * Sync the pages the site publishes from each of `folders` under that
- * folder's root page: a page per Markdown file, titled as `pageTitle` titles
- * it, under a folder page per subdirectory, with its local images attached.
+ * folder's root page, as `folderPagePlan` lays them out, with their local
+ * images attached.
  * A page or attachment that exists (by title, by filename) is updated.
  *
  * @param {object} options
@@ -679,14 +767,7 @@ export async function syncVault({
 }) {
   const vaultDir = catalog.vaultDir;
   const vaultIndex = createVaultIndex(vaultDir, { catalog });
-  const context = {
-    contentDir: vaultDir,
-    linkTitle: buildLinkTitles(vaultDir, vaultIndex),
-    resolveAttachment: vaultIndex.resolveAttachment,
-    mermaidMacro: macros.mermaid ?? null,
-    plantumlMacro: macros.plantuml ?? null,
-    svgMacro: macros.svg ?? null,
-  };
+  const titles = pageTitles(catalog, vaultIndex);
   const operations = [];
   const record = operation => {
     operations.push(operation);
@@ -724,14 +805,9 @@ export async function syncVault({
     }
   }
 
-  async function syncFile(parent, filePath) {
+  async function syncFile(parent, { sourcePath: filePath, title }) {
     const markdown = readFileSync(filePath, 'utf8');
-    const title = pageTitle(markdown, filePath);
-    const { html: body, images } = storageBody(markdown, {
-      ...context,
-      filePath,
-      fenceSvgs: await compileFenceSvgs(markdown),
-    });
+    const { html: body, images } = await pageStorage(markdown, { filePath, vaultDir, index: vaultIndex, titles, macros });
     const file = vaultPath(filePath);
     const existing = await client.findChild(parent.id, title);
     let page;
@@ -758,14 +834,10 @@ export async function syncVault({
     if (space && space !== root.space.key) {
       throw new Error(`Root ${roots[folder]} for ${folder} is in space ${root.space.key}, not ${space}`);
     }
-    const folderDir = join(vaultDir, folder);
-    for (const filePath of folderPages(catalog, folder)) {
-      const rel = relative(folderDir, dirname(filePath));
+    for (const page of folderPagePlan(catalog, vaultIndex, folder)) {
       let parent = root;
-      for (const segment of rel ? rel.split(sep) : []) {
-        parent = await ensureFolderPage(parent, segmentTitle(segment));
-      }
-      await syncFile(parent, filePath);
+      for (const title of page.folders) parent = await ensureFolderPage(parent, title);
+      await syncFile(parent, page);
     }
   }
   return operations;
@@ -777,6 +849,10 @@ function segmentTitle(segment) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    usage();
+    return;
+  }
   assertConfig(args);
   if (!statSync(args.contentDir).isDirectory()) throw new Error(`Not a directory: ${args.contentDir}`);
 
@@ -790,7 +866,7 @@ async function main() {
   const ignored = Object.keys(args.roots).filter(folder => !CONTENT_DIRS.includes(folder));
   if (ignored.length > 0) console.warn(`Ignoring roots for non-content folders: ${ignored.join(', ')}`);
 
-  console.log(`${args.apply ? 'Syncing' : 'Planning'} folders: ${folders.join(', ')}`);
+  console.log(`${args.apply ? 'Syncing' : 'Planning'} ${resolve(args.contentDir)}: ${folders.join(', ')}`);
   const client = createConfluenceClient(args);
   await syncVault({
     catalog: openVaultCatalog(args.contentDir),
@@ -810,4 +886,4 @@ if (import.meta.main) {
   });
 }
 
-export { buildLinkTitles, compileFenceSvgs, folderPages, markdownToStorage, pageTitle, parseArgs, parseRoots, storageBody };
+export { buildLinkTitles, folderPagePlan, markdownToStorage, pageStorage, parseArgs, parseRoots };

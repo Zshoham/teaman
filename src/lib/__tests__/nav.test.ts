@@ -1,11 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('astro:content', () => ({ getCollection: vi.fn() }));
-// Guides come from the vault catalog, not a collection.
-vi.mock('../guides', () => ({ listGuides: vi.fn() }));
-
 import { getCollection } from 'astro:content';
-import { listGuides } from '../guides';
 import { isSectionActive, loadNavSections, type NavSection } from '../nav';
 
 const mockGetCollection = vi.mocked(getCollection);
@@ -22,11 +18,6 @@ interface Fixture {
 }
 
 function stubCollections(fixture: Fixture) {
-  vi.mocked(listGuides).mockResolvedValue((fixture.guides ?? []).map(slug => ({
-    slug,
-    title: slug,
-    chapters: [{ slug: 'intro', entryId: `${slug}/intro`, title: 'Intro' }],
-  })));
   mockGetCollection.mockImplementation(((name: string) => {
     switch (name) {
       case 'notes':
@@ -40,6 +31,14 @@ function stubCollections(fixture: Fixture) {
       case 'slides':
         return Promise.resolve(
           (fixture.slides ?? []).map(s => ({ id: s.id, data: { draft: s.draft ?? false } })),
+        );
+      // The guide loader stores only published guides.
+      case 'guideIndexes':
+        return Promise.resolve(
+          (fixture.guides ?? []).map(slug => ({
+            id: slug,
+            data: { title: slug, tags: [], chapters: [{ slug: 'intro', entryId: `${slug}/intro`, title: 'Intro' }] },
+          })),
         );
       case 'dailies':
         return Promise.resolve(

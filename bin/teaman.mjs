@@ -366,6 +366,27 @@ async function cmdDoctor(vaultArg) {
   info(c.green(`ok — ${warnings.length} warning(s), 0 problems`));
 }
 
+// The sync opens its vault like every command — `[vault]` (or the script's
+// `--content-dir`), else the current directory — and reads it through the env
+// seam; every flag passes through to the script untouched.
+async function cmdSyncConfluence(argv) {
+  const script = join(engineDir, 'scripts', 'sync-confluence.mjs');
+  const { parseArgs: parseSyncArgs } = await import(pathToFileURL(script).href);
+  const args = parseSyncArgs(argv);
+  let env = process.env;
+  if (!args.help) {
+    const { vault, config } = await openVault(args.vaultArg);
+    env = envFor(vault, config);
+  }
+  // From the caller's directory, so the script reads a relative vault as the
+  // CLI did.
+  const child = spawn(node, [script, ...argv], { cwd: process.cwd(), env, stdio: 'inherit' });
+  // The script prints its own errors and sets an exit code; mirror it rather
+  // than re-wrapping (no redundant "node exited with code 1" on top).
+  child.on('error', error => fail(error.message));
+  child.on('exit', code => { process.exitCode = code ?? 1; });
+}
+
 function help() {
   console.log(`teaman ${VERSION} — static site generator for Obsidian vaults
 
@@ -377,7 +398,8 @@ Commands:
   preview [vault]  Preview a previously built site
   init [vault]     Scaffold teaman.config.js + content dirs
   doctor [vault]   Validate config and lint content without building
-  sync-confluence  Sync vault markdown to Confluence (see --help for its flags)
+  sync-confluence [vault]
+                   Sync vault markdown to Confluence (see its --help for flags)
 
 Options:
   --out <dir>      Output directory (build/preview)
@@ -400,17 +422,14 @@ async function main(argv = process.argv.slice(2)) {
   if (!process.versions.bun) {
     fail('teaman runs on Bun (https://bun.sh) — run it with `bun` or `bunx @zshoham/teaman`, or use the single-file binary');
   }
-  // sync-confluence delegates wholesale to scripts/sync-confluence.mjs — it has
-  // its own parser (util.parseArgs), CONFLUENCE_* env fallbacks, and --help. We
-  // intercept before parseArgs so every flag (including -h/--help and repeated
-  // --roots) passes through untouched; the script wants --content-dir <vault>.
+  // sync-confluence has its own flags (util.parseArgs, CONFLUENCE_* env
+  // fallbacks, --help), so it is dispatched before parseArgs reads them.
   if (argv[0] === 'sync-confluence') {
-    const script = join(engineDir, 'scripts', 'sync-confluence.mjs');
-    const child = spawn(node, [script, ...argv.slice(1)], { cwd: engineDir, env: process.env, stdio: 'inherit' });
-    // The script prints its own errors and sets an exit code; mirror it rather
-    // than re-wrapping (no redundant "node exited with code 1" on top).
-    child.on('error', error => fail(error.message));
-    child.on('exit', code => { process.exitCode = code ?? 1; });
+    try {
+      await cmdSyncConfluence(argv.slice(1));
+    } catch (error) {
+      fail(error.message);
+    }
     return;
   }
 

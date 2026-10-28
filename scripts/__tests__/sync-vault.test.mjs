@@ -123,6 +123,43 @@ describe('syncVault', () => {
     expect(operations.map(operation => operation.action)).toEqual(['create-folder', 'create-page', 'create-page']);
   });
 
+  // Confluence addresses a page by its title, so two pages with one title
+  // would land on one page: the second overwriting the first.
+  it('tells apart pages the site titles alike, in pages and in links', async () => {
+    write('guides/g/SUMMARY.md', '# G\n\n- [Overview](one.md)\n- [Overview](two.md)\n');
+    write('guides/g/one.md', '# First\n\nOne body.\n');
+    write('guides/g/two.md', '# Second\n\nTwo body. See [[two]].\n');
+    write('notes/overview.md', '# overview\n');
+    const confluence = memoryConfluence({ roots: ['100', '200'] });
+    await sync(confluence.client, { folders: ['guides', 'notes'], roots: { guides: '200', notes: '100' } });
+
+    const pages = [...confluence.pages.values()];
+    const byTitle = title => pages.filter(page => page.title === title);
+    expect(byTitle('Overview (guides/g/one)')[0].body).toContain('One body.');
+    expect(byTitle('Overview (guides/g/two)')[0].body).toContain('Two body.');
+    expect(byTitle('Overview (guides/g/two)')[0].body).toContain('ri:content-title="Overview (guides/g/two)"');
+    expect(byTitle('overview (notes/overview)')).toHaveLength(1);
+    expect(byTitle('Overview')).toEqual([]);
+  });
+
+  it('tells apart folder pages the site titles alike, in pages and in links', async () => {
+    write('guides/a/SUMMARY.md', '---\ntitle: Manual\n---\n\n- [Start A](start.md)\n');
+    write('guides/a/start.md', 'A body.\n');
+    write('guides/b/SUMMARY.md', '---\ntitle: Manual\n---\n\n- [Start B](start.md)\n');
+    write('guides/b/start.md', 'B body. See [[a]].\n');
+    const confluence = memoryConfluence({ roots: ['200'] });
+    await sync(confluence.client, { folders: ['guides'], roots: { guides: '200' } });
+
+    const pages = [...confluence.pages.values()];
+    const byTitle = title => pages.filter(page => page.title === title);
+    const [folderA] = byTitle('Manual (guides/a)');
+    const [folderB] = byTitle('Manual (guides/b)');
+    expect(byTitle('Manual')).toEqual([]);
+    expect(byTitle('Start A')[0].parent).toBe(folderA.id);
+    expect(byTitle('Start B')[0].parent).toBe(folderB.id);
+    expect(byTitle('Start B')[0].body).toContain('ri:content-title="Manual (guides/a)"');
+  });
+
   it('refuses a root outside the configured space', async () => {
     await expect(sync(memoryConfluence({ space: 'OTHER' }).client, { space: 'TEAM' }))
       .rejects.toThrow('Root 100 for notes is in space OTHER, not TEAM');

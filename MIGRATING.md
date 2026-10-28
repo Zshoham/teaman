@@ -23,6 +23,38 @@ mismatch warning stays quiet and records what the vault now targets.
 
 ### Unreleased
 
+- **`teaman sync-confluence` opens its vault like every command** (patch).
+  It takes the vault as `[vault]` and defaults to the current directory;
+  before, it ignored the vault argument and, without `--content-dir`, synced
+  the engine's bundled example vault. `--content-dir` still works, and is
+  now read relative to the directory you run it from.
+
+- **Confluence pages are titled as the site titles them** (patch). A note
+  `notes/foo/index.md` with no title is now "foo", not "index"; a guide
+  chapter takes its `SUMMARY.md` link text, as on the guide page; and a
+  guide's or reference book's folder page takes the book's title instead of
+  its directory name. Pages are found by title, so the next sync creates the
+  renamed pages beside the old ones: delete the old ones by hand. Pages that
+  share a title, ignoring case — two chapters both listed as
+  `[Overview](…)`, two notes opening with the same heading, two guides both
+  titled `Manual`, or `notes/foo/index.md` and its folder `Foo` — are told
+  apart by their vault path (`Overview (guides/setup/one)`,
+  `Manual (guides/a)`), in their titles and in links to them; before, the
+  second merged into the first on every sync.
+
+- **Embeds read the same everywhere** (patch). `![[pic.png|300]]` is a
+  300-pixel-wide image in Confluence too (it was the alt text there, and the
+  caption in the PDF); a numeric label is never a caption. An embed of a
+  file the vault does not have now fails the reference PDF and Confluence
+  sync as it already failed the site, and `doctor` words embed problems as
+  the build does (`notes: a.md: ![[x.png]]: no image named “x.png” in the
+  vault`).
+
+- **A diagram fence's language is case-insensitive on the site** (patch).
+  ```` ```Mermaid ```` or ```` ```TikZ ```` in a note now renders as a
+  diagram, as it already did in a reference book, the PDF, and Confluence;
+  before, a note showed it as plain code.
+
 - **One title rule everywhere** (patch). A page's title is its frontmatter
   `title`, else the `#` heading that opens it, else its file name with `-`/`_`
   as spaces — on the site, in the feed, in the reference PDF, and in

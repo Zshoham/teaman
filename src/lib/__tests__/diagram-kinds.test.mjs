@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind } from '../diagram-kinds.mjs';
+import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind, fenceDiagramKind, fenceInfoLanguage } from '../diagram-kinds.mjs';
 
 const src = join(import.meta.dirname, '../..');
 
@@ -12,6 +12,16 @@ describe('diagram kinds', () => {
     expect(diagramKind('d2')).toMatchObject({ label: 'D2', render: 'build' });
     expect(diagramKind('js')).toBeUndefined();
     expect(diagramKind(null)).toBeUndefined();
+  });
+
+  it('reads a fence info string as its first word, lowercased, annotations split off', () => {
+    expect(fenceInfoLanguage('  Mermaid  ')).toBe('mermaid');
+    expect(fenceInfoLanguage('d2 title="x"')).toBe('d2');
+    expect(fenceInfoLanguage('rust,ignore')).toBe('rust');
+    expect(fenceInfoLanguage('')).toBe('');
+    expect(fenceInfoLanguage(null)).toBe('');
+    expect(fenceDiagramKind('TikZ')).toMatchObject({ lang: 'tikz' });
+    expect(fenceDiagramKind('rust,ignore')).toBeUndefined();
   });
 
   it('has a browser renderer, loaded on every page, for each client kind', () => {

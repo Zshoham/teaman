@@ -5,13 +5,13 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 
 import {
-  compileReferenceDiagrams,
   markdownToTypst,
   referencePdfCacheKey,
+  renderReferenceDocument,
   renderReferenceTypst,
   resolveReferenceImage,
 } from '../reference-pdf.mjs';
-import { diagramKey } from '../obsidian-markdown.mjs';
+import { createVaultIndex } from '../vault-index.mjs';
 import { assembleReferenceBook } from '../reference-book.mjs';
 import { createReferenceCompiler } from '../typst-packages.mjs';
 
@@ -22,6 +22,18 @@ const template = readFileSync(
 
 // A book's chapters as reference discovery hands them to the PDF.
 const assembled = chapters => assembleReferenceBook(chapters).chapters;
+
+// A standalone reference as the catalog publishes it, rendered with an index
+// that resolves nothing.
+function renderStandalone(body, options) {
+  const document = { id: 'r', title: 'R', kind: 'standalone', data: {}, body, sourcePath: '/tmp/vault/references/r.md' };
+  return renderReferenceDocument(document, {
+    template,
+    vaultDir: '/tmp/vault',
+    index: { resolve: () => null, resolveAttachment: () => null },
+    ...options,
+  });
+}
 
 describe('reference PDF rendering', () => {
   it('converts common Markdown structures and removes a duplicate leading title', () => {
@@ -219,7 +231,8 @@ describe('reference PDF rendering', () => {
   });
 
   it('leaves a labelled box where an HTML embed sits', () => {
-    expect(markdownToTypst('![[solar-system.html|The planets]]', { sourcePath: '/v/references/r.md' }))
+    const resolveAttachment = target => `/v/attachments/${target}`;
+    expect(markdownToTypst('![[solar-system.html|The planets]]', { sourcePath: '/v/references/r.md', resolveAttachment }))
       .toContain('#text("Interactive embed: The planets — open the online version to use it")');
   });
 
@@ -249,33 +262,39 @@ describe('reference PDF rendering', () => {
     expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
   }, 30_000);
 
-  it('embeds compiled diagram SVGs and keeps a visible source fallback on failure', () => {
-    const mermaid = 'flowchart LR\nA-->B\n';
-    const plantuml = '@startuml\nA -> B\n@enduml\n';
-    const diagrams = new Map([
-      [diagramKey({ info: 'mermaid', content: mermaid }), {
-        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>',
-      }],
-      [diagramKey({ info: 'plantuml', content: plantuml }), { error: 'bad diagram' }],
-    ]);
-    const typst = markdownToTypst([
-      '```mermaid',
-      mermaid.trimEnd(),
-      '```',
-      '',
-      '```plantuml',
-      plantuml.trimEnd(),
-      '```',
-    ].join('\n'), { diagrams });
+  it('embeds compiled diagram SVGs and keeps a visible source fallback on failure', async () => {
+    const diagramCacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-fallback-'));
+    const warn = vi.fn();
+    try {
+      const { typst } = await renderStandalone([
+        '```mermaid',
+        'flowchart LR\nA-->B',
+        '```',
+        '',
+        '```plantuml',
+        '@startuml\nA -> B\n@enduml',
+        '```',
+      ].join('\n'), {
+        diagramCacheDir,
+        warn,
+        compilers: {
+          mermaid: async () => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>',
+          plantuml: async () => { throw new Error('bad diagram'); },
+        },
+      });
 
-    expect(typst).toContain('#image.decode(bytes("<svg');
-    expect(typst).not.toContain('flowchart LR');
-    expect(typst).toContain('PlantUML diagram could not be rendered');
-    expect(typst).toContain('@startuml');
+      expect(typst).toContain('#image.decode(bytes("<svg');
+      expect(typst).not.toContain('flowchart LR');
+      expect(typst).toContain('PlantUML diagram could not be rendered');
+      expect(typst).toContain('@startuml');
+      expect(warn).toHaveBeenCalledWith('[teaman] plantuml reference diagram failed to compile: bad diagram');
+    } finally {
+      rmSync(diagramCacheDir, { recursive: true, force: true });
+    }
   });
 
-  it('discovers, de-duplicates, and compiles every supported diagram fence', async () => {
-    const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-diagrams-'));
+  it('compiles each supported diagram fence once', async () => {
+    const diagramCacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-diagrams-'));
     const compilers = Object.fromEntries(
       ['mermaid', 'plantuml', 'tikz', 'typst', 'd2'].map(language => [
         language,
@@ -283,7 +302,7 @@ describe('reference PDF rendering', () => {
       ]),
     );
     try {
-      const diagrams = await compileReferenceDiagrams([
+      const { typst } = await renderStandalone([
         '```mermaid',
         'A-->B',
         '```',
@@ -302,22 +321,34 @@ describe('reference PDF rendering', () => {
         '```d2',
         'client -> server',
         '```',
-      ].join('\n'), { cacheDir, compilers });
+      ].join('\n'), { diagramCacheDir, compilers });
 
-      expect(diagrams).toHaveLength(5);
-      expect(compilers.mermaid).toHaveBeenCalledTimes(1);
-      expect(compilers.plantuml).toHaveBeenCalledTimes(1);
-      expect(compilers.tikz).toHaveBeenCalledTimes(1);
-      expect(compilers.typst).toHaveBeenCalledTimes(1);
-      expect(compilers.d2).toHaveBeenCalledTimes(1);
-      for (const value of diagrams.values()) expect(value.svg).toContain('content-svg');
+      for (const compile of Object.values(compilers)) expect(compile).toHaveBeenCalledTimes(1);
+      expect(typst.match(/#image\.decode/g)).toHaveLength(6);
     } finally {
-      rmSync(cacheDir, { recursive: true, force: true });
+      rmSync(diagramCacheDir, { recursive: true, force: true });
     }
   });
 
+  it('jumps within the PDF for a wiki-link to a part of this reference only', async () => {
+    const document = {
+      id: 'book', title: 'Book', kind: 'standalone', data: {}, sourcePath: '/tmp/vault/references/book.md',
+      body: '## Target\n\n[[here]] [[other]] [[nowhere]]',
+    };
+    const entries = { here: { reference: 'book', anchor: 'target' }, other: { reference: 'elsewhere', anchor: 'target' } };
+    const { typst } = await renderReferenceDocument(document, {
+      template,
+      vaultDir: '/tmp/vault',
+      index: { resolve: target => (entries[target] ? { entry: entries[target] } : null), resolveAttachment: () => null },
+      diagramCacheDir: '/tmp/unused',
+    });
+    expect(typst).toMatch(/#link\(<teaman-[0-9a-f]+>\)\[#text\("here"\)\]/);
+    expect(typst).toContain('#teaman-wiki-unlinked[#text("other")]');
+    expect(typst).toContain('#teaman-wiki-unlinked[#text("nowhere")]');
+  });
+
   it('carries real TikZ, Typst and D2 fence SVGs through to the final PDF', async () => {
-    const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-real-diagrams-'));
+    const diagramCacheDir = mkdtempSync(join(tmpdir(), 'teaman-reference-real-diagrams-'));
     const body = [
       '## Generated diagrams',
       '',
@@ -334,22 +365,12 @@ describe('reference PDF rendering', () => {
       '```',
     ].join('\n');
     try {
-      const diagrams = await compileReferenceDiagrams(body, { cacheDir });
-      expect(diagrams).toHaveLength(3);
-      for (const value of diagrams.values()) expect(value.svg).toContain('<svg');
-
-      const { typst: source } = renderReferenceTypst({
-        template,
-        title: 'Generated diagram reference',
-        body,
-        sourcePath: '/tmp/vault/references/diagrams.md',
-        vaultDir: '/tmp/vault',
-        diagrams,
-      });
+      const { typst: source } = await renderStandalone(body, { diagramCacheDir });
+      expect(source.match(/#image\.decode/g)).toHaveLength(3);
       const pdf = createReferenceCompiler().pdf({ mainFileContent: source });
       expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
     } finally {
-      rmSync(cacheDir, { recursive: true, force: true });
+      rmSync(diagramCacheDir, { recursive: true, force: true });
     }
   }, 30_000);
 
@@ -394,6 +415,7 @@ describe('reference PDF rendering', () => {
         body: '## Diagram\n\n![[diagram.svg|System diagram]]',
         sourcePath,
         vaultDir: vault,
+        resolveAttachment: createVaultIndex(vault).resolveAttachment,
       });
       const pdf = createReferenceCompiler(vault).pdf({ mainFileContent: source });
       expect(pdf.subarray(0, 4).toString()).toBe('%PDF');

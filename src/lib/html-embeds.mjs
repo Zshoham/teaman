@@ -23,7 +23,7 @@
  * scrolls inside the default height.
  */
 import { createReadStream, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'fs';
-import { basename, dirname, extname, join, relative, sep } from 'path';
+import { dirname, join, relative, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { isAttachmentPath } from './fs-walk.mjs';
 
@@ -36,53 +36,7 @@ export const DEFAULT_EMBED_HEIGHT = 480;
 /** Scripts and outbound links (target=_blank) only: no same-origin access. */
 export const EMBED_SANDBOX = 'allow-scripts allow-popups';
 
-const SIZE_RE = /^(?:(\d+)x)?(\d+)$/;
-
 const isHtmlFile = path => /\.html?$/i.test(path);
-
-/** Whether an `![[embed]]` target is a self-contained HTML page. */
-export function isHtmlEmbed(target) {
-  return isHtmlFile(target.split(/[?#]/, 1)[0]);
-}
-
-/** `solar-system.html` → `Solar system`: a frame needs an accessible name. */
-function titleFromFile(path) {
-  const words = basename(path, extname(path)).replace(/[-_]+/g, ' ').trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/**
- * Everything `![[target|label]]` says about one HTML embed, for the site and
- * for decks alike:
- * - `path`: the target as written, minus any `?query`/`#fragment` and a
- *   leading `./` or `/` — what is looked up in the vault, and where a deck
- *   stages the file under its public `embeds/` dir;
- * - `suffix`: that `?query`/`#fragment`, which rides along to the embed;
- * - the label: Obsidian reads a numeric label as a size; for a frame that
- *   always fills the column, a lone number is its `height` (`|600`), and
- *   `|800x600` also sets the `width`. Anything else is the `caption`.
- * - `title`: the caption, or a name made from the file name.
- *
- * @param {string} target
- * @param {string} [label]
- * @returns {{ path: string, suffix: string, title: string, caption?: string, width?: number, height?: number }}
- */
-export function parseHtmlEmbed(target, label) {
-  const trimmed = target.trim();
-  const cut = trimmed.search(/[?#]/);
-  const path = (cut === -1 ? trimmed : trimmed.slice(0, cut)).trim().replace(/^(\.\/|\/)+/, '');
-  const text = label?.trim();
-  const size = text ? SIZE_RE.exec(text) : null;
-  const caption = text && !size ? text : undefined;
-  return {
-    path,
-    suffix: cut === -1 ? '' : trimmed.slice(cut),
-    title: caption ?? titleFromFile(path),
-    ...(caption ? { caption } : {}),
-    ...(size?.[1] ? { width: Number(size[1]) } : {}),
-    ...(size ? { height: Number(size[2]) } : {}),
-  };
-}
 
 /**
  * The site URL of an embed, from its vault-relative path.
@@ -95,14 +49,14 @@ export function htmlEmbedHref(base, relPath) {
 }
 
 /**
- * The hast for one embed: a `<figure>` when it stands alone in its paragraph
- * (with the label as caption, like a standalone image), a `<span>` when it
- * flows inside text so no block ends up inside a `<p>`.
+ * The hast for one embed (`readEmbed`): a `<figure>` when it stands alone in
+ * its paragraph (with its caption, like a standalone image), a `<span>` when
+ * it flows inside text so no block ends up inside a `<p>`.
  *
- * @param {{ src: string, target: string, label?: string, block?: boolean }} embed
+ * @param {import('./embeds.mjs').Embed} embed
+ * @param {{ src: string, block?: boolean }} frame  `src`: the embed's URL
  */
-export function htmlEmbedElement({ src, target, label, block = false }) {
-  const { title, caption, width, height } = parseHtmlEmbed(target, label);
+export function htmlEmbedElement({ title, caption, width, height }, { src, block = false }) {
   const iframe = {
     type: 'element',
     tagName: 'iframe',
