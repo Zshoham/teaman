@@ -6,12 +6,15 @@
  * against this interface alone, so it runs the same either way, and a test
  * can hand it an in-memory one.
  *
- * @typedef {{ id: string, title: string, space: { key: string }, version: { number: number } }} ConfluencePage
+ * @typedef {{ id: string, title: string, space: { key: string }, version: { number: number }, ancestors?: Array<{ id: string }> }} ConfluencePage
+ *   `ancestors` from the root of the space down to the page's parent
  * @typedef {{ id: string, title: string }} ConfluenceAttachment
  *
  * @typedef {object} ConfluenceClient
  * @property {(id: string) => Promise<ConfluencePage>} getPage
- * @property {(parentId: string, title: string) => Promise<ConfluencePage | null>} findChild
+ * @property {(spaceKey: string, title: string) => Promise<ConfluencePage | null>} findPage
+ *   the page with that title anywhere in the space (a title is taken once
+ *   per space), with its ancestors
  * @property {(pageId: string, filename: string) => Promise<ConfluenceAttachment | null>} findAttachment
  * @property {(pageId: string, buffer: Uint8Array, filename: string) => Promise<unknown>} createAttachment
  * @property {(pageId: string, attachmentId: string, buffer: Uint8Array, filename: string) => Promise<unknown>} updateAttachmentData
@@ -87,15 +90,10 @@ export function createConfluenceClient({ baseUrl, user, token, pat, timeoutMs, f
   return {
     getPage: id => send(`${content(id)}?expand=version,space`),
 
-    async findChild(parentId, title) {
-      const limit = 200;
-      for (let start = 0; ; ) {
-        const data = await send(`${content(parentId)}/child/page?limit=${limit}&start=${start}&expand=version,space`);
-        const match = data.results.find(page => page.title === title);
-        if (match) return match;
-        if (data.results.length < limit) return null;
-        start += data.results.length;
-      }
+    async findPage(spaceKey, title) {
+      const query = new URLSearchParams({ type: 'page', spaceKey, title, expand: 'version,space,ancestors' });
+      const data = await send(`/rest/api/content?${query}`);
+      return data.results[0] ?? null;
     },
 
     async findAttachment(pageId, filename) {
@@ -139,22 +137,36 @@ export function createConfluenceClient({ baseUrl, user, token, pat, timeoutMs, f
 
 /**
  * A client that reads through `client` and writes nothing: a page it
- * "creates" gets a `dry:` id that nothing on the instance has, so looking
- * under it finds nothing. What a sync would do is what `syncVault` reports.
+ * "creates" gets a `dry:` id that nothing on the instance has, and is found
+ * by its title from then on, as the created page would be — so a plan makes
+ * each page once, as the sync it previews does. What a sync would do is what
+ * `syncVault` reports.
  *
  * @param {ConfluenceClient} client
  * @returns {ConfluenceClient}
  */
 export function planningClient(client) {
-  const planned = id => String(id).startsWith('dry:');
+  const isPlanned = id => String(id).startsWith('dry:');
+  /** @type {Map<string, ConfluencePage>} by space and title, ignoring case */
+  const plannedByTitle = new Map();
+  /** @type {Map<string, ConfluencePage>} */
+  const plannedById = new Map();
+  const titleKey = (spaceKey, title) => `${spaceKey}\n${title.toLowerCase()}`;
   return {
     getPage: id => client.getPage(id),
-    findChild: async (parentId, title) => (planned(parentId) ? null : client.findChild(parentId, title)),
-    findAttachment: async (pageId, filename) => (planned(pageId) ? null : client.findAttachment(pageId, filename)),
+    findPage: async (spaceKey, title) => plannedByTitle.get(titleKey(spaceKey, title)) ?? client.findPage(spaceKey, title),
+    findAttachment: async (pageId, filename) => (isPlanned(pageId) ? null : client.findAttachment(pageId, filename)),
     createAttachment: async () => null,
     updateAttachmentData: async () => null,
-    createPage: async ({ parentId, spaceKey, title }) => (
-      { id: `dry:${parentId}/${title}`, title, space: { key: spaceKey }, version: { number: 1 } }),
+    createPage: async ({ parentId, spaceKey, title }) => {
+      // Under a planned parent, its planned ancestors; under one on the
+      // instance, just the parent, which is all a lookup compares.
+      const ancestors = [...(plannedById.get(String(parentId))?.ancestors ?? []), { id: String(parentId) }];
+      const page = { id: `dry:${parentId}/${title}`, title, space: { key: spaceKey }, version: { number: 1 }, ancestors };
+      plannedByTitle.set(titleKey(spaceKey, title), page);
+      plannedById.set(page.id, page);
+      return page;
+    },
     updatePage: async ({ page, title }) => ({ ...page, title }),
   };
 }

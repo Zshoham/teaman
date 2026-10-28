@@ -787,8 +787,20 @@ export async function syncVault({
   };
   const vaultPath = path => relative(vaultDir, path);
 
+  // Confluence takes a title once per space, so the page this sync makes
+  // under `parent` is the one with its title anywhere in the space. Found
+  // under another parent, it is not this sync's to update, and creating the
+  // page would fail.
+  async function findPageUnder(parent, title) {
+    const page = await client.findPage(parent.space.key, title);
+    if (page && page.ancestors?.at(-1)?.id !== parent.id) {
+      throw new Error(`Page "${title}" (${page.id}) already exists in space ${parent.space.key}, but not under ${parent.id}; move or rename it`);
+    }
+    return page;
+  }
+
   async function ensureFolderPage(parent, title) {
-    const existing = await client.findChild(parent.id, title);
+    const existing = await findPageUnder(parent, title);
     if (existing) return existing;
     record({ action: 'create-folder', title, parent: parent.id });
     return client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body: '<p></p>' });
@@ -821,7 +833,7 @@ export async function syncVault({
     const markdown = readFileSync(filePath, 'utf8');
     const { html: body, images } = await pageStorage(markdown, { filePath, vaultDir, index: vaultIndex, titles, macros });
     const file = vaultPath(filePath);
-    const existing = await client.findChild(parent.id, title);
+    const existing = await findPageUnder(parent, title);
     let page;
     if (existing) {
       record({ action: 'update-page', title, page: existing.id, file });
@@ -832,7 +844,7 @@ export async function syncVault({
       // the page id rather than losing its attachments after the write
       // already succeeded.
       page = await client.createPage({ parentId: parent.id, spaceKey: parent.space.key, title, body })
-        ?? await client.findChild(parent.id, title);
+        ?? await findPageUnder(parent, title);
     }
     if (!page) {
       if (images.length > 0) warn(`Warning: could not determine the page id for "${title}"; skipping ${images.length} attachment(s).`);

@@ -1,52 +1,20 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { CONTENT_DIRS } from '../../src/lib/collections.mjs';
 import { openVaultCatalog } from '../../src/lib/vault-catalog.mjs';
 import { createConfluenceClient, planningClient } from '../confluence-client.mjs';
+import { fakeConfluence } from './fake-confluence.mjs';
 import { describeOperation, syncVault } from '../sync-confluence.mjs';
 
-/** A Confluence instance in memory: pages under parents, attachments by page. */
-function memoryConfluence({ space = 'TEAM', roots = ['100'] } = {}) {
-  const pages = new Map(roots.map(id => [id, { id, title: `Root ${id}`, parent: null, space: { key: space }, version: { number: 1 }, body: '' }]));
-  const attachments = new Map();
-  let next = 1000;
-  const writes = [];
-  const client = {
-    async getPage(id) {
-      if (!pages.has(id)) throw new Error(`GET ${id} failed: 404`);
-      return pages.get(id);
-    },
-    async findChild(parentId, title) {
-      return [...pages.values()].find(page => page.parent === parentId && page.title === title) ?? null;
-    },
-    async findAttachment(pageId, filename) {
-      return attachments.get(`${pageId}/${filename}`) ?? null;
-    },
-    async createAttachment(pageId, buffer, filename) {
-      writes.push(['createAttachment', pageId, filename]);
-      const attachment = { id: String(next++), title: filename, bytes: Buffer.from(buffer).toString() };
-      attachments.set(`${pageId}/${filename}`, attachment);
-      return attachment;
-    },
-    async updateAttachmentData(pageId, attachmentId, buffer, filename) {
-      writes.push(['updateAttachmentData', pageId, filename]);
-      attachments.get(`${pageId}/${filename}`).bytes = Buffer.from(buffer).toString();
-      return null;
-    },
-    async createPage({ parentId, spaceKey, title, body }) {
-      writes.push(['createPage', parentId, title]);
-      const page = { id: String(next++), title, parent: parentId, space: { key: spaceKey }, version: { number: 1 }, body };
-      pages.set(page.id, page);
-      return page;
-    },
-    async updatePage({ page, title, body }) {
-      writes.push(['updatePage', page.id, title]);
-      Object.assign(pages.get(page.id), { title, body, version: { number: page.version.number + 1 } });
-      return pages.get(page.id);
-    },
-  };
-  return { client, pages, attachments, writes };
+const baseUrl = 'https://wiki.example.com';
+
+/** The fake instance, reached through the real client. */
+function instance(options) {
+  const fake = fakeConfluence(options);
+  return { ...fake, client: createConfluenceClient({ baseUrl, pat: 'secret', timeoutMs: 1000, fetch: fake.fetch }) };
 }
 
 let vault;
@@ -75,7 +43,7 @@ const sync = (client, options = {}) => syncVault({
 
 describe('syncVault', () => {
   it('creates folder pages, pages, and attachments for what the site publishes', async () => {
-    const confluence = memoryConfluence();
+    const confluence = instance();
     const operations = await sync(confluence.client);
 
     expect(operations.map(operation => operation.action)).toEqual([
@@ -92,7 +60,7 @@ describe('syncVault', () => {
   });
 
   it('updates what is already there on a second run', async () => {
-    const confluence = memoryConfluence();
+    const confluence = instance();
     await sync(confluence.client);
     confluence.writes.length = 0;
     const operations = await sync(confluence.client);
@@ -102,7 +70,7 @@ describe('syncVault', () => {
   });
 
   it('plans the same operations without writing, through the planning client', async () => {
-    const confluence = memoryConfluence();
+    const confluence = instance();
     const planned = await sync(planningClient(confluence.client));
 
     expect(confluence.writes).toEqual([]);
@@ -117,7 +85,7 @@ describe('syncVault', () => {
   it('warns about a missing image and syncs the page anyway', async () => {
     write('notes/welcome.md', '# Welcome\n\n![gone](gone.png)\n');
     const warnings = [];
-    const operations = await sync(memoryConfluence().client, { warn: message => warnings.push(message) });
+    const operations = await sync(instance().client, { warn: message => warnings.push(message) });
 
     expect(warnings).toEqual(['Warning: image not found, skipping: notes/gone.png']);
     expect(operations.map(operation => operation.action)).toEqual(['create-folder', 'create-page', 'create-page']);
@@ -130,7 +98,7 @@ describe('syncVault', () => {
     write('guides/g/one.md', '# First\n\nOne body.\n');
     write('guides/g/two.md', '# Second\n\nTwo body. See [[two]].\n');
     write('notes/overview.md', '# overview\n');
-    const confluence = memoryConfluence({ roots: ['100', '200'] });
+    const confluence = instance({ roots: ['100', '200'] });
     await sync(confluence.client, { folders: ['guides', 'notes'], roots: { guides: '200', notes: '100' } });
 
     const pages = [...confluence.pages.values()];
@@ -147,7 +115,7 @@ describe('syncVault', () => {
     write('guides/a/start.md', 'A body.\n');
     write('guides/b/SUMMARY.md', '---\ntitle: Manual\n---\n\n- [Start B](start.md)\n');
     write('guides/b/start.md', 'B body. See [[a]].\n');
-    const confluence = memoryConfluence({ roots: ['200'] });
+    const confluence = instance({ roots: ['200'] });
     await sync(confluence.client, { folders: ['guides'], roots: { guides: '200' } });
 
     const pages = [...confluence.pages.values()];
@@ -161,8 +129,62 @@ describe('syncVault', () => {
   });
 
   it('refuses a root outside the configured space', async () => {
-    await expect(sync(memoryConfluence({ space: 'OTHER' }).client, { space: 'TEAM' }))
+    await expect(sync(instance({ space: 'OTHER' }).client, { space: 'TEAM' }))
       .rejects.toThrow('Root 100 for notes is in space OTHER, not TEAM');
+  });
+
+  // A page beside a directory of another title keeps the folder page the
+  // pages under it were synced into before nesting under a page existed.
+  it('updates pages where an earlier sync put them, beside a page at their directory\'s path', async () => {
+    write('notes/items.md', '# Overview\n');
+    write('notes/items/modules.md', '# Modules\n');
+    const confluence = instance();
+    const folder = await confluence.client.createPage({ parentId: '100', spaceKey: 'TEAM', title: 'Items', body: '<p></p>' });
+    await confluence.client.createPage({ parentId: '100', spaceKey: 'TEAM', title: 'Overview', body: '<p></p>' });
+    const modules = await confluence.client.createPage({ parentId: folder.id, spaceKey: 'TEAM', title: 'Modules', body: '<p></p>' });
+
+    const operations = await sync(confluence.client);
+    expect(operations).toContainEqual({ action: 'update-page', title: 'Modules', page: modules.id, file: 'notes/items/modules.md' });
+    expect(operations.filter(operation => operation.action.startsWith('create-page'))).toHaveLength(2);
+  });
+
+  it('plans what applying does when a directory nests under its page', async () => {
+    write('notes/items.md', '# Items\n');
+    write('notes/items/modules.md', '# Modules\n');
+    const shape = operations => operations.map(({ action, title, filename }) => `${action} ${title ?? filename}`);
+
+    const planned = await sync(planningClient(instance().client));
+    const applied = await sync(instance().client);
+    expect(shape(planned)).toEqual(shape(applied));
+    expect(shape(applied).filter(line => line.endsWith(' Items'))).toEqual(['create-page Items']);
+  });
+
+  // Confluence takes a title once per space: a page of that title under any
+  // other parent would refuse the create, so the sync refuses first, naming it.
+  it('refuses a page whose title is taken elsewhere in the space, dry run included', async () => {
+    const confluence = instance({ roots: ['100', '200'] });
+    const taken = await confluence.client.createPage({ parentId: '200', spaceKey: 'TEAM', title: 'welcome', body: '<p/>' });
+    const refusal = `Page "Welcome" (${taken.id}) already exists in space TEAM, but not under 100; move or rename it`;
+
+    await expect(sync(planningClient(confluence.client))).rejects.toThrow(refusal);
+    await expect(sync(confluence.client)).rejects.toThrow(refusal);
+  });
+
+  // The whole example vault, as an instance would take it: every page's
+  // storage must parse, and a second run must find every page it made.
+  it('syncs the example vault, then updates it in place', { timeout: 60_000 }, async () => {
+    const example = fileURLToPath(new URL('../../example/', import.meta.url));
+    const folders = CONTENT_DIRS.filter(folder => existsSync(join(example, folder)));
+    const roots = Object.fromEntries(folders.map((folder, at) => [folder, String(100 + at)]));
+    const confluence = instance({ roots: Object.values(roots) });
+    const run = () => syncVault({ catalog: openVaultCatalog(example), client: confluence.client, folders, roots, warn: () => {} });
+
+    const created = await run();
+    expect(created.filter(operation => operation.action === 'create-page').length).toBeGreaterThan(10);
+    expect(created.every(operation => operation.action.startsWith('create-'))).toBe(true);
+    const updated = await run();
+    expect(updated.every(operation => operation.action.startsWith('update-'))).toBe(true);
+    expect(updated.length).toBe(created.filter(operation => operation.action !== 'create-folder').length);
   });
 });
 
@@ -193,16 +215,16 @@ describe('createConfluenceClient', () => {
     expect(calls[1].init.headers['Content-Type']).toBeUndefined();
   });
 
-  it('pages through children to find one by title', async () => {
-    const { calls, fetch } = recordingFetch(url => json(200, {
-      results: url.includes('start=0')
-        ? Array.from({ length: 200 }, (_, index) => ({ id: String(index), title: `p${index}` }))
-        : [{ id: 'x', title: 'wanted' }],
-    }));
+  it('finds a page by its title in the space, with its ancestors', async () => {
+    const { calls, fetch } = recordingFetch(() => json(200, { results: [{ id: 'x', title: 'Wanted' }] }));
     const client = createConfluenceClient({ baseUrl: 'https://wiki', user: 'u', token: 't', timeoutMs: 1000, fetch });
 
-    expect(await client.findChild('1', 'wanted')).toEqual({ id: 'x', title: 'wanted' });
-    expect(calls.map(call => new URL(call.url).searchParams.get('start'))).toEqual(['0', '200']);
+    expect(await client.findPage('TEAM', 'Wanted & more')).toEqual({ id: 'x', title: 'Wanted' });
+    const url = new URL(calls[0].url);
+    expect(url.pathname).toBe('/rest/api/content');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      type: 'page', spaceKey: 'TEAM', title: 'Wanted & more', expand: 'version,space,ancestors',
+    });
     expect(calls[0].init.headers.Authorization).toBe(`Basic ${Buffer.from('u:t').toString('base64')}`);
   });
 
