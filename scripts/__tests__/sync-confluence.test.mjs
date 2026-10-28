@@ -491,6 +491,35 @@ describe('sync-confluence page selection', () => {
     expect(plan('references')).toEqual([{ title: 'Syntax', folders: ['The Language'] }]);
   });
 
+  // mdBook nests chapters as `items.md` beside `items/`: one page and the
+  // pages under it, not a page and a folder page of one title. Titled apart,
+  // the two stay apart, where an earlier sync put them.
+  it('syncs a directory\'s pages under the page at its path that shares its title', () => {
+    vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-nested-'));
+    for (const [path, content] of Object.entries({
+      'references/book/SUMMARY.md': '# Book\n\n- [Items](items.md)\n    - [Modules](items/modules.md)\n',
+      'references/book/items.md': '# Items\n',
+      'references/book/items/modules.md': '# Modules\n',
+      'notes/parts.md': '# Overview\n',
+      'notes/parts/modules.md': '# Notes modules\n',
+    })) {
+      mkdirSync(join(vault, path, '..'), { recursive: true });
+      writeFileSync(join(vault, path), content);
+    }
+    const catalog = openVaultCatalog(vault);
+    const index = createVaultIndex(vault, { catalog });
+    const plan = folder => folderPagePlan(catalog, index, folder).map(({ title, folders }) => ({ title, folders }));
+
+    expect(plan('references')).toEqual([
+      { title: 'Items', folders: ['Book'] },
+      { title: 'Modules', folders: ['Book', 'Items'] },
+    ]);
+    expect(plan('notes')).toEqual([
+      { title: 'Overview', folders: [] },
+      { title: 'Notes modules', folders: ['Parts'] },
+    ]);
+  });
+
   it('refuses to sync two pages under one title it cannot tell apart', () => {
     vault = mkdtempSync(join(tmpdir(), 'teaman-confluence-clash-'));
     for (const [path, content] of Object.entries({

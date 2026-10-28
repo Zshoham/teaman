@@ -257,20 +257,31 @@ function pageTitles(catalog, index) {
     ...catalog.published('reference').filter(document => document.kind === 'book')
       .map(document => [dirname(document.sourcePath), document.title]),
   ]);
+  const files = index.entries.filter(entry => entry.kind === 'file');
   /** @type {Map<string, { title: string, path: string }>} */
-  const pages = new Map();
-  for (const entry of index.entries) {
-    if (entry.kind !== 'file') continue;
-    pages.set(entry.sourcePath, { title: entry.title, path: entry.path });
+  const pages = new Map(files.map(entry => [entry.sourcePath, { title: entry.title, path: entry.path }]));
+  // A directory beside a page of its own path and title (`items.md` titled
+  // Items, and `items/`, as mdBook nests chapters) is that page: its pages
+  // sync under it. Told apart by path they would still share a title, so
+  // they could never sync as two; a folder page titled otherwise keeps its
+  // own place, as the pages under it already have on Confluence.
+  const key = title => title.toLowerCase();
+  const pageAt = new Map(files.map(entry => [entry.path, entry]));
+  const nested = new Map();
+  for (const entry of files) {
     const [top, ...rest] = entry.path.split('/');
     let dir = join(vaultDir, top);
     for (const segment of rest.slice(0, -1)) {
       dir = join(dir, segment);
-      if (!pages.has(dir)) pages.set(dir, { title: bookTitles.get(dir) ?? segmentTitle(segment), path: toPosix(relative(vaultDir, dir)) });
+      if (pages.has(dir) || nested.has(dir)) continue;
+      const path = toPosix(relative(vaultDir, dir));
+      const title = bookTitles.get(dir) ?? segmentTitle(segment);
+      const page = pageAt.get(path);
+      if (page && key(page.title) === key(title)) nested.set(dir, page.sourcePath);
+      else pages.set(dir, { title, path });
     }
   }
 
-  const key = title => title.toLowerCase();
   const sharing = new Map();
   for (const { title } of pages.values()) sharing.set(key(title), (sharing.get(key(title)) ?? 0) + 1);
   const titles = new Map([...pages].map(([sourcePath, { title, path }]) =>
@@ -282,6 +293,7 @@ function pageTitles(catalog, index) {
     if (other) throw new Error(`Two pages would sync as "${title}": ${other} and ${sourcePath} — give one a different title`);
     seen.set(key(title), sourcePath);
   }
+  for (const [dir, sourcePath] of nested) titles.set(dir, titles.get(sourcePath));
   titleCache.set(index, titles);
   return titles;
 }
