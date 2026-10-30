@@ -91,9 +91,7 @@ export function siteMarkdown({
       // highlighted. Diagram fences bypass Shiki and remain untouched.
       rehypeCodeBlocks,
       rehypeSlug,
-      // The permalink spells the heading's Markdown marker (`##` on an h2), which
-      // global.css hangs in the margin; Pagefind skips it so results don't
-      // carry the hashes in their heading text.
+      // Trailing permalink icon; excluded from search and labelled for assistive tech.
       [rehypeAutolinkHeadings, {
         behavior: 'append',
         properties: {
@@ -101,7 +99,20 @@ export function siteMarkdown({
           'aria-label': 'Permalink to this heading',
           dataPagefindIgnore: '',
         },
-        content: heading => ({ type: 'text', value: '#'.repeat(Number(heading.tagName.slice(1))) }),
+        content: {
+          type: 'element', tagName: 'svg',
+          properties: {
+            viewBox: '0 0 24 24', width: 16, height: 16,
+            fill: 'none', stroke: 'currentColor', strokeWidth: 2,
+            strokeLinecap: 'round', strokeLinejoin: 'round',
+            ariaHidden: 'true', focusable: 'false',
+          },
+          children: [{
+            type: 'element', tagName: 'path',
+            properties: { d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' },
+            children: [],
+          }],
+        },
       }],
       // Last: heading ids and permalinks are already in place, so wrapping
       // chapters cannot disturb them. References only — see the plugin for

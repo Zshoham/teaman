@@ -1096,46 +1096,46 @@ body {
   .tm-link, .tm-stub { transition: none; }
 }
 
-/* Heading anchors (rehype-autolink-headings) spell the heading's Markdown
-   marker (`##`, `###`, …), always visible, like the source the page was
-   written in. Narrow, they trail the heading — the one permalink a touch
-   reader can reach, so never hover-only; from 64rem every reading column has
-   a gutter, so they hang in it. --faint at full strength is the quietest tone
-   that still clears 4.5:1 on the page in both themes. */
+/* Reveal trailing permalinks on hover or keyboard focus without layout shift.
+   Keep them visible when the primary input cannot hover (typically touch). */
 .prose .heading-anchor {
+  position: relative;
+  display: inline;
+  padding-inline: 0.25rem;
   margin-left: 0.4em;
   color: var(--faint);
-  font-family: var(--font-mono);
-  font-size: var(--text-meta-lg);
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
   text-decoration: none;
-  white-space: nowrap;
-  transition: color .15s;
+  opacity: 0;
+  transition: color .15s, opacity .15s;
+}
+/* Inline padding and the expanded target do not enlarge the heading line box. */
+.prose .heading-anchor::after {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: max(100%, 1.5rem);
+  height: max(100%, 1.5rem);
+  transform: translate(-50%, -50%);
+}
+.prose .heading-anchor svg {
+  display: inline;
+  width: 0.8em;
+  height: 0.8em;
+  margin: 0;
 }
 .prose :is(h1,h2,h3,h4,h5,h6):hover > .heading-anchor,
-.prose .heading-anchor:is(:hover, :focus-visible) { color: var(--primary); }
-
-/* Registered so `1lh` resolves on the heading and inherits as a length: the
-   hanging marker centres on the heading's first line, not on a wrapped block. */
-@property --heading-line {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 0px;
+.prose .heading-anchor:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .prose .heading-anchor { opacity: 1; }
 }
-@media (width >= 64rem) {
-  .prose :is(h1,h2,h3,h4,h5,h6):has(> .heading-anchor) { position: relative; --heading-line: 1lh; }
-  .prose .heading-anchor {
-    position: absolute;
-    right: 100%;
-    top: 0;
-    line-height: var(--heading-line);
-    margin: 0 0.75rem 0 0;
-  }
-  /* A chapter's content-visibility implies paint containment, which would
-     clip the hanging marker; widen the chapter's box into the gutter. */
-  .reference-chapter { margin-inline-start: -3.5rem; padding-inline-start: 3.5rem; }
+.prose .heading-anchor:is(:hover, :focus-visible) { color: var(--primary); }
+.prose .heading-anchor:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 0.2rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prose .heading-anchor { transition: none; }
 }
 
 /* The block cursor after the header brand: blinks a few times on load, then

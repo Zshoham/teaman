@@ -25,17 +25,7 @@ const { Content, headings } = await render(reference);
 const base = import.meta.env.BASE_URL;
 const words = wordCount(reference.body ?? '');
 const title = entryTitle({ data: reference.data, body: reference.body, id: reference.id });
-// rehype-autolink-headings appends a visible permalink spelling the heading's
-// Markdown marker (`##` on an h2). Astro's rendered heading metadata includes
-// that child text, so remove exactly that marker, and no `#` the heading's own
-// text ends with, before handing labels to the reader rail.
-const withoutMarker = (text: string, depth: number) => {
-  const marker = '#'.repeat(depth);
-  return (text.endsWith(marker) ? text.slice(0, -marker.length) : text).trim();
-};
-const tocHeadings = headings
-  .filter(heading => heading.depth >= 2 && heading.depth <= 6)
-  .map(heading => ({ ...heading, text: withoutMarker(heading.text, heading.depth) }));
+const tocHeadings = headings.filter(heading => heading.depth >= 2 && heading.depth <= 6);
 const pdfHref = `${base}references/${reference.id}/reference.pdf`;
 ---
 
