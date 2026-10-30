@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { weekHref, type DailyWeekShape } from "@/lib/dailies-shared";
 import { fmtDayRange, fmtWeeksAgo } from "@/lib/format";
+import { stripLeadingFade, stripRestingLeft } from "@/lib/week-strip";
 import { DatePicker } from "./DatePicker";
 
 interface Props {
@@ -30,8 +31,15 @@ export function WeekStrip({ weeks, currentId }: Props) {
     const strip = stripRef.current;
     const active = activeRef.current;
     if (!strip || !active) return;
-    const target = active.offsetLeft - strip.clientWidth / 2 + active.clientWidth / 2;
-    strip.scrollTo({ left: Math.max(0, target), behavior: "instant" as ScrollBehavior });
+    // `relative` on the strip makes the chip offsets its own.
+    const chips = Array.from(strip.children as HTMLCollectionOf<HTMLElement>);
+    const left = stripRestingLeft({
+      chipLefts: chips.map((chip) => chip.offsetLeft),
+      active: { left: active.offsetLeft, width: active.offsetWidth },
+      clientWidth: strip.clientWidth,
+      pad: Number.parseFloat(getComputedStyle(strip).scrollPaddingLeft) || 0,
+    });
+    strip.scrollTo({ left, behavior: "instant" as ScrollBehavior });
   }, []);
 
   // The strip scrolls sideways with no scrollbar: an edge fades out only
@@ -45,6 +53,11 @@ export function WeekStrip({ weeks, currentId }: Props) {
       const max = strip.scrollWidth - strip.clientWidth;
       strip.dataset.moreBefore = String(strip.scrollLeft > 1);
       strip.dataset.moreAfter = String(strip.scrollLeft < max - 1);
+      const fade = Number.parseFloat(getComputedStyle(strip).scrollPaddingLeft) || 0;
+      const first = Array.from(strip.children as HTMLCollectionOf<HTMLElement>)
+        .find((chip) => chip.offsetLeft >= strip.scrollLeft - 1);
+      const edge = first ? first.offsetLeft - strip.scrollLeft : fade;
+      strip.style.setProperty("--strip-fade-start", `${stripLeadingFade(fade, edge)}px`);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -93,7 +106,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
         <div
           ref={stripRef}
           data-strip-chips
-          className="week-strip-chips flex min-w-0 flex-1 snap-x items-stretch gap-2 overflow-x-auto scroll-smooth"
+          className="week-strip-chips relative flex min-w-0 flex-1 snap-x items-stretch gap-2 overflow-x-auto scroll-smooth"
         >
           {chipWeeks.map((w) => {
             const active = w.id === currentId;
@@ -103,7 +116,7 @@ export function WeekStrip({ weeks, currentId }: Props) {
                 key={w.id}
                 ref={active ? activeRef : undefined}
                 className={cn(
-                  "flex shrink-0 snap-center items-baseline gap-2 rounded-md border bg-transparent px-3.5 py-2 whitespace-nowrap text-foreground no-underline transition-colors",
+                  "flex shrink-0 snap-start items-baseline gap-2 rounded-md border bg-transparent px-3.5 py-2 whitespace-nowrap text-foreground no-underline transition-colors",
                   active ? "border-primary" : "border-border hover:border-foreground hover:bg-muted",
                 )}
                 href={weekHref(w)}

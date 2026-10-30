@@ -58,6 +58,17 @@ describe('rehypeCodeBlocks', () => {
     expect(tree.children[0].children[0].children[0].children[0].value).toBe('plaintext');
   });
 
+  it('marks a block drawn with box-drawing characters, and only such a block', () => {
+    const block = source => element('pre', [element('code', [text(source)])], {
+      className: ['astro-code'],
+      dataLanguage: 'text',
+    });
+    const tree = run([block('a ─┐\nb ─┴─► c'), block('a -> b')]);
+
+    expect(tree.children[0].properties).toHaveProperty('dataBoxDrawing', '');
+    expect(tree.children[1].properties).not.toHaveProperty('dataBoxDrawing');
+  });
+
   it('leaves diagram and ordinary pre elements untouched', () => {
     const mermaid = element('pre', [text('graph TD')], { className: ['mermaid'] });
     const ordinary = element('pre', [text('output')]);

@@ -113,14 +113,18 @@ test.describe('section nav on mobile', () => {
 });
 
 test('tablet header separates branding, navigation, and search', async ({ page }) => {
-  for (const width of [768, 800, 1024, 1279, 1280]) {
+  for (const width of [768, 800, 1023, 1024, 1279, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     const collisions = await page.locator('#site-header').evaluate(header => {
       const brand = header.querySelector('.brand')!.getBoundingClientRect();
       const nav = header.querySelector('nav')!.getBoundingClientRect();
       const search = header.querySelector('pagefind-modal-trigger')!.getBoundingClientRect();
-      return brand.right > nav.left || nav.right > search.left;
+      // Below lg the nav occupies a second row; sharing its horizontal
+      // space with the brand or search is only a collision on the same row.
+      const overlaps = (a: DOMRect, b: DOMRect) =>
+        a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      return overlaps(brand, nav) || overlaps(nav, search) || overlaps(brand, search);
     });
     expect(collisions, `header at ${width}px`).toBe(false);
     if (width < 1280) await expect(page.getByRole('button', { name: 'Browse sections' })).toBeVisible();

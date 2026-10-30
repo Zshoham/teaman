@@ -22,6 +22,17 @@ test.describe('inlined svg images', () => {
     await expect(figure.locator('svg > title')).toHaveText(/vault/i);
   });
 
+  test('a wide svg keeps a legible width on a phone and scrolls in its own box', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/notes/vault-architecture/');
+    const scroller = page.locator('.prose figure.content-figure > .diagram-scroll').first();
+    const box = await scroller.locator('svg.content-svg').boundingBox();
+    // 660px natural, held at the 40rem floor instead of the 343px column.
+    expect(box!.width).toBeGreaterThan(600);
+    expect(await scroller.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  });
+
   test('a note-relative svg next to the notes resolves too', async ({ page }) => {
     await page.goto('/notes/tools-for-thought/');
     // The note also carries a hand-written decorative inline svg; select the

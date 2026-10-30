@@ -66,7 +66,8 @@
   --chart-3: oklch(0.8721 0.0864 68.5474);
   --chart-4: oklch(0.6268 0 0);
   --chart-5: oklch(0.6830 0 0);
-  --radius: 0.75rem;
+  /* Tight corners: surfaces read as terminal panes rather than soft cards. */
+  --radius: 0.25rem;
   --sidebar: oklch(0.9670 0.0029 264.5419);
   --sidebar-foreground: oklch(0.2101 0.0318 264.6645);
   --sidebar-primary: oklch(0.5600 0.1450 48.5130);
@@ -84,10 +85,12 @@
 
   /* Decision-record status hues — the one place the palette steps outside the
      single-accent rule. Shared by the StatusBadge on the decisions timeline and
-     the home feed so a decision's status reads identically in both. */
-  --st-accepted: oklch(0.55 0.085 150);
-  --st-proposed: oklch(0.62 0.11 70);
-  --st-superseded: oklch(0.55 0.055 232);
+     the home feed so a decision's status reads identically in both. Held at
+     L 0.49 so the 12px badge label clears WCAG AA (≥ 4.7:1) on its own 10%
+     tint, also over a hovered card, and the status-coloured relation links. */
+  --st-accepted: oklch(0.49 0.085 150);
+  --st-proposed: oklch(0.49 0.11 70);
+  --st-superseded: oklch(0.49 0.055 232);
 
   /* Smart-link service hues (remark-smart-links) — the second sanctioned step
      outside the single-accent rule, for the same reason as --st-*: the colour
@@ -106,6 +109,7 @@
    tracking-label, tracking-label-sm. --measure is consumed directly via
    max-w-[var(--measure)]. */
    --measure: 680px;          /* reading-column width, shared by every article page */
+   --diagram-min-width: 40rem; /* narrowest a wide diagram shrinks to before it scrolls */
    --text-meta-sm: 0.6875rem; /* 11px · secondary counts / quiet labels */
    --text-meta: 0.75rem;      /* 12px · mono meta strips, eyebrows, breadcrumbs, tags */
    --text-meta-lg: 0.8125rem; /* 13px · primary small-mono UI: brand, nav, search, stats, TOC, chips */
@@ -120,7 +124,6 @@
   --header-h: 76px;
   --content-gutter: clamp(1rem, 4vw, 2.5rem);
   --tap-target: 2.75rem;
-  --floating-safe-bottom: calc(1rem + env(safe-area-inset-bottom));
   --motion-fast: 120ms;
   --motion-normal: 200ms;
 
@@ -398,6 +401,43 @@ body {
   word-break: break-word;
 }
 .prose :where(table) { display: block; max-width: 100%; overflow-x: auto; }
+/* Typography zeroes the last column's end padding, which only works when the
+   table spans the measure. A block table is as wide as its content, so the
+   last cell's text ran into the end of the row rule. The gutter the other
+   columns have is drawn as each rule running on past the row, not as padding:
+   padding counts toward the table's min-content width, so a table already at
+   its narrowest on a phone scrolled by those 9px. A shadow is ink, not
+   layout: it never makes the table scroll, and the table's own overflow clips
+   it once the table fills the measure, where there is no end to pad. The
+   pseudo-element is out of flow, so the row gains no cell. */
+.prose :where(thead tr:last-child, tbody tr:not(:last-child), tfoot tr:first-child) {
+  position: relative;
+}
+.prose :where(thead tr:last-child, tbody tr:not(:last-child), tfoot tr:first-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  box-shadow: 0.5714286em 0 0 0 var(--border);
+  pointer-events: none;
+}
+.prose :where(tfoot tr:first-child)::after { top: 0; bottom: auto; }
+/* Blink lays an inline code chip's end padding past the end of a line it
+   fills (and can leave a chip's start padding alone at the end of one), so a
+   last cell overflowed the table by up to 6px and the table scrolled for it.
+   Clip what passes the last cell's edge: the column is never narrower than
+   its content's min-content width, so only that chip padding is cut. */
+.prose :where(th, td):last-child { overflow-x: clip; }
+/* A table sizes its columns from their min-content width, and `anywhere`
+   counts every character as a break there, so a code cell shrank to a few
+   letters and split `content/notes/` mid-word. `break-word` keeps the natural
+   breaks (after a `/`) for sizing and splits a word only when one alone
+   overflows; a table that still does not fit scrolls. */
+.prose :where(th, td) :where(code):not(:where(pre code)) {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
 .prose :where(img, video, iframe) { max-width: 100%; }
 
 /* ── Long-form document title ──────────────────────────────────────────
@@ -444,9 +484,14 @@ body {
    scrollbar — a bar under a single row of chips is all chrome and no
    information, and it grabs the pointer on the way to a chip. Instead each
    edge fades out while there are more weeks past it (the component keeps
-   `data-more-before` / `data-more-after` in sync with the scroll position). */
+   `data-more-before` / `data-more-after` in sync with the scroll position,
+   and lengthens the leading fade through `--strip-fade-start` when the
+   strip is clamped with a chip too near that edge for a peek). */
 .week-strip-chips {
   --strip-fade: 2.5rem;
+  /* Chips snap to start just inside the fade, so a faded edge only ever holds
+     the peek of the next week over, never the chip being read. */
+  scroll-padding-inline: var(--strip-fade);
   scrollbar-width: none;
   mask-image: linear-gradient(
     to right,
@@ -457,7 +502,7 @@ body {
   );
 }
 .week-strip-chips::-webkit-scrollbar { display: none; }
-.week-strip-chips[data-more-before='true'] { --strip-fade-before: var(--strip-fade); }
+.week-strip-chips[data-more-before='true'] { --strip-fade-before: var(--strip-fade-start, var(--strip-fade)); }
 .week-strip-chips[data-more-after='true'] { --strip-fade-after: var(--strip-fade); }
 
 /* ── Home quick-links (src/components/home/QuickLinks.astro) ──────────
@@ -659,22 +704,15 @@ body {
   }
 }
 
-/* The labelled whiteboard launcher only fits in the gutter right of the
-   1180px page column on wide screens; narrower, it would sit on top of the
-   reading column (and any embed in it). Collapse it to its icon, tucked
-   against the edge, until the gutter can hold the label. */
-@media (max-width: 1439px) {
-  .whiteboard-launcher {
-    right: 1rem;
+/* Header tool buttons (whiteboard, theme). The whiteboard renders
+   client-only, so its slot holds the button's size before it mounts and the
+   row never shifts. On touch-sized screens both grow to a full tap target. */
+#site-header .header-tool-slot { width: 2rem; height: 2rem; }
+@media (max-width: 767px) {
+  #site-header :is([data-theme-toggle], .whiteboard-launcher, .header-tool-slot) {
     width: var(--tap-target);
     height: var(--tap-target);
-    padding: 0;
   }
-  .whiteboard-launcher-label { display: none; }
-}
-
-@media (max-width: 767px) {
-  #site-header [data-theme-toggle] { width: var(--tap-target); height: var(--tap-target); }
 }
 
 /* Mobile reference anchors clear both the site header and document navigator. */
@@ -686,9 +724,10 @@ body {
 
 @media (max-width: 479px) {
   .brand-tagline { display: none; }
-  .section-nav { justify-content: flex-start; overflow-x: auto; }
-  .whiteboard-launcher { bottom: var(--floating-safe-bottom); }
-  body { padding-bottom: calc(var(--tap-target) + var(--floating-safe-bottom)); }
+  /* The scrolling nav clips anything outside its box, the focus ring
+     included: pad the scrollport by the ring's reach (2px offset + 2px
+     width) and cancel it with a matching negative margin. */
+  .section-nav { justify-content: flex-start; overflow-x: auto; padding: 4px; margin: -4px; }
   [data-week-strip] .week-strip-chips a:not([data-current='true']) { display: none; }
   [data-week-strip] .week-strip-chips { overflow: visible; mask-image: none; }
 }
@@ -698,15 +737,20 @@ body {
 [data-theme='dark'] .prose :where(code):not(:where(pre code)) {
   background: color-mix(in oklab, var(--muted) 70%, var(--background));
 }
-/* Persistent thin scrollbar on overflowing code blocks — keeps long lines
-   reachable on the narrow reading column without an unconditional edge fade
-   (which would clip the last visible character even when nothing overflows). */
-.prose pre {
+/* Persistent thin scrollbar on overflowing code blocks and diagram boxes —
+   keeps long lines and wide diagrams reachable on the narrow reading column
+   without an unconditional edge fade (which would clip the last visible
+   character even when nothing overflows), in the theme's own border tone
+   rather than the browser's bright default bar. */
+.prose :is(pre, .diagram-scroll) {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
-.prose pre::-webkit-scrollbar { height: 6px; }
-.prose pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Box-drawing diagrams (rehype-code-blocks marks them) join only at the
+   font's own line spacing; prose code keeps the roomier reading leading. */
+.prose [data-box-drawing] pre { line-height: normal; }
+.prose :is(pre, .diagram-scroll)::-webkit-scrollbar { height: 6px; }
+.prose :is(pre, .diagram-scroll)::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 /* Shiki code-block chrome (rehype-code-blocks.mjs). The wrapper keeps the
    language and copy action outside the horizontally scrolling source, so both
@@ -731,7 +775,9 @@ body {
   line-height: 1;
 }
 .prose .code-block-language {
-  color: var(--muted-foreground);
+  /* Muted text on the code block's muted surface sits just under 4.5:1;
+     a step toward the foreground keeps the label quiet but legible. */
+  color: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
   letter-spacing: var(--tracking-label-sm);
   text-transform: lowercase;
 }
@@ -741,7 +787,7 @@ body {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--muted-foreground);
+  color: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
   font: inherit;
   line-height: 1;
   transition: color 150ms ease, background-color 150ms ease;
@@ -771,7 +817,28 @@ body {
    caption; the typography plugin already colors/sizes figcaption via
    --tw-prose-captions, we just center the pair and drop the doubled margin. */
 .prose figure.content-figure { margin: 1.5rem auto; text-align: center; }
-.prose figure.content-figure > svg.content-svg { margin: 0 auto; }
+.prose figure > .diagram-scroll { margin: 0; }
+
+/* Block diagrams — svg images and build-time fences (each wrapped in
+   `.diagram-scroll` by the pipeline) and the client-rendered Mermaid and
+   PlantUML blocks — shrink to the column only down to
+   --diagram-min-width. A wide diagram scaled to a phone column would set its
+   labels at a few pixels, so below that it keeps the floor and scrolls
+   sideways in its own box. An svg's `width` attribute is its natural size,
+   so a diagram narrower than the floor is never enlarged. Pele writes
+   `max-width: 100%` inline on Mermaid's svg, hence the !important. */
+.prose .diagram-scroll { margin: 1.5rem 0; overflow-x: auto; }
+.prose .diagram-scroll > svg.content-svg { margin: 0 auto; }
+.prose :is(.diagram-scroll > svg.content-svg, pre.mermaid > svg, pre.plantuml > svg) {
+  max-width: max(100%, var(--diagram-min-width)) !important;
+}
+/* A hand-written block svg (src/lib/rehype-raw-svg.mjs) sizes itself — often
+   `width="100%"`, its own max-width inline — so the floor is a min-width
+   instead, capped at the drawing's natural width (its width or viewBox,
+   handed over as --diagram-width) so a small drawing is never enlarged. */
+.prose .diagram-scroll > svg:not(.content-svg) {
+  min-width: min(var(--diagram-min-width), var(--diagram-width, 0px));
+}
 
 /* `![[viz.html]]` frames (src/lib/html-embeds.mjs). The embed paints its own
    content, so the page only frames it: full column width unless the author
@@ -804,6 +871,7 @@ body {
   margin: 1.5rem 0;
   text-align: center;
   line-height: normal;
+  overflow-x: auto;
 }
 .prose pre.mermaid:not([data-processed]),
 .prose pre.plantuml:not([data-processed]) { visibility: hidden; }
@@ -824,7 +892,7 @@ body {
    doesn't center it — margin-inline:auto does (matters for narrow diagrams that
    would otherwise hug the left edge). */
 .prose pre.mermaid svg,
-.prose pre.plantuml svg { max-width: 100%; height: auto; margin-inline: auto; }
+.prose pre.plantuml svg { height: auto; margin-inline: auto; }
 /* PlantUML paints its own page-colored backdrop, which doesn't match the site
    background (most visibly a lighter block in dark mode). Graphviz-laid-out
    diagrams (state, component, …) carry it two ways: a `background-color` on the
@@ -1028,18 +1096,53 @@ body {
   .tm-link, .tm-stub { transition: none; }
 }
 
-/* Heading anchors (rehype-autolink-headings). */
+/* Heading anchors (rehype-autolink-headings) spell the heading's Markdown
+   marker (`##`, `###`, …), always visible, like the source the page was
+   written in. Narrow, they trail the heading — the one permalink a touch
+   reader can reach, so never hover-only; from 64rem every reading column has
+   a gutter, so they hang in it. --faint at full strength is the quietest tone
+   that still clears 4.5:1 on the page in both themes. */
 .prose .heading-anchor {
   margin-left: 0.4em;
   color: var(--faint);
-  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-meta-lg);
   font-weight: 400;
-  opacity: 0;
-  transition: opacity .15s, color .15s;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .15s;
 }
 .prose :is(h1,h2,h3,h4,h5,h6):hover > .heading-anchor,
-.prose .heading-anchor:focus { opacity: 1; }
-.prose .heading-anchor:hover { color: var(--primary); }
+.prose .heading-anchor:is(:hover, :focus-visible) { color: var(--primary); }
+
+/* Registered so `1lh` resolves on the heading and inherits as a length: the
+   hanging marker centres on the heading's first line, not on a wrapped block. */
+@property --heading-line {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+@media (width >= 64rem) {
+  .prose :is(h1,h2,h3,h4,h5,h6):has(> .heading-anchor) { position: relative; --heading-line: 1lh; }
+  .prose .heading-anchor {
+    position: absolute;
+    right: 100%;
+    top: 0;
+    line-height: var(--heading-line);
+    margin: 0 0.75rem 0 0;
+  }
+  /* A chapter's content-visibility implies paint containment, which would
+     clip the hanging marker; widen the chapter's box into the gutter. */
+  .reference-chapter { margin-inline-start: -3.5rem; padding-inline-start: 3.5rem; }
+}
+
+/* The block cursor after the header brand: blinks a few times on load, then
+   rests solid (the keyframes end visible, so the reduced-motion clamp below
+   leaves it on too). */
+.brand-cursor { animation: brand-cursor-blink 1.1s steps(1) 4; }
+@keyframes brand-cursor-blink { 50% { opacity: 0; } }
 
 /* Callouts (rehype-callouts). A per-type --callout-accent drives the icon,
    title, left rule and a faint background tint, so the type reads at a glance
@@ -1060,6 +1163,10 @@ body {
 [data-theme='dark'] .prose .callout {
   background: color-mix(in oklab, var(--callout-accent) 14%, var(--background));
 }
+/* The accent itself is a mid-lightness hue: right for the rule and the icon,
+   ~3:1 as small text on its own tint. The title text pulls it toward the
+   foreground — darker on paper, lighter in dark — to clear 4.5:1 for every
+   type while keeping its hue. */
 .prose .callout-title {
   display: flex;
   align-items: center;
@@ -1068,11 +1175,15 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--callout-accent);
+  color: color-mix(in oklab, var(--callout-accent) 65%, var(--foreground));
+}
+[data-theme='dark'] .prose .callout-title {
+  color: color-mix(in oklab, var(--callout-accent) 80%, var(--foreground));
 }
 .prose .callout-title-icon {
   display: inline-flex;
   flex: none;
+  color: var(--callout-accent);
   font-size: 1.15rem; /* the SVG is sized 1em, so this is the icon size */
 }
 .prose .callout-title-icon svg { display: block; }
@@ -1081,7 +1192,8 @@ body {
 .prose .callout-content > :last-child { margin-bottom: 0; }
 
 /* Foldable callouts render as <details>/<summary>; drop the native marker and
-   rotate the library's fold chevron (pushed to the trailing edge) on open. */
+   turn the library's fold chevron (pushed to the trailing edge): it is drawn
+   pointing down, which is the open state, so a closed callout's points right. */
 .prose details.callout > summary.callout-title {
   cursor: pointer;
   list-style: none;
@@ -1091,9 +1203,10 @@ body {
   display: inline-flex;
   margin-left: auto;
   flex: none;
+  transform: rotate(-90deg);
   transition: transform 0.15s ease;
 }
-.prose details.callout[open] > summary .callout-fold-icon { transform: rotate(90deg); }
+.prose details.callout[open] > summary .callout-fold-icon { transform: none; }
 
 /* Per-type accents — chosen to read on both light and dark backgrounds. */
 .prose .callout[data-callout='note'],
@@ -1148,7 +1261,7 @@ pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox {
   --pf-text-muted: var(--faint);
   --pf-border: var(--border);
   --pf-border-focus: var(--foreground);
-  --pf-border-radius: 7px;
+  --pf-border-radius: var(--radius);
   --pf-hover: var(--muted);
   --pf-mark: var(--primary);
   --pf-outline-focus: var(--primary);
@@ -1170,16 +1283,68 @@ pagefind-modal, pagefind-modal-trigger, pagefind-search, pagefind-searchbox {
 /* Pagefind replaces the fallback button when it upgrades. Keep its generated
    trigger at the same size so hydration cannot change the header layout.
    Its stylesheet uses elevated specificity, so these overrides need !important. */
-#site-header pagefind-modal-trigger { --pf-input-height: 34px; }
+/* Pagefind's stylesheet resets the element with `all: initial` outside any
+   cascade layer, which beats every Tailwind utility on it — so its size lives
+   here: an icon below md, a fixed box on the tablet header, then the side
+   column's width. It may shrink there (it would otherwise hold its content
+   width and push into the nav), dropping the shortcut chip before the label
+   has to truncate. */
+#site-header pagefind-modal-trigger {
+  --pf-input-height: 34px;
+  min-width: 0;
+  container-type: inline-size;
+}
+@media (width >= 48rem) { #site-header pagefind-modal-trigger { width: 14rem; } }
+@media (width >= 64rem) { #site-header pagefind-modal-trigger { width: 100%; max-width: 15rem; } }
+@container (width < 14rem) {
+  #site-header .pf-trigger-shortcut { display: none !important; }
+}
 #site-header .pf-trigger-btn {
   min-width: 0;
   padding: 0 8px 0 12px !important;
   font-size: var(--text-meta-lg) !important;
 }
-#site-header .pf-trigger-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Focus like the header's other tool buttons (the shadcn Button ring)
+   rather than Pagefind's 1px outline. */
+#site-header .pf-trigger-btn:focus-visible {
+  outline: none !important;
+  border-color: var(--ring) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
+}
+#site-header .pf-trigger-text {
+  min-width: 0;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis;
+}
+/* Pagefind writes `placeholder` into both the button's aria-label and its
+   visible text. The label stays "Search the vault"; on wide screens the
+   visible text becomes a `$ grep` prompt to match the fallback button. */
+@media (width >= 48rem) {
+  #site-header .pf-trigger-btn { font-family: var(--font-mono) !important; }
+  #site-header .pf-trigger-icon {
+    width: auto !important;
+    height: auto !important;
+    background: none !important;
+    -webkit-mask: none !important;
+    mask: none !important;
+    color: var(--primary) !important;
+    line-height: 1;
+  }
+  #site-header .pf-trigger-icon::before { content: '$'; }
+  #site-header .pf-trigger-text { font-size: 0 !important; color: var(--muted-foreground) !important; }
+  #site-header .pf-trigger-text::after { content: 'grep the vault'; font-size: var(--text-meta-lg); }
+}
+/* Below md the trigger is an icon button, round like the tool buttons
+   beside it, with the glyph centred and sized to match theirs. */
 @media (width < 48rem) {
   #site-header pagefind-modal-trigger { --pf-input-height: 44px; width: 44px; }
-  #site-header .pf-trigger-btn { padding: 0 !important; justify-content: center; }
+  #site-header .pf-trigger-btn {
+    padding: 0 !important;
+    justify-content: center !important;
+    border-radius: 9999px !important;
+  }
+  #site-header .pf-trigger-icon { width: 18px !important; height: 18px !important; }
   #site-header .pf-trigger-text,
   #site-header .pf-trigger-shortcut { display: none !important; }
 }

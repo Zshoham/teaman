@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildFilterTabs, buildTopics, footerSummary } from '../collection-index';
+import { buildFilterTabs, buildTopics } from '../collection-index';
 import type { Entry, EntryType } from '../entries';
 
 function entry(overrides: Partial<Entry> & { type: EntryType }): Entry {
@@ -66,34 +66,5 @@ describe('buildTopics', () => {
 
   it('is empty when nothing is tagged', () => {
     expect(buildTopics([entry({ type: 'guide' })])).toEqual([]);
-  });
-});
-
-describe('footerSummary', () => {
-  it('pluralises the noun and reports the newest update', () => {
-    const summary = footerSummary([
-      entry({ type: 'note', title: 'a', updated: '2026-03-04' }),
-      entry({ type: 'note', title: 'b', updated: '2026-01-09' }),
-    ]);
-    expect(summary).toMatch(/^2 entries · last edit /);
-  });
-
-  it('uses the singular noun for one entry', () => {
-    expect(footerSummary([entry({ type: 'note' })], 'note', 'notes')).toMatch(/^1 note · /);
-  });
-
-  it('takes the latest date even when entries are out of order', () => {
-    const late = footerSummary([
-      entry({ type: 'note', title: 'a', updated: '2026-01-09' }),
-      entry({ type: 'note', title: 'b', updated: '2026-03-04' }),
-    ]);
-    expect(late).toBe(footerSummary([
-      entry({ type: 'note', title: 'b', updated: '2026-03-04' }),
-      entry({ type: 'note', title: 'a', updated: '2026-01-09' }),
-    ]));
-  });
-
-  it('drops the last-edit clause for an empty collection', () => {
-    expect(footerSummary([], 'note', 'notes')).toBe('0 notes');
   });
 });

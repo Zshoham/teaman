@@ -1,6 +1,7 @@
 ---
 import { render } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import { SITE_CONFIG } from '../../config';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import { GuideTOC } from '../../components/guide/GuideTOC';
 import { GuideNav } from '../../components/guide/GuideNav';
@@ -34,17 +35,17 @@ const words = wordCount(entry.body ?? '');
 
 <Layout title={docTitle}>
   <article class="pt-6 pb-2">
-    <Breadcrumbs segments={[
+    <Breadcrumbs brand={SITE_CONFIG.brand} segments={[
       { label: 'guides', href: `${base}guides/` },
       { label: guide.title, href: `${base}guides/${guide.slug}/` },
       ...(idx > 0 ? [{ label: currentTitle }] : []),
     ]} />
 
-    <div class="grid items-start gap-8 md:grid-cols-[240px_minmax(0,1fr)] md:gap-16">
+    <div class="grid items-start gap-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-14">
       <GuideTOC guide={guide} currentSlug={chapterSlug} />
 
       <div class="min-w-0 max-w-[var(--measure)]">
-        <header class="mb-8 border-b border-border pb-6">
+        <header class="mb-8">
           <p class="guide-eyebrow m-0 font-mono text-meta uppercase tracking-label text-faint">guide · chapter {idx + 1} of {guide.chapters.length}</p>
           <h1 class="guide-title doc-title mt-3">{currentTitle}</h1>
           <DocMeta class="mt-4" items={[wordMeta(words), readingTimeMeta(words)]}>

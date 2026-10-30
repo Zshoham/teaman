@@ -15,8 +15,9 @@
   that teaman embeds with ![[bgp.html]].
 
   Optional: #step=4 starts on that step. It also follows the teaman frame
-  protocol: says { type: 'teaman:ready' } to its parent and applies
-  { type: 'teaman:theme', theme: 'light' | 'dark' }.
+  protocol: says { type: 'teaman:ready' } to its parent, applies
+  { type: 'teaman:theme', theme: 'light' | 'dark' }, and reports the height
+  it needs at its width with { type: 'teaman:resize', height }.
 
   ASNs (64496–64511) and the prefix (203.0.113.0/24) are the ranges reserved
   for documentation, so the example never names a real network.
@@ -119,7 +120,7 @@
   ol.ladder li.tie { color: var(--ink); }
   ol.ladder li.win { color: var(--ink); font-weight: 650; }
   ol.ladder li.win::after { content: "  ← decides"; color: var(--update); font-weight: 600; }
-  #extra { display: grid; gap: 8px; }
+  .extra { display: grid; gap: 8px; }
   ul.recap { margin: 0; padding-left: 18px; font-size: 13px; }
   ul.recap li { margin: 2px 0; }
 
@@ -133,7 +134,12 @@
   .node.focus circle { stroke: var(--update); stroke-width: 3; }
   .node .asn { fill: var(--ink); font-size: 15px; font-weight: 700; text-anchor: middle; }
   .node .as { fill: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-anchor: middle; }
-  .node .name { fill: var(--muted); font-size: 13px; font-weight: 600; text-anchor: middle; }
+  /* A link may pass behind a name (the tall layout runs links through the
+     labels above each network); a halo in the page colour keeps it legible. */
+  .node .name {
+    fill: var(--muted); font-size: 13px; font-weight: 600; text-anchor: middle;
+    paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; transition: stroke 0.4s;
+  }
   .chip rect { fill: var(--chip); stroke: var(--rule); transition: fill 0.4s; }
   .chip text { fill: var(--ink); font-size: 12px; text-anchor: middle; }
   .chip.none text { fill: var(--muted); font-style: italic; }
@@ -150,9 +156,10 @@
   /* Narrow or tall frames: the explanation goes under the network. */
   @media (max-width: 819px) {
     .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
-    /* A fixed-height caption keeps the network from resizing every step. */
-    .app { grid-template-rows: minmax(0, 1fr) clamp(200px, 44%, 320px); }
-    #extra { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; align-items: start; }
+    /* A fixed-height caption keeps the network from resizing every step:
+       as tall as the longest step at this width (measured by the script). */
+    .app { grid-template-rows: minmax(0, 1fr) var(--caption-h, clamp(200px, 44%, 320px)); }
+    .extra { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; align-items: start; }
     .panel { border-left: 0; border-top: 1px solid var(--rule); overflow-y: auto; }
     .legend { display: none; }
   }
@@ -200,7 +207,7 @@
     <p class="kicker" id="kicker"></p>
     <h2 id="title"></h2>
     <p class="body" id="body"></p>
-    <div id="extra"></div>
+    <div class="extra" id="extra"></div>
   </aside>
 </div>
 
@@ -211,16 +218,33 @@
   // --- the network ---------------------------------------------------------
   const PREFIX = '203.0.113.0/24';
   const NODES = {
-    A: { asn: '64496', name: 'Origin network', x: 95, y: 290 },
-    B: { asn: '64497', name: 'Carrier', x: 310, y: 145 },
-    C: { asn: '64498', name: 'Carrier', x: 290, y: 445 },
-    D: { asn: '64499', name: 'Carrier', x: 600, y: 120 },
-    G: { asn: '64502', name: 'Regional ISP', x: 530, y: 455 },
-    E: { asn: '64500', name: 'Carrier', x: 760, y: 395 },
-    F: { asn: '64501', name: 'Your ISP', x: 900, y: 215 },
+    A: { asn: '64496', name: 'Origin network' },
+    B: { asn: '64497', name: 'Carrier' },
+    C: { asn: '64498', name: 'Carrier' },
+    D: { asn: '64499', name: 'Carrier' },
+    G: { asn: '64502', name: 'Regional ISP' },
+    E: { asn: '64500', name: 'Carrier' },
+    F: { asn: '64501', name: 'Your ISP' },
   };
   const LINKS = ['AB', 'AC', 'BD', 'CG', 'GE', 'DF', 'EF'];
   const R = 38;
+  // Two arrangements of the same network, each a viewBox [x, y, w, h] and a
+  // spot per AS. The wide one runs origin → your ISP left to right; in a
+  // narrow frame it would shrink to a third and set its labels at a few
+  // pixels, so there the tall one runs the same story top to bottom, the two
+  // branches side by side, at about four-fifths scale.
+  const LAYOUTS = {
+    wide: {
+      box: [0, 50, 1000, 485],
+      at: { A: [95, 290], B: [310, 145], C: [290, 445], D: [600, 120], G: [530, 455], E: [760, 395], F: [900, 215] },
+    },
+    tall: {
+      box: [0, 0, 400, 735],
+      at: { A: [200, 75], B: [85, 230], C: [315, 230], D: [85, 450], G: [315, 380], E: [315, 530], F: [200, 655] },
+    },
+  };
+  const TALL_BELOW = 560; // network width (px) under which the tall layout is used
+  const TALL_MAX = 440;   // widest the tall layout is drawn, so it never towers
 
   // --- the story: one looping timeline, in seconds -----------------------------
   const STEPS = [
@@ -310,42 +334,66 @@
   };
   const $ = id => document.getElementById(id);
 
+  const set = (node, attrs) => { for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v); };
+
+  // Every element is made once; place() puts it where the current layout says.
   const linkNodes = {};
   for (const key of LINKS) {
-    const [a, b] = [NODES[key[0]], NODES[key[1]]];
-    const line = el('line', { class: 'link', x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    const line = el('line', { class: 'link' });
     $('links').appendChild(line);
     linkNodes[key] = line;
   }
   const cut = el('g', { visibility: 'hidden' });
-  {
-    const [a, b] = [NODES.B, NODES.D];
-    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    cut.append(el('line', { class: 'cut', x1: mx - 11, y1: my - 11, x2: mx + 11, y2: my + 11 }),
-               el('line', { class: 'cut', x1: mx - 11, y1: my + 11, x2: mx + 11, y2: my - 11 }));
-  }
+  const cutLines = [el('line', { class: 'cut' }), el('line', { class: 'cut' })];
+  cut.append(...cutLines);
   $('links').appendChild(cut);
 
   const nodeViews = {};
   Object.entries(NODES).forEach(([key, n], i) => {
     const g = el('g', { class: `node${key === 'A' ? ' origin' : ''}` });
-    g.append(
-      el('text', { class: 'name', x: n.x, y: n.y - R - 10 }, n.name),
-      el('circle', { cx: n.x, cy: n.y, r: R }),
-      el('text', { class: 'as', x: n.x, y: n.y - 6 }, 'AS'),
-      el('text', { class: 'asn mono', x: n.x, y: n.y + 12 }, n.asn),
-    );
+    const name = el('text', { class: 'name' }, n.name);
+    const circle = el('circle', { r: R });
+    const as = el('text', { class: 'as' }, 'AS');
+    const asn = el('text', { class: 'asn mono' }, n.asn);
+    g.append(name, circle, as, asn);
     const chip = el('g', { class: 'chip' });
-    const rect = el('rect', { rx: 7, height: 22, y: n.y + R + 8 });
-    const label = el('text', { class: 'mono', x: n.x, y: n.y + R + 23 });
+    const rect = el('rect', { rx: 7, height: 22 });
+    const label = el('text', { class: 'mono' });
     chip.append(rect, label);
     g.appendChild(chip);
     g.style.animationDelay = `${i * 0.18}s`;
     $('nodes').appendChild(g);
-    nodeViews[key] = { g, chip, rect, label, text: null };
+    nodeViews[key] = { g, name, circle, as, asn, chip, rect, label, text: null };
   });
-  const prefixTag = el('text', { class: 'prefix mono', x: NODES.A.x, y: NODES.A.y + R + 52 }, PREFIX);
+  const prefixTag = el('text', { class: 'prefix mono' }, PREFIX);
   $('nodes').appendChild(prefixTag);
+
+  let layout = null;
+  function place(next) {
+    if (next === layout) return;
+    layout = next;
+    $('net').setAttribute('viewBox', next.box.join(' '));
+    for (const [key, [x, y]] of Object.entries(next.at)) Object.assign(NODES[key], { x, y });
+    for (const [key, line] of Object.entries(linkNodes)) {
+      const [a, b] = [NODES[key[0]], NODES[key[1]]];
+      set(line, { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    }
+    const mx = (NODES.B.x + NODES.D.x) / 2, my = (NODES.B.y + NODES.D.y) / 2;
+    set(cutLines[0], { x1: mx - 11, y1: my - 11, x2: mx + 11, y2: my + 11 });
+    set(cutLines[1], { x1: mx - 11, y1: my + 11, x2: mx + 11, y2: my - 11 });
+    for (const [key, view] of Object.entries(nodeViews)) {
+      const { x, y } = NODES[key];
+      set(view.name, { x, y: y - R - 10 });
+      set(view.circle, { cx: x, cy: y });
+      set(view.as, { x, y: y - 6 });
+      set(view.asn, { x, y: y + 12 });
+      set(view.rect, { y: y + R + 8 });
+      set(view.label, { x, y: y + R + 23 });
+      view.text = null; // setChip re-centres the chip on its next call
+    }
+    set(prefixTag, { x: NODES.A.x, y: NODES.A.y + R + 52 });
+  }
+  place(LAYOUTS.wide);
 
   function setChip(key, text, kind) {
     const view = nodeViews[key];
@@ -372,10 +420,13 @@
     const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
     const text = m.withdraw ? `WITHDRAW ${PREFIX}` : m.path.join(' ');
     const width = text.length * 7.3 + 18;
+    // A long path leaving a node near the edge would hang off the drawing.
+    const [left, , boxWidth] = layout.box;
+    const cx = Math.min(Math.max(x, left + width / 2 + 2), left + boxWidth - width / 2 - 2);
     const g = el('g', { class: 'msg', opacity: Math.min(1, p * 6, (1 - p) * 6) });
     g.append(
-      el('rect', { x: x - width / 2, y: y - 12, width, height: 24, rx: 12, fill: m.withdraw ? 'var(--withdraw)' : 'var(--update)' }),
-      el('text', { class: 'mono', x, y: y + 4 }, text),
+      el('rect', { x: cx - width / 2, y: y - 12, width, height: 24, rx: 12, fill: m.withdraw ? 'var(--withdraw)' : 'var(--update)' }),
+      el('text', { class: 'mono', x: cx, y: y + 4 }, text),
     );
     return g;
   }
@@ -428,6 +479,14 @@
     return `<ol class="ladder">${rules.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join('')}</ol>`;
   }
 
+  function panelExtra(step, T, state) {
+    if (step === 6) return `<ul class="recap">${RECAP.map(item => `<li>${item}</li>`).join('')}</ul>`;
+    if (step < 2) return '';
+    let extra = `<div class="box"><p class="box-title">Routes to <span class="mono">${PREFIX}</span> at AS64501</p>${routeTable(state, T)}</div>`;
+    if (step === 3) extra += `<div class="box"><p class="box-title">BGP best-path order (simplified)</p>${ladder()}</div>`;
+    return extra;
+  }
+
   let shownStep = -1;
   let shownExtra = '';
   function renderPanel(step, T, state) {
@@ -444,13 +503,7 @@
         node.classList.add('fade');
       }
     }
-    let extra = '';
-    if (step === 6) {
-      extra = `<ul class="recap">${RECAP.map(item => `<li>${item}</li>`).join('')}</ul>`;
-    } else if (step >= 2) {
-      extra = `<div class="box"><p class="box-title">Routes to <span class="mono">${PREFIX}</span> at AS64501</p>${routeTable(state, T)}</div>`;
-      if (step === 3) extra += `<div class="box"><p class="box-title">BGP best-path order (simplified)</p>${ladder()}</div>`;
-    }
+    const extra = panelExtra(step, T, state);
     if (extra !== shownExtra) {
       shownExtra = extra;
       $('extra').innerHTML = extra;
@@ -502,9 +555,69 @@
     if (event.source === window.parent && data && data.type === 'teaman:theme' && (data.theme === 'dark' || data.theme === 'light')) {
       themeFromParent = true;
       applyTheme(data.theme);
+      // The page is listening now; a height sent before it was may be lost.
+      postHeight();
     }
   });
   if (window.parent !== window) window.parent.postMessage({ type: 'teaman:ready' }, '*');
+
+  // --- size: what the story needs at this width ------------------------------------
+  // Every step is laid out once in an invisible copy of the panel, at its final
+  // (fullest) state; the tallest becomes the caption row, so no step scrolls and
+  // none reserves more than the longest needs. The page is then told the height
+  // that fits the network at this width plus that caption. Height alone never
+  // changes the layout, so reporting it cannot feed back into the measurement.
+  let reported = 0;
+  function fitToWidth() {
+    const diagram = document.querySelector('.diagram');
+    place(diagram.clientWidth < TALL_BELOW ? LAYOUTS.tall : LAYOUTS.wide);
+    const panel = document.querySelector('.panel');
+    const probe = panel.cloneNode(true);
+    probe.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+    Object.assign(probe.style, {
+      position: 'absolute', visibility: 'hidden', left: '0', top: '0',
+      width: `${panel.offsetWidth}px`, height: 'auto', overflow: 'visible',
+    });
+    probe.setAttribute('aria-hidden', 'true');
+    document.body.append(probe);
+    const kicker = probe.querySelector('.kicker');
+    const title = probe.querySelector('h2');
+    const body = probe.querySelector('.body');
+    const extra = probe.lastElementChild;
+    let tallest = 0;
+    STEPS.forEach((s, i) => {
+      const T = (STEPS[i + 1]?.at ?? LOOP) - 0.01;
+      kicker.textContent = `Step ${i + 1} of ${STEPS.length}`;
+      title.textContent = s.title;
+      body.innerHTML = s.body;
+      body.hidden = !s.body;
+      extra.innerHTML = panelExtra(i, T, stateAt(T));
+      tallest = Math.max(tallest, probe.offsetHeight);
+    });
+    probe.remove();
+
+    const app = document.querySelector('.app');
+    app.style.setProperty('--caption-h', `${Math.ceil(tallest)}px`);
+    const [, , boxWidth, boxHeight] = layout.box;
+    const drawn = layout === LAYOUTS.tall ? Math.min(diagram.clientWidth, TALL_MAX) : diagram.clientWidth;
+    const network = document.querySelector('.diagram-head').offsetHeight + drawn * boxHeight / boxWidth;
+    const stacked = getComputedStyle(app).gridTemplateColumns.split(' ').length === 1;
+    const height = Math.ceil(stacked ? network + tallest : Math.max(network, tallest));
+    if (height !== reported) {
+      reported = height;
+      postHeight();
+    }
+  }
+  function postHeight() {
+    if (window.parent !== window && reported) window.parent.postMessage({ type: 'teaman:resize', height: reported }, '*');
+  }
+  let lastWidth = -1;
+  new ResizeObserver(() => {
+    if (document.documentElement.clientWidth === lastWidth) return;
+    lastWidth = document.documentElement.clientWidth;
+    fitToWidth();
+  }).observe(document.documentElement);
+  document.fonts?.ready.then(fitToWidth);
 
   // --- play -------------------------------------------------------------------------
   // The clock only moves while frames are painted: a frame scrolled out of

@@ -9,7 +9,7 @@ chapter, a reference, or a slide.
 Interactivity is optional. An embed can just as well play by itself — this
 one walks through how BGP routes the internet, step by step, on a loop:
 
-![[bgp.html#step=2|680]]
+![[bgp.html#step=2]]
 
 ## 1. Build one self-contained file
 

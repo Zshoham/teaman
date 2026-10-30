@@ -8,7 +8,7 @@ export default {
   // byte-stable rebuilds under the npx model.
   engine: '^1.0',
 
-  brand: 'vault.teaman',
+  brand: 'tvaultman',
   tagline: 'a working garden',
   logo: 'teacup.svg', // resolved from this vault, then vault/public, then engine defaults
 

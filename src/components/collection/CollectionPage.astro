@@ -6,10 +6,10 @@
  * off the collection registry.
  */
 import Layout from '../../layouts/Layout.astro';
+import PromptHeading from '../PromptHeading.astro';
 import CollectionIndex from './CollectionIndex.astro';
 import { collectionFor, type EntryType } from '../../lib/collections.mjs';
 import { loadEntriesOfType } from '../../lib/entries';
-import { footerSummary } from '../../lib/collection-index';
 
 interface Props {
   type: EntryType;
@@ -18,14 +18,13 @@ interface Props {
 const { type } = Astro.props;
 const collection = collectionFor(type);
 const entries = await loadEntriesOfType(type);
-const footerLeft = footerSummary(entries, collection.unit, collection.units);
 
 // The section name, title-cased for the document title: "notes" → "Notes".
 const title = collection.route.charAt(0).toUpperCase() + collection.route.slice(1);
 ---
 
-<Layout title={title} footerLeft={footerLeft}>
-  <h1 class="sr-only">{title}</h1>
+<Layout title={title}>
+  <PromptHeading title={title} dir={collection.route} />
   <CollectionIndex
     entries={entries}
     resultLabel={collection.units}

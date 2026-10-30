@@ -196,10 +196,12 @@ client -> server -> database
 The bundled D2 WASM engine uses the open-source **TALA** layout by default;
 no system D2 install or license key is needed. To use another layout, add
 `vars: { d2-config: { layout-engine: elk } }` (or `dagre`) inside the fence.
-D2 embeds its native light and dark palettes, switching with the site toggle
-or system preference when viewed on its own. Set `theme-id` and `dark-theme-id`
-inside `vars.d2-config` to choose the palettes (defaults: `0` and `200`);
-explicit D2 style colors remain author-controlled. Print uses the light palette.
+A diagram that picks no D2 theme takes the page's colours, like TikZ and Typst:
+no canvas, ink in the text colour, fills tinted from it, switching with the
+site toggle (or the system preference when viewed on its own). Set `theme-id`
+and/or `dark-theme-id` inside `vars.d2-config` to use D2's own palettes instead
+(the dark one defaults to `200`); explicit D2 style colors remain
+author-controlled. Print and reference PDFs use D2's light palette.
 It shares the diagram cache and visible error fallback above,
 and works in reference PDFs and as SVG attachments in Confluence sync.
 Fences are self-contained: imports from vault files are not supported.

@@ -46,7 +46,9 @@ describe('remarkInlineSvg', () => {
   it('renders a standalone svg image as a figure with the alt as caption', () => {
     const [node] = run([p(img('attachments/shared.svg', 'Shared diagram'))]);
     expect(node.type).toBe('html');
-    expect(node.value).toMatch(/^<figure class="content-figure"><svg/);
+    // The svg scrolls in its own wrapper, so the caption stays put.
+    expect(node.value).toMatch(/^<figure class="content-figure"><div class="diagram-scroll"><svg/);
+    expect(node.value).toContain('</svg></div><figcaption>');
     expect(node.value).toContain('<figcaption>Shared diagram</figcaption>');
     expect(node.value).toContain('<path fill="currentColor"');
     expect(node.value).toContain('class="content-svg"');
@@ -97,7 +99,7 @@ describe('remarkInlineSvg', () => {
   it('marks an svg with empty alt as decorative, with no figure or caption', () => {
     const [node] = run([p(img('attachments/shared.svg'))]);
     expect(node.type).toBe('html');
-    expect(node.value.startsWith('<svg')).toBe(true);
+    expect(node.value.startsWith('<div class="diagram-scroll"><svg')).toBe(true);
     expect(node.value).toContain('aria-hidden="true"');
     expect(node.value).not.toContain('role="img"');
     expect(node.value).not.toContain('<figure');

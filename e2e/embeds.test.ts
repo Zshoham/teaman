@@ -45,10 +45,13 @@ test('a slide frames the same embed from the deck', async ({ page }) => {
 test('the self-playing BGP walkthrough embeds in the note, guide, and deck', async ({ page }) => {
   await page.goto('/notes/interactive-embeds/');
   const noteFrame = page.locator('iframe[src="/embeds/attachments/bgp.html"]');
-  await expect(noteFrame).toHaveAttribute('height', '680');
   await noteFrame.scrollIntoViewIfNeeded();
   const note = page.frameLocator('iframe[src="/embeds/attachments/bgp.html"]');
   await expect(note.getByRole('heading', { level: 1 })).toContainText('How BGP routes the internet');
+  // No author height: the frame takes the height the walkthrough reports —
+  // its network at this width plus its longest step — so no step scrolls.
+  await expect(noteFrame).not.toHaveAttribute('data-fixed-height');
+  await expect.poll(() => noteFrame.evaluate(frame => frame.style.height)).toMatch(/^\d+px$/);
   // It advances on its own: no controls, just the caption changing.
   await expect(note.locator('#kicker')).toHaveText(/Step 1 of 7/);
   await expect(note.locator('#kicker')).toHaveText(/Step 2 of 7/, { timeout: 12_000 });
@@ -60,6 +63,9 @@ test('the self-playing BGP walkthrough embeds in the note, guide, and deck', asy
   await expect(note.locator('#title')).toHaveText('A link fails: withdraw and reroute');
   await note.getByRole('button', { name: 'Previous step' }).click();
   await expect(note.locator('#kicker')).toHaveText(/Step 5 of 7/);
+  // The tallest step fits its caption.
+  await note.getByRole('button', { name: /^Step 4:/ }).click();
+  await expect.poll(() => note.locator('.panel').evaluate(panel => panel.scrollHeight - panel.clientHeight)).toBe(0);
 
   await page.goto('/guides/using-this-system/embedding-html/');
   await page.locator('iframe[src="/embeds/attachments/bgp.html#step=2"]').scrollIntoViewIfNeeded();

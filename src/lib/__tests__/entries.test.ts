@@ -113,6 +113,20 @@ describe('extractExcerpt', () => {
     expect(extractExcerpt('This is **bold** and `code`.')).toBe('This is bold and code.');
   });
 
+  it('strips single-marker emphasis, strikethrough and highlights', () => {
+    expect(extractExcerpt('Neptune is *slow*, ask _why_, ~~not~~ ==this==.'))
+      .toBe('Neptune is slow, ask why, not this.');
+  });
+
+  it('keeps asterisks and underscores that are not emphasis', () => {
+    expect(extractExcerpt('Set max_len to 2 * 3 and a_b_c stays.'))
+      .toBe('Set max_len to 2 * 3 and a_b_c stays.');
+  });
+
+  it('drops wiki embeds rather than leaving their bang', () => {
+    expect(extractExcerpt('![[viz.html]] Then prose.')).toBe('Then prose.');
+  });
+
   it('strips HTML comments and tags', () => {
     const body = '<!--teaman-reference-chapter:introduction.md-->\n\n<span id="x"></span>Real text.';
     expect(extractExcerpt(body)).toBe('Real text.');

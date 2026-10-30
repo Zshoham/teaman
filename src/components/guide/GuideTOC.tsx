@@ -10,8 +10,8 @@ export function GuideTOC({ guide, currentSlug }: Props) {
   const currentIdx = guide.chapters.findIndex((c) => c.slug === currentSlug);
 
   return (
-    <aside className="guide-toc self-start md:sticky md:top-[calc(var(--header-h)_+_1.5rem)] md:pr-2">
-      <details className="rounded-lg border border-border bg-card md:hidden">
+    <aside className="guide-toc w-full max-w-[var(--measure)] self-start lg:max-w-none lg:sticky lg:top-[calc(var(--header-h)_+_1.5rem)] lg:pr-2">
+      <details className="rounded-lg border border-border bg-card lg:hidden">
         <summary className="cursor-pointer px-4 py-3 font-mono text-meta-lg text-foreground">
           Chapter {currentIdx + 1} of {guide.chapters.length} · {guide.chapters[currentIdx]?.title}
         </summary>
@@ -25,7 +25,7 @@ export function GuideTOC({ guide, currentSlug }: Props) {
           ))}
         </ol>
       </details>
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
       <h2 className="m-0 mb-4 border-b border-border pb-2.5 font-mono text-meta-sm font-normal uppercase tracking-label text-faint">
         {guide.title}
       </h2>

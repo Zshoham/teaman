@@ -105,3 +105,51 @@ export function findReferenceSectionMatches(
     }];
   });
 }
+
+/**
+ * Keep an in-page jump target at its `scroll-margin-top` while the chapters
+ * around it render.
+ *
+ * Chapters carry `content-visibility: auto`, so until a chapter is first
+ * painted it occupies only its estimated `contain-intrinsic-size`. A jump lands
+ * correctly against those estimates, then the chapters near the new viewport
+ * render at their real heights a frame or two later and the target slides
+ * away — hundreds of pixels on a book-sized reference. Rather than give up the
+ * containment (see rehype-reference-sections.mjs), the jump is re-aimed each
+ * frame until the target has held still for `settleFrames` frames. Any input
+ * from the reader ends the hold, so it never fights a scroll they started.
+ *
+ * Returns a function that cancels the hold.
+ */
+export function holdJumpTarget(
+  target: HTMLElement,
+  { settleFrames = 10, maxFrames = 120 }: { settleFrames?: number; maxFrames?: number } = {},
+): () => void {
+  const margin = Number.parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+  const inputs = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
+  let frame = 0;
+  let frames = 0;
+  let stable = 0;
+  let last = Number.NaN;
+
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    for (const type of inputs) window.removeEventListener(type, stop, true);
+  };
+
+  const step = () => {
+    const offset = target.getBoundingClientRect().top - margin;
+    if (Math.abs(offset) > 1) window.scrollBy(0, offset);
+    // Near the end of the page the target cannot reach its margin; the
+    // clamped position not moving between frames counts as settled too.
+    const top = target.getBoundingClientRect().top;
+    stable = Math.abs(top - last) <= 1 ? stable + 1 : 0;
+    last = top;
+    if (stable >= settleFrames || ++frames >= maxFrames) return stop();
+    frame = requestAnimationFrame(step);
+  };
+
+  for (const type of inputs) window.addEventListener(type, stop, { capture: true, passive: true });
+  frame = requestAnimationFrame(step);
+  return stop;
+}

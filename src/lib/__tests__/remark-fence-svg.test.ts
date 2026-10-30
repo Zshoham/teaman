@@ -29,7 +29,8 @@ describe('remarkDiagramFences', () => {
     const tikz = vi.fn(async () => FAKE_SVG);
     const [node] = await run([code('tikz', '\\draw (0,0);')], { tikz });
     expect(node.type).toBe('html');
-    expect(node.value).toContain('content-svg tikz-svg');
+    expect(node.value).toMatch(/^<div class="diagram-scroll"><svg[^>]*class="[^"]*content-svg tikz-svg"/);
+    expect(node.value.endsWith('</svg></div>')).toBe(true);
     expect(node.value).toContain('stroke="currentColor"');
     expect(node.value).toContain('fill="currentColor"');
     expect(tikz).toHaveBeenCalledWith('\\draw (0,0);');
@@ -118,9 +119,30 @@ describe('real compilers', () => {
       expect(node.value).toContain('data-d2-version="v0.9.0"');
       expect(node.value).toContain('client');
       expect(node.value).toContain('<path');
+      expect(node.value).not.toContain('diagram-error');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }, 30_000);
+
+  it('d2: a diagram that picks no theme takes the page palette on no canvas', async () => {
+    const node = await compile('d2', 'a -> b');
+    expect(node.value).toContain('data-teaman-palette="page"');
+    // Ink follows the page; D2's own dark palette is not embedded.
+    expect(node.value).toMatch(/@media screen\{[^]*fill:currentColor/);
+    expect(node.value).not.toContain('#CDD6F4');
+    // The canvas rect is gone; D2's literal light palette stays for the PDF.
+    expect(node.value).not.toMatch(/<rect\b[^>]*class="\s*fill-N7"[^>]*stroke-width="0"/);
+    expect(node.value).toContain('.fill-N1{fill:#0A0F25;}');
+  }, 30_000);
+
+  it('d2: a chosen light theme keeps D2 palettes, with the default dark one', async () => {
+    vi.stubGlobal('window', {});
+    try {
+      const node = await compile('d2', 'vars: { d2-config: { theme-id: 3 } }\na -> b');
+      expect(node.value).not.toContain('data-teaman-palette');
       expect(node.value).toContain(':root[data-theme="dark"]');
       expect(node.value).toContain('#CDD6F4');
-      expect(node.value).not.toContain('diagram-error');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -161,7 +183,8 @@ describe('real compilers', () => {
   it('tikz: compiles a picture through WASM TeX with theme-adapted ink', async () => {
     const node = await compile('tikz', '\\begin{tikzpicture}\\draw (0,0) circle (1);\\end{tikzpicture}');
     expect(node.type).toBe('html');
-    expect(node.value).toContain('content-svg tikz-svg');
+    expect(node.value).toMatch(/^<div class="diagram-scroll"><svg[^>]*class="[^"]*content-svg tikz-svg"/);
+    expect(node.value.endsWith('</svg></div>')).toBe(true);
     expect(node.value).toContain('stroke="currentColor"');
   }, 90_000);
 });

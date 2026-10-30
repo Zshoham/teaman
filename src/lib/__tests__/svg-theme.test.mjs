@@ -82,4 +82,20 @@ describe('themeD2Svg', () => {
     expect(svg).toContain(':root:not([data-theme]) .md');
     expect(svg).not.toContain('}.md,.appendix{');
   });
+
+  it('re-inks a page-palette render from the page, on screen only, without its canvas', () => {
+    const svg = themeD2Svg('<svg data-teaman-palette="page" viewBox="0 0 10 10"><svg class="d2-1">'
+      + '<style>.d2-1 .fill-N1{fill:#0A0F25;}.d2-1 .fill-N7{fill:#FFFFFF;}.d2-1 .fill-B4{fill:#E3E9FD;}.shape{stroke-linejoin:round;}</style>'
+      + '<rect x="-16" y="-16" width="10" height="10" rx="0" fill="#FFFFFF" class=" fill-N7" stroke-width="0" />'
+      + '<rect x="1" y="1" width="4" height="4" class=" stroke-B1 fill-B4" />'
+      + '</svg></svg>');
+    // The literal palette is untouched for consumers without CSS variables.
+    expect(svg).toContain('.d2-1 .fill-N1{fill:#0A0F25;}');
+    expect(svg).toMatch(/@media screen\{\.teaman-svg-\w+ \.d2-1 \.fill-N1[^{]*\{fill:currentColor;\}/);
+    expect(svg).toContain('{fill:var(--background,#FFFFFF);}');
+    expect(svg).toContain('{fill:color-mix(in oklab,currentColor 10%,var(--background,#FFFFFF));}');
+    expect(svg).not.toMatch(/\.shape[^{]*\{stroke-linejoin:round;\}[^]*@media screen\{[^}]*\.shape/);
+    expect(svg).not.toContain('class=" fill-N7"');
+    expect(svg).toContain('class=" stroke-B1 fill-B4"');
+  });
 });

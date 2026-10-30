@@ -91,7 +91,7 @@ test.describe('typst fences', () => {
 
 test('D2 compiles to visible SVG with architecture labels and geometry', async ({ page }) => {
   await page.goto(NOTE);
-  const svg = page.locator('.prose > svg.d2-svg');
+  const svg = page.locator('.prose > .diagram-scroll > svg.d2-svg');
   await expect(svg).toBeVisible();
   await expect(svg).toContainText('Teaman');
   expect(await svg.locator('path').count()).toBeGreaterThan(0);
@@ -104,13 +104,14 @@ test('D2 compiles to visible SVG with architecture labels and geometry', async (
 for (const [language, paint, property] of [
   ['tikz', 'text', 'fill'],
   ['typst', '[fill="#e1bee7"]', 'fill'],
-  ['d2', 'rect.fill-N7', 'fill'],
+  // Page-palette D2 omits the canvas (N7); inspect a node's fill instead.
+  ['d2', 'rect.fill-B6', 'fill'],
 ] as const) {
   test(`${language} embeds live theme rules; site choice overrides OS and print stays light`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.addInitScript(() => localStorage.setItem('vault-theme', 'light'));
     await page.goto(NOTE);
-    const svg = page.locator(`.prose > svg.${language}-svg`);
+    const svg = page.locator(`.prose > .diagram-scroll > svg.${language}-svg`);
     await expect(svg).toBeVisible();
     const target = svg.locator(paint).first();
     const color = () => target.evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
@@ -123,8 +124,10 @@ for (const [language, paint, property] of [
     expect(await svg.evaluate(element => element.outerHTML)).toBe(markup);
 
     await page.emulateMedia({ media: 'print' });
-    if (language !== 'tikz') await expect.poll(color).toBe(light);
-    else await expect.poll(color).toBe('rgb(0, 0, 0)');
+    // D2 uses the site's palette on screen and its literal light palette in
+    // print, where SVG/PDF consumers may not support CSS custom properties.
+    const print = language === 'd2' ? 'rgb(247, 248, 254)' : language === 'tikz' ? 'rgb(0, 0, 0)' : light;
+    await expect.poll(color).toBe(print);
     await page.emulateMedia({ media: 'screen' });
     await page.click('[data-theme-toggle]');
     await expect.poll(color).toBe(light);
@@ -132,7 +135,7 @@ for (const [language, paint, property] of [
 
   test(`${language} SVG follows system preference when viewed on its own`, async ({ page }) => {
     await page.goto(NOTE);
-    const svg = page.locator(`.prose > svg.${language}-svg`);
+    const svg = page.locator(`.prose > .diagram-scroll > svg.${language}-svg`);
     await expect(svg).toBeVisible();
     const markup = await svg.evaluate(element => new XMLSerializer().serializeToString(element));
     await page.emulateMedia({ colorScheme: 'light' });
@@ -143,7 +146,7 @@ for (const [language, paint, property] of [
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect.poll(color).not.toBe(light);
     await page.emulateMedia({ media: 'print' });
-    await expect.poll(color).toBe(light);
+    await expect.poll(color).toBe(language === 'd2' ? 'rgb(247, 248, 254)' : light);
   });
 }
 

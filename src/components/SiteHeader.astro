@@ -2,6 +2,7 @@
 import { SITE_CONFIG } from '../config';
 import { ThemeToggle } from './ThemeToggle';
 import { NavMenu } from './NavMenu';
+import { Whiteboard } from './Whiteboard';
 import { isSectionActive, loadNavSections } from '../lib/nav';
 
 const base = import.meta.env.BASE_URL;
@@ -13,20 +14,28 @@ const activeId = sections.find(section => isSectionActive(section, pathname))?.i
 
 // Below `xl` the content sections (notes/references/guides/slides) collapse into one
 // dropdown so the header keeps a single nav row; daily/decisions stay inline.
+// Below `lg` the nav drops to its own row under the brand: the bracketed links,
+// the labelled search box and the tagline do not fit one row at tablet widths.
 const grouped = sections.filter(section => section.grouped);
 const standalone = sections.filter(section => !section.grouped);
 
+// The active section is bracketed like the current tab in a TUI tab bar:
+// `[notes/]`. Every link carries its brackets, transparent until hovered or
+// active, so moving between sections never shifts the row.
 const linkClass = (id: string) => [
-  'min-h-11 items-center border-b py-0.5 md:min-h-0 font-mono text-meta-lg no-underline transition-colors',
-  id === activeId
-    ? 'border-primary text-foreground'
-    : 'border-transparent text-muted-foreground hover:text-foreground',
+  'group min-h-11 items-center md:min-h-0 font-mono text-meta-lg no-underline transition-colors',
+  id === activeId ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+];
+const bracketClass = (id: string) => [
+  'transition-colors',
+  id === activeId ? 'text-primary' : 'text-transparent group-hover:text-faint',
 ];
 ---
 
 <header
   id="site-header"
-  class="sticky top-0 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border-b border-border bg-background py-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6 md:pt-7 md:pb-5"
+  data-pagefind-ignore="all"
+  class="sticky top-0 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 border-b border-border bg-background py-2 md:gap-y-2 md:pt-4 md:pb-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-6 lg:pt-7 lg:pb-5"
 >
   <a href={base} class="brand min-w-0 flex items-center gap-2.5 text-foreground no-underline">
     {logoUrl
@@ -38,11 +47,12 @@ const linkClass = (id: string) => [
       : <span class="inline-block h-2.5 w-2.5 rounded-sm bg-primary" aria-hidden="true"></span>
     }
     <span class="brand-name truncate font-mono text-meta-lg font-medium tracking-wide">{SITE_CONFIG.brand}</span>
-    <span class="brand-tagline ml-1 min-w-0 truncate font-mono text-meta text-faint">/ {SITE_CONFIG.tagline}</span>
+    <span class="brand-cursor -ml-2 inline-block text-meta-lg h-[1.1em] w-[0.55em] shrink-0 bg-primary" aria-hidden="true"></span>
+    <span class="brand-tagline ml-1 min-w-0 truncate font-mono text-meta text-faint">~ {SITE_CONFIG.tagline}</span>
   </a>
 
   <nav
-    class="section-nav col-span-2 row-start-2 flex min-w-0 items-center justify-center gap-4 md:col-span-1 md:col-start-2 md:row-start-1"
+    class="section-nav col-span-2 row-start-2 flex min-w-0 items-center justify-start gap-1 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:justify-center"
     aria-label="Sections"
   >
     {grouped.length > 0 && (
@@ -61,7 +71,7 @@ const linkClass = (id: string) => [
         class:list={['hidden xl:inline-flex', ...linkClass(section.id)]}
         aria-current={section.id === activeId ? 'page' : undefined}
         data-nav-section={section.id}
-      >{section.label}</a>
+      ><span class:list={bracketClass(section.id)} aria-hidden="true">[</span>{section.label}<span aria-hidden="true">/</span><span class:list={bracketClass(section.id)} aria-hidden="true">]</span></a>
     ))}
 
     {standalone.map(section => (
@@ -70,23 +80,29 @@ const linkClass = (id: string) => [
         class:list={['inline-flex', ...linkClass(section.id)]}
         aria-current={section.id === activeId ? 'page' : undefined}
         data-nav-section={section.id}
-      >{section.label}</a>
+      ><span class:list={bracketClass(section.id)} aria-hidden="true">[</span>{section.label}<span aria-hidden="true">/</span><span class:list={bracketClass(section.id)} aria-hidden="true">]</span></a>
     ))}
   </nav>
 
-  <div class="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-2 md:col-span-1 md:col-start-3 md:row-start-1 md:w-full md:justify-self-end md:gap-5">
-    <pagefind-modal-trigger placeholder="Search the vault" class="min-w-0 md:w-full md:max-w-60">
+  <div class="col-start-2 row-start-1 flex min-w-0 items-center justify-end gap-2 md:gap-3 lg:col-span-1 lg:col-start-3 lg:row-start-1 lg:w-full lg:justify-self-end">
+    <pagefind-modal-trigger placeholder="Search the vault">
       <button
         type="button"
-        class="flex size-11 justify-center cursor-pointer items-center gap-2.5 md:h-auto rounded-md border border-border bg-transparent p-0 md:py-1.5 md:pr-2 md:pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted focus-visible:border-foreground focus-visible:bg-muted focus-visible:outline-none md:w-full"
+        class="flex size-11 justify-center cursor-pointer items-center gap-2.5 md:h-auto rounded-full md:rounded-md border border-border bg-transparent p-0 md:py-1.5 md:pr-2 md:pl-3 font-[inherit] text-foreground transition-colors hover:border-foreground hover:bg-muted outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:w-full"
         aria-label="Search the vault"
       >
-        <svg class="size-4 shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
-        <span class="hidden md:block flex-1 min-w-0 text-left text-meta-lg text-muted-foreground">search the vault</span>
+        <svg class="size-[18px] shrink-0 text-muted-foreground md:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></svg>
+        <span class="hidden md:block flex-1 min-w-0 text-left font-mono text-meta-lg text-muted-foreground"><span class="text-primary" aria-hidden="true">$</span> grep the vault</span>
         <span class="hidden md:block shrink-0 rounded-sm border border-border bg-background px-1.5 py-[3px] font-mono text-meta-sm leading-none text-faint" aria-hidden="true">/</span>
       </button>
     </pagefind-modal-trigger>
 
+    {/* The whiteboard opens from the header rather than floating over the
+        page, where it covered card meta, code-block toolbars and body text.
+        It renders client-only, so the slot reserves its size up front. */}
+    <span class="header-tool-slot inline-flex shrink-0">
+      <Whiteboard assetPath={`${base}excalidraw-assets/`} siteBase={base} client:only="react" />
+    </span>
     <ThemeToggle client:load />
   </div>
 </header>

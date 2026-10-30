@@ -17,6 +17,7 @@ import { renderMermaidSvg, renderPlantumlSvg } from './server-diagrams.mjs';
 import { assetRoots, resolveVaultAsset } from './vault-assets.mjs';
 import { CLIENT_DIAGRAM_LANGUAGES, DIAGRAM_KINDS, diagramKind } from './diagram-kinds.mjs';
 import { resolveEmbed } from './embeds.mjs';
+import { rawSvgSpan } from './svg-markup.mjs';
 
 const markdown = new MarkdownIt({
   html: true,
@@ -351,10 +352,12 @@ function renderTypst(tokens, {
         break;
       }
       case 'html_block': {
-        const start = token.content.search(/<svg[\s>]/i);
-        out += start === -1
-          ? `${renderHtmlAnchors(token.content, context)}${asText(stripHtml(token.content))}\n\n`
-          : embeddedSvg(token.content.slice(start).trim());
+        // The drawing alone — the svg element the site holds in its diagram
+        // scroller — not a figure's caption or closing tags after it.
+        const span = rawSvgSpan(token.content);
+        out += span
+          ? embeddedSvg(token.content.slice(span.start, span.end))
+          : `${renderHtmlAnchors(token.content, context)}${asText(stripHtml(token.content))}\n\n`;
         break;
       }
     }

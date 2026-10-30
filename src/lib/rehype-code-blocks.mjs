@@ -33,11 +33,22 @@ function element(tagName, properties, children) {
   return { type: 'element', tagName, properties, children };
 }
 
+function textContent(node) {
+  if (node.type === 'text') return node.value ?? '';
+  return (node.children ?? []).map(textContent).join('');
+}
+
+// Box-drawing and block-element characters (U+2500–U+259F) are drawn to span
+// the font's whole line box, so they join only at its natural line spacing.
+// A block that draws with them is marked, and global.css sets it `normal`.
+const BOX_DRAWING = /[\u2500-\u259F]/;
+
 function wrapCodeBlock(pre, language) {
   return element('div', {
     className: ['code-block'],
     dataCodeBlock: '',
     dataLanguage: language,
+    ...(BOX_DRAWING.test(textContent(pre)) ? { dataBoxDrawing: '' } : {}),
   }, [
     element('div', { className: ['code-block-toolbar'] }, [
       element('span', { className: ['code-block-language'] }, [text(language)]),

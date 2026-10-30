@@ -249,17 +249,16 @@ export function Whiteboard({ assetPath, siteBase }: WhiteboardProps) {
           <Button
             type="button"
             variant="outline"
-            size="xl"
+            size="icon"
             onClick={prepareAssets}
-            className="whiteboard-launcher fixed right-6 bottom-6 z-40 rounded-xl shadow-xl"
+            className="whiteboard-launcher rounded-full"
             aria-label="Open whiteboard"
             aria-keyshortcuts="Shift+W"
             title="Open whiteboard (Shift+W)"
           />
         }
       >
-        <PenLineIcon data-icon="inline-start" className="text-primary" />
-        <span className="whiteboard-launcher-label">Whiteboard</span>
+        <PenLineIcon aria-hidden="true" />
       </DialogTrigger>
 
       <DialogContent

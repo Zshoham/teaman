@@ -8,12 +8,13 @@ function themeScope(svg) {
   return `teaman-svg-${createHash('sha256').update(svg).digest('hex').slice(0, 16)}`;
 }
 
+const scopedSelectors = (root, selectors) => selectors.split(',').flatMap(selector => {
+  const target = selector.trim();
+  return target ? [`${root} ${target}`, `${root}:is(${target})`] : [root];
+}).join(',');
+
 // These are flat, compiler-generated paint rules, never arbitrary author CSS.
 function darkRules(scope, rules) {
-  const scopedSelectors = (root, selectors) => selectors.split(',').flatMap(selector => {
-    const target = selector.trim();
-    return target ? [`${root} ${target}`, `${root}:is(${target})`] : [root];
-  }).join(',');
   const prefix = condition => rules.replace(/([^{}]+)\{([^{}]*)\}/g, (_, selectors, declarations) =>
     `${scopedSelectors(`${condition} .${scope}`, selectors)}{${declarations}}`,
   );
@@ -24,10 +25,55 @@ function darkRules(scope, rules) {
     `@media screen and (prefers-color-scheme:dark){${prefix(':root:not([data-theme])')}${standalone}}`;
 }
 
+// D2's default theme (0), color by color, in terms of the page: ink is the
+// inherited text colour, fills are that ink mixed into the page background
+// (opaque, so a shape inside a container stays lighter than the container),
+// and the theme's one accent is the site's.
+const pageMix = percent => `color-mix(in oklab,currentColor ${percent}%,var(--background,#FFFFFF))`;
+const PAGE_PALETTE = new Map([
+  ['#0A0F25', 'currentColor'],                                   // N1 · text
+  ['#676C7E', 'color-mix(in oklab,currentColor 70%,transparent)'], // N2 · secondary text
+  ['#9499AB', 'color-mix(in oklab,currentColor 50%,transparent)'], // N3
+  ['#CFD2DD', pageMix(22)],                                      // N4
+  ['#DEE1EB', pageMix(15)],                                      // N5
+  ['#EEF1F8', pageMix(8)],                                       // N6
+  ['#FFFFFF', 'var(--background,#FFFFFF)'],                      // N7 · label backdrops
+  ['#0D32B2', 'currentColor'],                                   // B1, B2 · strokes, arrows
+  ['#E3E9FD', pageMix(10)],                                      // B3, B4 · containers
+  ['#EDF0FD', pageMix(6)],                                       // B5, AA4, AB4
+  ['#F7F8FE', pageMix(3)],                                       // B6, AA5, AB5 · shapes
+  ['#4A6FF3', 'var(--primary,#4A6FF3)'],                         // AA2 · accent
+]);
+
+/** Re-ink a default-theme D2 render from the page (see render-d2.mjs): drop
+ * the canvas rect so the diagram sits on the page like TikZ and Typst do, and
+ * restate every palette rule in page colours. The restatement is screen-only:
+ * Typst's SVG reader (the reference PDF) knows neither `color-mix()` nor
+ * custom properties and keeps D2's literal light palette, as print does. A
+ * standalone copy (a Confluence attachment) follows the OS like the others. */
+function pagePaletteSvg(svg, scope) {
+  const withoutCanvas = svg.replace(/<rect\b(?=[^>]*\bclass="\s*fill-N7")(?=[^>]*\bstroke-width="0")[^>]*>/, '');
+  const rules = [];
+  for (const [, css] of withoutCanvas.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)) {
+    for (const [, selectors, declarations] of css.matchAll(/([^{}]+)\{([^{}]*#[0-9a-f]{6}[^{}]*)\}/gi)) {
+      const page = declarations.replace(/#[0-9a-f]{6}\b/gi, hex => PAGE_PALETTE.get(hex.toUpperCase()) ?? hex);
+      rules.push(`${scopedSelectors(`.${scope}`, selectors)}{${page}}`);
+    }
+  }
+  const style = `<style>@media screen{${rules.join('')}}` +
+    `svg.${scope}:root{color:#0A0F25;}` +
+    `@media screen and (prefers-color-scheme:dark){svg.${scope}:root{color:#eee;--background:#181818;}}</style>`;
+  return withoutCanvas.replace(/<\/svg>\s*$/, `${style}</svg>`);
+}
+
 /** D2 supplies coordinated light/dark palettes as flat rules in a media query.
- * Re-scope that query to support the explicit site toggle as well. */
+ * Re-scope that query to support the explicit site toggle as well. A diagram
+ * that chose no palette is re-inked from the page instead. */
 export function themeD2Svg(svg) {
   const scope = themeScope(svg);
+  if (/^\s*<svg\b[^>]*\sdata-teaman-palette="page"/.test(svg)) {
+    return withSvgClass(pagePaletteSvg(svg, scope), [scope]);
+  }
   const themed = svg.replace(
     /@media screen and \(prefers-color-scheme:\s*dark\)\{((?:[^{}]|\{[^{}]*\})*)\}/g,
     (_, rules) => darkRules(scope, rules),

@@ -14,7 +14,9 @@
  *  and `@myriaddreamin/typst-ts-node-compiler` (native Typst via napi). Theme
  *  reactivity lives in the SVG: inherited ink and embedded dark paint rules
  *  follow the site's theme without recompiling. D2 uses its bundled WASM
- *  engine with TALA and embeds its native light/dark palettes.
+ *  engine with TALA; a diagram that picks no D2 theme is re-inked from the
+ *  page's colours on a transparent canvas, one that picks a theme keeps D2's
+ *  light/dark palettes.
  *
  *  Compiles are cached in `cacheDir` keyed by a hash of the source, so only
  *  new or edited diagrams pay the compiler cost (TikZ ≈ 1s each). The cache
@@ -28,14 +30,14 @@ import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { escapeHtml } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
-import { svgRootOf, withSvgClass } from './svg-markup.mjs';
+import { diagramScroll, svgRootOf, withSvgClass } from './svg-markup.mjs';
 import { themeAdaptSvg, themeD2Svg } from './svg-theme.mjs';
 import { BUILD_DIAGRAM_LANGUAGES, fenceDiagramKind } from './diagram-kinds.mjs';
 export { themeAdaptSvg } from './svg-theme.mjs';
 
 // Bump to invalidate every cached render (output format change, compiler
 // option change, engine upgrade that should re-render).
-const FORMAT_VERSION = 'v8-embedded-themes-2-d2-0.1.34-pele-1.7';
+const FORMAT_VERSION = 'v9-embedded-themes-2-d2-0.1.34-page-palette-pele-1.7';
 
 // Trim to the root <svg> tag and merge our classes into it (`content-svg` for
 // the shared prose sizing, plus a per-language class for targeted styling).
@@ -105,7 +107,7 @@ function compileD2(source) {
 }
 
 // One compiler per build diagram kind, and the theming its output needs: D2
-// embeds its own light/dark palettes, the rest are adapted to inherit ink.
+// takes the page's palette or its own, the rest are adapted to inherit ink.
 const DEFAULT_COMPILERS = { tikz: compileTikz, typst: compileTypst, d2: compileD2 };
 const THEMES = { d2: themeD2Svg };
 
@@ -159,7 +161,7 @@ export function remarkDiagramFences({ cacheDir, compilers } = {}) {
     for (const { parent, index, lang, source } of fences) {
       try {
         const { svg } = await renderFenceSvg(lang, source, { cacheDir, compilers });
-        parent.children[index] = { type: 'html', value: svg };
+        parent.children[index] = { type: 'html', value: diagramScroll(svg) };
       } catch (error) {
         const reason = String(error?.message ?? error).split('\n')[0].slice(0, 300);
         console.warn(`[teaman] ${lang} fence failed to compile: ${reason}`);

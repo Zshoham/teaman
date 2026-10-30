@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { collectReferenceSections } from '../reference-reader';
+import { collectReferenceSections, holdJumpTarget } from '../reference-reader';
 
 describe('collectReferenceSections', () => {
   it('indexes prose before the first heading and points it at the document start', () => {
@@ -55,5 +55,69 @@ describe('collectReferenceSections', () => {
     expect(collectReferenceSections(content, [
       { depth: 2, slug: 'chapter', text: 'Chapter' },
     ]).map(section => section.slug)).toEqual(['reference-content', 'chapter']);
+  });
+});
+
+describe('holdJumpTarget', () => {
+  // Frames are queued and flushed by hand, as in the list-controller tests.
+  let frames: FrameRequestCallback[] = [];
+  const flush = (count: number) => {
+    for (let i = 0; i < count; i++) frames.splice(0).forEach(fn => fn(0));
+  };
+
+  /** A target whose top is `layout.top - scrolled`, with the page clamped at `layout.max`. */
+  function setup(layout: { top: number; max: number }) {
+    let scrolled = 0;
+    const target = document.createElement('h2');
+    target.style.scrollMarginTop = '100px';
+    document.body.replaceChildren(target);
+    target.getBoundingClientRect = () => ({ top: layout.top - scrolled }) as DOMRect;
+    vi.spyOn(window, 'scrollBy').mockImplementation(((_x: number, y: number) => {
+      scrolled = Math.min(layout.max, Math.max(0, scrolled + y));
+    }) as typeof window.scrollBy);
+    return target;
+  }
+
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => frames.push(fn));
+    vi.stubGlobal('cancelAnimationFrame', () => { frames = []; });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('re-aims the jump when chapters above the target change height', () => {
+    const layout = { top: 1000, max: 10_000 };
+    const target = setup(layout);
+    holdJumpTarget(target);
+
+    flush(2);
+    expect(target.getBoundingClientRect().top).toBe(100);
+    layout.top -= 279; // the chapter before it rendered shorter than its estimate
+    flush(1);
+    expect(target.getBoundingClientRect().top).toBe(100);
+  });
+
+  it('settles at the end of the page, where the target cannot reach its margin', () => {
+    const target = setup({ top: 1000, max: 500 });
+    holdJumpTarget(target, { settleFrames: 3 });
+
+    flush(10);
+    expect(target.getBoundingClientRect().top).toBe(500);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('lets go as soon as the reader scrolls', () => {
+    const layout = { top: 1000, max: 10_000 };
+    const target = setup(layout);
+    holdJumpTarget(target);
+
+    flush(1);
+    window.dispatchEvent(new Event('wheel'));
+    layout.top += 300;
+    flush(5);
+    expect(target.getBoundingClientRect().top).toBe(400);
   });
 });

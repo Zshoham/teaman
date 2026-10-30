@@ -49,8 +49,11 @@ import { useAdrModalState } from './useAdrModalState';
 
 type Layout = 'spine' | 'grouped';
 
+// Hover darkens the border only. The card's quiet text (summary, #tags, ADR
+// number) is tuned to clear 4.5:1 on `--card`; a `bg-muted` hover dropped it
+// to ~4.2–4.4 in light.
 const cardBase =
-  'group block w-full cursor-pointer rounded-lg border border-border bg-card text-left transition-colors hover:border-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
+  'group block w-full cursor-pointer rounded-lg border border-border bg-card text-left transition-colors hover:border-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
 
 const statusDotClass: Record<AdrStatus, string> = {
   accepted: 'bg-[var(--st-accepted)]',
@@ -64,7 +67,7 @@ const groupedCell =
 function LineageBadge({ rel }: { rel: AdrRelation<AdrView> }) {
   const Arrow = rel.dir === 'r' ? ArrowRightIcon : ArrowLeftIcon;
   return (
-    <span className="ml-auto inline-flex flex-none items-center gap-2 rounded-full border border-border bg-muted py-[5px] pr-3 pl-[9px] font-mono text-meta-sm leading-none">
+    <span className="ml-auto inline-flex flex-none items-center gap-2 rounded-full border border-border bg-background py-[5px] pr-3 pl-[9px] font-mono text-meta-sm leading-none">
       <Arrow
         aria-hidden="true"
         className="size-[13px] flex-none"

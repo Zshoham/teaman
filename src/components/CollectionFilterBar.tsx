@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { ListFilterIcon } from 'lucide-react';
 
 import {
@@ -41,6 +41,18 @@ export function CollectionFilterBar<T extends string>({
   className,
   allowMultiple = true,
 }: Props<T>) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const chipCount = useRef(filters.length);
+  // Emptying a chip from its own picker removes the chip, and the menu closes
+  // with no trigger left to hand focus back to: give it to the bar instead.
+  useEffect(() => {
+    const removed = filters.length < chipCount.current;
+    chipCount.current = filters.length;
+    const toolbar = toolbarRef.current;
+    if (!removed || !toolbar || document.activeElement !== document.body) return;
+    toolbar.querySelector<HTMLElement>('[data-filter-trigger], button')?.focus({ preventScroll: true });
+  }, [filters.length]);
+
   const handleChange = (next: Filter<T>[]) => {
     onChange(coalesceFilterRules(next));
   };
@@ -48,6 +60,7 @@ export function CollectionFilterBar<T extends string>({
   return (
     <TooltipProvider>
       <div
+        ref={toolbarRef}
         className={cn(
           'sticky top-[var(--header-h)] z-20 flex flex-wrap items-center gap-3 border-b border-border bg-background py-3 max-[760px]:static max-[760px]:items-stretch',
           className,
@@ -56,14 +69,18 @@ export function CollectionFilterBar<T extends string>({
       >
         {/* A collection with nothing to filter on (a guides-only list, which
             carries no tags) keeps the count + sort row and drops the trigger
-            rather than opening an empty menu. */}
+            rather than opening an empty menu. The scrollport clips what
+            overflows it, so it is padded by the focus ring's reach — and,
+            narrow, where the chips scroll in one row, below by the overlay
+            scrollbar's height so the bar runs under the chips rather than
+            over them — cancelled by matching negative margins. */}
         {fields.length > 0 && (
         <ScrollArea
-          className="min-w-0 max-w-full max-[760px]:w-full"
+          className="-m-1 min-w-0 max-w-[calc(100%+0.5rem)] max-[760px]:-mb-3.5 max-[760px]:w-[calc(100%+0.5rem)]"
           data-filter-scroll
         >
           <Filters
-            className="max-[760px]:w-max max-[760px]:flex-nowrap max-[760px]:pr-px"
+            className="p-1 max-[760px]:w-max max-[760px]:flex-nowrap max-[760px]:pb-3.5"
             size="sm"
             filters={filters}
             fields={fields}
@@ -76,6 +93,7 @@ export function CollectionFilterBar<T extends string>({
                 variant="outline"
                 size="sm"
                 className="font-mono text-meta uppercase tracking-label-sm"
+                data-filter-trigger
               >
                 <ListFilterIcon aria-hidden="true" />
                 Filter

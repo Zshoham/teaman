@@ -8,7 +8,7 @@ interface Props {
 export function EntryCard({ entry: e }: Props) {
   return (
     <article
-      className="entry py-7 [&:not([hidden])~&:not([hidden])]:border-t [&:not([hidden])~&:not([hidden])]:border-border"
+      className="entry group py-7 [&:not([hidden])~&:not([hidden])]:border-t [&:not([hidden])~&:not([hidden])]:border-border"
       data-entry
       data-entry-id={e.id}
       data-type={e.type}
@@ -22,7 +22,14 @@ export function EntryCard({ entry: e }: Props) {
         <span className="text-primary">{TYPE_LABEL[e.type]}</span>
         <span className="ml-auto tabular-nums whitespace-nowrap text-faint">{e.meta}</span>
       </div>
-      <h2 className="entry-title m-0 font-serif text-2xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[28px]">
+      <h2 className="entry-title relative m-0 font-serif text-2xl leading-tight font-normal tracking-tight text-balance text-foreground md:text-[28px]">
+        {/* Prompt-style row marker, hung in the page gutter on hover/focus. */}
+        <span
+          className="absolute top-0 -left-5 hidden font-mono text-[0.45em] leading-[2.78] text-primary opacity-0 sm:block transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+          aria-hidden="true"
+        >
+          ▶
+        </span>
         <a href={e.href} className="text-inherit no-underline hover:text-primary">
           {e.title}
         </a>

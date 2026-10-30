@@ -20,8 +20,8 @@ recompiling. Standalone SVGs follow system preference; print keeps light colors.
 
 A `d2` fence compiles to SVG using the bundled WASM engine, with TALA's
 architecture-oriented layout by default. No D2 executable or license key is
-needed. The SVG carries D2's light and dark palettes and switches with the site
-theme. Set `theme-id` and `dark-theme-id` in `vars.d2-config` to choose palettes.
+needed. The SVG takes the page's colours and switches with the site theme. Set
+`theme-id` and `dark-theme-id` in `vars.d2-config` to use D2's own palettes.
 
 ```d2
 direction: right

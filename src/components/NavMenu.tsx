@@ -29,22 +29,30 @@ interface Props {
 export function NavMenu({ items, activeId }: Props) {
   if (items.length === 0) return null;
   const active = items.find((item) => item.id === activeId);
+  const bracket = cn(
+    'transition-colors',
+    active ? 'text-primary' : 'text-transparent group-hover:text-faint',
+  );
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'flex min-h-11 md:min-h-0 cursor-pointer items-center gap-1 border-b bg-transparent py-0.5 font-mono text-meta-lg transition-colors focus-visible:outline-none',
-          active
-            ? 'border-primary text-foreground'
-            : 'border-transparent text-muted-foreground hover:text-foreground',
+          'group flex min-h-11 md:min-h-0 cursor-pointer items-center gap-0.5 bg-transparent font-mono text-meta-lg transition-colors',
+          active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
         )}
         aria-label="Browse sections"
       >
-        {active ? active.label : 'browse'}
+        {/* One span, so the trigger's gap doesn't split the label from its
+            slash; bracketed like the header links when a section is active. */}
+        <span>
+          <span className={bracket} aria-hidden="true">[</span>
+          {active ? <>{active.label}<span aria-hidden="true">/</span></> : 'browse'}
+          <span className={bracket} aria-hidden="true">]</span>
+        </span>
         <ChevronDownIcon className="size-3.5" aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-auto min-w-36">
+      <DropdownMenuContent align="start" className="w-auto min-w-36">
         {items.map((item) => (
           <DropdownMenuItem
             key={item.id}
@@ -57,7 +65,13 @@ export function NavMenu({ items, activeId }: Props) {
               />
             }
           >
-            {item.label}
+            {/* One span, so the item's gap doesn't split the slash off; the
+                current section is bracketed as it is in the header row. */}
+            <span className={item.id === activeId ? 'text-foreground' : undefined}>
+              <span className={item.id === activeId ? 'text-primary' : 'text-transparent'} aria-hidden="true">[</span>
+              {item.label}<span aria-hidden="true">/</span>
+              <span className={item.id === activeId ? 'text-primary' : 'text-transparent'} aria-hidden="true">]</span>
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -27,8 +27,12 @@ function typeSearchTerm(type: EntryType): string {
 
 async function openFilterField(page: Page, field: 'Type' | 'Tag') {
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.getByRole('option', { name: field, exact: true }).hover();
+  // Open through the keyboard so a hover menu's dismissal timer cannot
+  // close the terms while Playwright waits for their opening animation.
+  const search = page.getByPlaceholder('Filter...');
+  await search.fill(field);
+  await search.press('ArrowRight');
+  await expect(page.getByPlaceholder(`Search ${field.toLowerCase()}...`)).toBeVisible();
 }
 
 async function selectFilterTerm(

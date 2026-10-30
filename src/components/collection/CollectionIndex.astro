@@ -24,7 +24,10 @@ const scoped = filterTabs.length === 1;
 const preselectField = scoped && topics.length > 0 ? 'tag' : undefined;
 ---
 
-<div class="grid gap-10 pt-4 md:grid-cols-1" data-list-layout>
+{/* `grid-cols-1` is `minmax(0, 1fr)`: an implicit `auto` track would take
+    the min-content width of the filter chips (`w-max` below 760px, so they
+    scroll inside their ScrollArea) and widen the page past the viewport. */}
+<div class="grid grid-cols-1 gap-10 pt-4" data-list-layout>
   <div>
     {entries.length === 0 && emptyMessage ? (
       <p class="py-10 text-center font-mono text-sm text-faint">{emptyMessage}</p>

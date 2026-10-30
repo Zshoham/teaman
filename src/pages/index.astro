@@ -2,24 +2,20 @@
 import Layout from '../layouts/Layout.astro';
 import { SITE_CONFIG } from '../config';
 import { loadAllEntries } from '../lib/entries';
-import { footerSummary } from '../lib/collection-index';
 import QuickLinks from '../components/home/QuickLinks.astro';
 import CollectionIndex from '../components/collection/CollectionIndex.astro';
+import PromptHeading from '../components/PromptHeading.astro';
 
 const entries = await loadAllEntries();
-const footerLeft = footerSummary(entries);
 const quickLinks = SITE_CONFIG.links ?? [];
 ---
 
-<Layout footerLeft={footerLeft}>
+<Layout>
   {quickLinks.length > 0 && (
     <QuickLinks links={quickLinks} />
   )}
 
-  <header class="pt-2">
-    <h1 class="m-0 font-serif text-3xl font-normal tracking-tight text-foreground">Latest updates</h1>
-    <p class="mt-2 mb-0 text-sm leading-relaxed text-muted-foreground">Explore recent additions and updates from this vault.</p>
-  </header>
+  <PromptHeading title="Latest updates" />
 
   <CollectionIndex entries={entries} emptyMessage="this vault has no entries yet." />
 </Layout>

@@ -33,9 +33,9 @@ looping walkthrough of how BGP moves routes between networks, with the
 moving parts carrying the story and a caption beside them saying what just
 happened. The only controls are a narrator's: step back, pause, step on — a
 step chosen that way plays once and holds, so it can be read. Same
-mechanism, same one file — `![[bgp.html|680]]`.
+mechanism, same one file — `![[bgp.html]]`.
 
-![[bgp.html|680]]
+![[bgp.html]]
 
 The two sit at opposite ends of a trade-off. The solar system rewards
 curiosity but explains only what a reader thinks to try; the BGP walkthrough

@@ -1,0 +1,30 @@
+---
+/**
+ * The visible `<h1>` of a listing page (the home feed, a collection index,
+ * the decision log), set as the shell command that would print it:
+ * `$ ls -t ~/<brand>/notes`. The directory being listed is the part that
+ * names the page, so it carries the weight; the command around it is quiet.
+ *
+ * Screen readers get `title` instead of the prompt — "dollar ls dash t" is
+ * not a page name.
+ */
+import { SITE_CONFIG } from '../config';
+
+interface Props {
+  /** The page's name, read out in place of the prompt. */
+  title: string;
+  /** The directory listed, under the vault root; omit for the root itself. */
+  dir?: string;
+}
+
+const { title, dir } = Astro.props;
+---
+
+<h1 class="prompt-heading m-0 pt-4 font-mono text-lg font-normal leading-snug text-muted-foreground md:text-xl" data-pagefind-ignore>
+  <span class="sr-only">{title}</span>
+  <span aria-hidden="true">
+    <span class="text-primary">$</span> ls -t ~/{dir
+      ? <>{SITE_CONFIG.brand}/<span class="font-semibold text-foreground">{dir}</span></>
+      : <span class="font-semibold text-foreground">{SITE_CONFIG.brand}</span>}
+  </span>
+</h1>

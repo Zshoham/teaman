@@ -2,6 +2,7 @@
 import { render } from 'astro:content';
 import { getPublished } from '../../lib/published';
 import Layout from '../../layouts/Layout.astro';
+import { SITE_CONFIG } from '../../config';
 import { Breadcrumbs } from '../../components/Breadcrumbs';
 import SourceActions from '../../components/SourceActions.astro';
 import DocMeta from '../../components/DocMeta.astro';
@@ -29,12 +30,12 @@ const title = entryTitle({ data: note.data, body: note.body, id: note.id });
   <article class="mx-auto max-w-[var(--measure)] pt-6 pb-2">
     {/* The section index, not the home feed — the header brand already links
         home, so the crumb is more useful pointing one level up. */}
-    <Breadcrumbs segments={[
+    <Breadcrumbs brand={SITE_CONFIG.brand} segments={[
       { label: 'notes', href: `${base}notes/` },
       { label: note.id },
     ]} />
 
-    <header class="mb-8 border-b border-border pb-6">
+    <header class="mb-8">
       <h1 class="note-title doc-title m-0 mb-4">{title}</h1>
       <DocMeta class="note-meta" items={[wordMeta(words), readingTimeMeta(words)]}>
         {note.data.date && <time datetime={note.data.date.toISOString()}>{fmtDate(note.data.date)}</time>}

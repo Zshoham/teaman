@@ -11,12 +11,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import MarkdownIt from 'markdown-it';
+import { JSDOM } from 'jsdom';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { createSiteMarkdownRenderer } from '../site-markdown.mjs';
 import { compileDiagramFences, fenceLanguage, obsidianDialect, wikiLinks } from '../obsidian-markdown.mjs';
 import { createVaultIndex } from '../vault-index.mjs';
 import { remarkDiagramFences } from '../remark-fence-svg.mjs';
+import { diagramScroll } from '../svg-markup.mjs';
 import { BUILD_DIAGRAM_LANGUAGES, diagramKind } from '../diagram-kinds.mjs';
 import { prepareReferenceChapter } from '../reference-book.mjs';
 
@@ -179,6 +181,74 @@ describe('embeds', () => {
   });
 });
 
+// A hand-written `<svg>` that stands as a block is a drawing: the site holds
+// exactly that element in the diagram scroller (a figure's caption outside
+// it) and the PDF draws exactly that element. As CommonMark has it, an svg
+// opens a block when its open tag stands alone on the line (or a `<figure>`
+// opens one); anything else is inline markup in a paragraph, an icon, which
+// neither treats as a drawing.
+const FIGURE_SVG = '<svg viewBox="0 0 640 180" width="100%">\n    <svg x="1"><path d="M0 0"></path></svg><text>low</text>\n  </svg>';
+const BLOCK_SVG = '<svg width="300px" viewBox="0 0 900 10">\n<path d="M0 0"></path>\n</svg>';
+describe.each([
+  {
+    name: 'a figure',
+    md: `<figure>\n  ${FIGURE_SVG}\n  <figcaption>Each rung</figcaption>\n</figure>`,
+    svg: FIGURE_SVG,
+    width: 640,
+  },
+  { name: 'an svg block', md: BLOCK_SVG, svg: BLOCK_SVG, width: 300 },
+  { name: 'an svg block in a quote', md: BLOCK_SVG.replace(/^/gm, '> '), svg: BLOCK_SVG, width: 300 },
+  {
+    name: 'an svg with no natural width',
+    md: '<svg width="100%">\n<path d="M0 0"></path>\n</svg>',
+    svg: '<svg width="100%">\n<path d="M0 0"></path>\n</svg>',
+    width: null,
+  },
+  { name: 'an svg inside a line', md: '<svg width="300"><path d="M0 0"></path></svg> and text', svg: null },
+  { name: 'an inline svg', md: 'An icon <svg width="16"><path d="M0 0"></path></svg> in a line.', svg: null },
+])('raw HTML: $name', ({ md, svg, width }) => {
+  it('is the same drawing (or none) on the site and in the PDF', async () => {
+    const { markdownToTypst } = await import('../reference-pdf.mjs');
+    const html = await siteHtml(md);
+    const typst = markdownToTypst(md, { sourcePath: join(scratch, 'vault', 'notes', 'page.md') });
+    if (!svg) {
+      expect(html).not.toContain('diagram-scroll');
+      expect(typst).not.toContain('#image.decode');
+      return;
+    }
+    expect(html).toContain(diagramScroll(svg, width));
+    expect(typst).toContain(`#image.decode(bytes(${JSON.stringify(svg)}), format: "svg"`);
+    if (md.includes('figcaption')) expect(html).toMatch(/<\/svg><\/div>\s*<figcaption>Each rung<\/figcaption>/);
+  });
+});
+
+it('keeps one scroller per diagram through the full site pipeline', async () => {
+  const svg = '<svg viewBox="0 0 660 100">\n<text>diagram</text>\n</svg>';
+  writeFileSync(join(scratch, 'vault', 'diagram.svg'), svg);
+  const site = await createSiteMarkdownRenderer({
+    vaultDir: join(scratch, 'vault'),
+    base: '/',
+    engineDir: fileURLToPath(new URL('../../..', import.meta.url)),
+    diagramCacheDir: join(scratch, 'scroll-diagrams'),
+    diagramCompilers: Object.fromEntries(BUILD_DIAGRAM_LANGUAGES.map(lang => [lang, async () => svg])),
+  });
+  const md = [
+    '![A drawing](../diagram.svg)',
+    ...BUILD_DIAGRAM_LANGUAGES.map(lang => `\`\`\`${lang}\nsource\n\`\`\``),
+    svg,
+  ].join('\n\n');
+  const { code } = await site.render(md, { fileURL: pathToFileURL(join(scratch, 'vault', 'notes', 'page.md')) });
+  const dom = new JSDOM(code);
+  try {
+    const document = dom.window.document;
+    expect(document.querySelectorAll('.diagram-scroll > svg')).toHaveLength(BUILD_DIAGRAM_LANGUAGES.length + 2);
+    expect(document.querySelector('.diagram-scroll .diagram-scroll')).toBeNull();
+    expect(document.querySelector('figure.content-figure > figcaption')?.textContent).toBe('A drawing');
+  } finally {
+    dom.window.close();
+  }
+});
+
 it('renders D2 fences identically through remark and the shared Markdown dialect', async () => {
   const cacheDir = mkdtempSync(join(tmpdir(), 'teaman-d2-dialect-'));
   const md = '```d2\nclient -> server\n```';
@@ -189,7 +259,9 @@ it('renders D2 fences identically through remark and the shared Markdown dialect
     const tokens = new MarkdownIt().use(obsidianDialect).parse(md, {});
     const diagrams = await compileDiagramFences(tokens, { languages: BUILD_DIAGRAM_LANGUAGES, cacheDir, compilers });
     expect(diagrams.size).toBe(1);
-    expect([...diagrams.values()][0].svg).toBe(tree.children[0].value);
+    // The same svg; the site only adds the scroller that holds a wide
+    // diagram's minimum width on a narrow page.
+    expect(diagramScroll([...diagrams.values()][0].svg)).toBe(tree.children[0].value);
     expect(tree.children[0].value).toContain('fill="black"');
   } finally {
     rmSync(cacheDir, { recursive: true, force: true });

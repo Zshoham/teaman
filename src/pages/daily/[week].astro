@@ -5,7 +5,6 @@ import DaySection from '../../components/daily/DaySection.astro';
 import { loadDailyWeeks } from '../../lib/dailies';
 import type { DailyWeekShape } from '../../lib/dailies-shared';
 import { fmtDayRange } from '../../lib/format';
-import { plural } from '../../lib/text';
 
 export async function getStaticPaths() {
   const weeks = await loadDailyWeeks();
@@ -23,10 +22,9 @@ if (!week) throw new Error(`Unknown daily week: ${weekId}`);
 const stripWeeks: DailyWeekShape[] = weeks.map(({ id, start, end }) => ({ id, start, end }));
 const caption = fmtDayRange(week.start, week.end, { month: 'long', year: true });
 const docTitle = `daily — ${fmtDayRange(week.start, week.end)}`;
-const footerLeft = `${plural(week.days.length, 'day')} · ${week.totalWords.toLocaleString()} words`;
 ---
 
-<Layout title={docTitle} footerLeft={footerLeft}>
+<Layout title={docTitle}>
   <WeekStrip weeks={stripWeeks} currentId={week.id} client:load />
 
   <article class="mx-auto max-w-[var(--measure)]" aria-label={`Daily notes for ${caption}`}>

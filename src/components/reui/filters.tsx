@@ -877,6 +877,7 @@ function SelectOptionsPopover<T = unknown>({
   const [searchInput, setSearchInput] = useState("")
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
+  const tabbingRef = useRef(false)
   const context = useFilterContext()
   const baseId = useId()
 
@@ -884,6 +885,14 @@ function SelectOptionsPopover<T = unknown>({
     if (open) {
       inputRef.current?.focus()
     }
+  }, [open])
+
+  // Clear the search on every close path (handleClose and ArrowLeft as well as
+  // onOpenChange), after the close animation so the list does not jump.
+  useEffect(() => {
+    if (open) return
+    const timer = setTimeout(() => setSearchInput(""), 200)
+    return () => clearTimeout(timer)
   }, [open])
 
   useEffect(() => {
@@ -1022,9 +1031,15 @@ function SelectOptionsPopover<T = unknown>({
             )}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            onBlur={() => open && inputRef.current?.focus()}
+            onBlur={() => {
+              // Keep typing focus while the pointer highlights an item, but
+              // let Tab move on through the menu and out of it.
+              if (open && !tabbingRef.current) inputRef.current?.focus()
+              tabbingRef.current = false
+            }}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
+              tabbingRef.current = e.key === "Tab"
               if (e.key === "ArrowDown") {
                 e.preventDefault()
                 if (allFilteredOptions.length > 0) {
@@ -1070,7 +1085,8 @@ function SelectOptionsPopover<T = unknown>({
                   if (!isMultiSelect) handleClose()
                 }
               }
-              e.stopPropagation()
+              // Escape and Tab reach the menu, which closes and restores focus.
+              if (e.key !== "Escape" && e.key !== "Tab") e.stopPropagation()
             }}
           />
           <DropdownMenuSeparator />
@@ -1143,12 +1159,7 @@ function SelectOptionsPopover<T = unknown>({
   return (
     <DropdownMenu
       open={open}
-      onOpenChange={(open) => {
-        setOpen(open)
-        if (!open) {
-          setTimeout(() => setSearchInput(""), 200)
-        }
-      }}
+      onOpenChange={setOpen}
     >
       <DropdownMenuTrigger
         render={
@@ -1388,6 +1399,7 @@ function FilterSubmenuContent<T = unknown>({
   const [searchInput, setSearchInput] = useState("")
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
+  const tabbingRef = useRef(false)
   const baseId = useId()
 
   const {
@@ -1507,7 +1519,10 @@ function FilterSubmenuContent<T = unknown>({
               isActive && "placeholder:text-foreground"
             )}
             value={searchInput}
-            onBlur={() => isActive && inputRef.current?.focus()}
+            onBlur={() => {
+              if (isActive && !tabbingRef.current) inputRef.current?.focus()
+              tabbingRef.current = false
+            }}
             onChange={(e) => setSearchInput(e.target.value)}
             onFocus={() => onActive?.()}
             onMouseEnter={(e) => {
@@ -1516,6 +1531,7 @@ function FilterSubmenuContent<T = unknown>({
             }}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
+              tabbingRef.current = e.key === "Tab"
               if (e.key === "ArrowDown") {
                 e.preventDefault()
                 if (filteredOptions.length > 0) {
@@ -1549,7 +1565,7 @@ function FilterSubmenuContent<T = unknown>({
                 e.preventDefault()
                 onClose?.()
               }
-              e.stopPropagation()
+              if (e.key !== "Tab") e.stopPropagation()
             }}
           />
           <DropdownMenuSeparator />
@@ -1659,6 +1675,7 @@ export function Filters<T = unknown>({
     null
   )
   const rootInputRef = useRef<HTMLInputElement>(null)
+  const rootTabbingRef = useRef(false)
   const rootId = useId()
 
   useEffect(() => {
@@ -1701,17 +1718,21 @@ export function Filters<T = unknown>({
     }
   }, [highlightedIndex, addFilterOpen, rootId])
 
-  useEffect(() => {
-    if (!addFilterOpen) {
-      setOpenSubMenu(null)
-    }
-  }, [addFilterOpen])
-
   // Track which filter instance is being built in the current Add Filter menu session
   // Maps fieldKey -> unique filterId created during this open session
   const [sessionFilterIds, setSessionFilterIds] = useState<
     Record<string, string>
   >({})
+
+  // Every close path (a selection as well as Escape / outside click) ends the
+  // menu session, so the next open starts with an empty search.
+  useEffect(() => {
+    if (!addFilterOpen) {
+      setOpenSubMenu(null)
+      setMenuSearchInput("")
+      setSessionFilterIds({})
+    }
+  }, [addFilterOpen])
 
   useEffect(() => {
     if (lastAddedFilterId) {
@@ -1842,12 +1863,7 @@ export function Filters<T = unknown>({
             open={addFilterOpen}
             onOpenChange={(open) => {
               setAddFilterOpen(open)
-              if (!open) {
-                setMenuSearchInput("")
-                setSessionFilterIds({})
-              } else {
-                setActiveMenu("root")
-              }
+              if (open) setActiveMenu("root")
             }}
           >
             <DropdownMenuTrigger render={triggerButton} />
@@ -1883,13 +1899,19 @@ export function Filters<T = unknown>({
                           nextTarget.closest(
                             '[data-slot="dropdown-menu-sub-content"]'
                           )
-                        if (activeMenu === "root" && !movedToSubmenu) {
+                        if (
+                          activeMenu === "root" &&
+                          !movedToSubmenu &&
+                          !rootTabbingRef.current
+                        ) {
                           rootInputRef.current?.focus()
                         }
+                        rootTabbingRef.current = false
                       }}
                       onChange={(e) => setMenuSearchInput(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
+                        rootTabbingRef.current = e.key === "Tab"
                         if (e.key === "ArrowDown") {
                           e.preventDefault()
                           if (filteredFields.length > 0) {
@@ -1949,7 +1971,7 @@ export function Filters<T = unknown>({
                         } else if (e.key === "Escape") {
                           setAddFilterOpen(false)
                         }
-                        e.stopPropagation()
+                        if (e.key !== "Tab") e.stopPropagation()
                       }}
                     />
                     {enableShortcut && shortcutLabel && (

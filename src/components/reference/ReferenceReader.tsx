@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRightIcon, DownloadIcon, SearchIcon, XIcon } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
@@ -18,6 +18,7 @@ import {
   buildReferenceHeadingTree,
   collectReferenceSections,
   findReferenceSectionMatches,
+  holdJumpTarget,
   type ReferenceHeading,
   type ReferenceHeadingNode,
   type ReferenceSection,
@@ -367,10 +368,10 @@ function RailContents({
         </ScrollArea>
       </div>
 
-      <Button variant="outline" className="w-full shrink-0" render={<a href={pdfHref} download />}>
+      <a href={pdfHref} download className={cn(buttonVariants({ variant: 'outline' }), 'w-full shrink-0')}>
         <DownloadIcon data-icon="inline-start" aria-hidden="true" />
         Download PDF
-      </Button>
+      </a>
     </div>
   );
 }
@@ -401,6 +402,36 @@ export function ReferenceReader({ headings, pdfHref }: Props) {
     }
     setQuery(value);
   }, [headings]);
+
+  // In-page jumps (the rails, links inside the document, a shared `#section`
+  // URL) land against estimated chapter heights; hold each target in place
+  // while the chapters around it render. A click on the current hash fires no
+  // `hashchange`, so clicks are watched too, one frame after the native jump.
+  useEffect(() => {
+    let release: (() => void) | undefined;
+    const hold = (hash: string) => {
+      const target = hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+      if (!target) return;
+      release?.();
+      release = holdJumpTarget(target);
+    };
+    const onHashChange = () => hold(location.hash);
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>('a[href^="#"]');
+      if (link) requestAnimationFrame(() => hold(link.hash));
+    };
+
+    if (location.hash) hold(location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    document.addEventListener('click', onClick);
+    return () => {
+      release?.();
+      window.removeEventListener('hashchange', onHashChange);
+      document.removeEventListener('click', onClick);
+    };
+  }, []);
 
   useEffect(() => {
     setReady(true);

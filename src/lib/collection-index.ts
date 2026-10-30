@@ -1,6 +1,4 @@
 import type { Entry, EntryType } from './entries';
-import { fmtDate } from './format';
-import { plural as pluralize } from './text';
 import { tagCounts } from './tags';
 import { COLLECTIONS } from './collections.mjs';
 
@@ -44,18 +42,3 @@ export function buildFilterTabs(entries: Entry[]): FilterTab[] {
 
 /** Tags across the entries, most-used first then alphabetical. */
 export const buildTopics = tagCounts;
-
-/**
- * Footer summary line, e.g. `12 entries · last edit Mar 4, 2026`. `noun` names
- * the unit so a per-collection page can say "notes" instead of "entries";
- * entries are assumed sorted newest-first, as `loadAllEntries` returns them.
- */
-export function footerSummary(entries: Entry[], noun = 'entry', pluralNoun = 'entries'): string {
-  const count = pluralize(entries.length, noun, pluralNoun);
-  const updated = entries.reduce(
-    (latest, entry) => (entry.updated > latest ? entry.updated : latest),
-    '',
-  );
-  if (!updated) return count;
-  return `${count} · last edit ${fmtDate(updated)}`;
-}

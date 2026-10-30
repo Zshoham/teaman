@@ -2,7 +2,6 @@
 import '../styles/global.css';
 import { SITE_CONFIG } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
-import { Whiteboard } from '../components/Whiteboard';
 import { engineVersion } from '../lib/build-env.mjs';
 import { themeTokenName } from '../lib/vault-config.mjs';
 
@@ -15,14 +14,9 @@ interface Props {
    * Omit on the home page to use the default `${brand} — ${tagline}`.
    */
   title?: string;
-  /**
-   * Optional override for the bottom-left footer text. Home page passes its
-   * entry count + last-edit summary here.
-   */
-  footerLeft?: string;
 }
 
-const { title, footerLeft } = Astro.props;
+const { title } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const docTitle = title
   ? `${title} — ${SITE_CONFIG.brand}`
@@ -64,26 +58,16 @@ const themeCss = SITE_CONFIG.theme
   <script type="module" is:inline src={`${base}pagefind/pagefind-component-ui.js`}></script>
 </head>
 <body>
-  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <a href="#main-content" class="skip-link" data-pagefind-ignore>Skip to main content</a>
   <div class="mx-auto max-w-[1180px] px-[var(--content-gutter)]">
     <SiteHeader />
 
     <pagefind-modal></pagefind-modal>
 
-    <main id="main-content" class="pt-4" tabindex="-1">
+    <main id="main-content" class="pt-4 pb-16" tabindex="-1">
       <slot />
     </main>
-
-    <footer class="mt-16 flex flex-wrap items-baseline justify-center gap-4 border-t border-border px-0 pt-8 pb-12 text-center font-mono text-meta text-faint">
-      <span>{footerLeft ?? `${SITE_CONFIG.brand}`}</span>
-    </footer>
   </div>
-
-  <Whiteboard
-    assetPath={`${base}excalidraw-assets/`}
-    siteBase={base}
-    client:only="react"
-  />
 
   <script>
     // Renders any ```mermaid blocks on the page; no-ops (and skips loading

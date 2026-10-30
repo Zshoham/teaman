@@ -12,6 +12,7 @@ import { remarkReferenceBooks } from './remark-reference-books.mjs';
 import { rehypeFlexibleCallouts } from './rehype-flexible-callouts.mjs';
 import { rehypeCodeBlocks } from './rehype-code-blocks.mjs';
 import { rehypeReferenceSections } from './rehype-reference-sections.mjs';
+import { rehypeRawSvg } from './rehype-raw-svg.mjs';
 import { collectionFor } from './collections.mjs';
 import { assetRoots } from './vault-assets.mjs';
 
@@ -80,16 +81,27 @@ export function siteMarkdown({
       [remarkSmartLinks, { hosts: smartLinkHosts }],
     ],
     rehypePlugins: [
+      // A hand-written block `<svg>` gets the scroller svg images and diagram
+      // fences already carry (remark-inline-svg, remark-fence-svg). First,
+      // while it is still the block it was written as.
+      rehypeRawSvg,
       rehypeFlexibleCallouts,
       // Astro's Shiki pass has already attached the normalized fence
       // language, so the static toolbar can label and copy exactly what was
       // highlighted. Diagram fences bypass Shiki and remain untouched.
       rehypeCodeBlocks,
       rehypeSlug,
+      // The permalink spells the heading's Markdown marker (`##` on an h2), which
+      // global.css hangs in the margin; Pagefind skips it so results don't
+      // carry the hashes in their heading text.
       [rehypeAutolinkHeadings, {
         behavior: 'append',
-        properties: { className: ['heading-anchor'], 'aria-label': 'Permalink to this heading' },
-        content: { type: 'text', value: '#' },
+        properties: {
+          className: ['heading-anchor'],
+          'aria-label': 'Permalink to this heading',
+          dataPagefindIgnore: '',
+        },
+        content: heading => ({ type: 'text', value: '#'.repeat(Number(heading.tagName.slice(1))) }),
       }],
       // Last: heading ids and permalinks are already in place, so wrapping
       // chapters cannot disturb them. References only — see the plugin for

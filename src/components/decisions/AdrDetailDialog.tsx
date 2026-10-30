@@ -60,7 +60,11 @@ export function AdrDetailDialog({
             <div className="relative shrink-0 border-b border-border px-9 pt-[30px] pb-[22px] max-[760px]:px-[22px]">
               {/* Keep the reading column at --measure when the dialog widens. */}
               <div className="mx-auto max-w-[var(--measure)]">
-                <div className="flex flex-wrap items-center gap-3">
+                {/* The Enlarge and Close controls float over this row's end
+                    (their outer edge sits 100px in from the dialog's, below);
+                    keep the row clear of them, less the header's own padding,
+                    plus a gap-3 gutter, so a long status wraps instead. */}
+                <div className="flex flex-wrap items-center gap-3 pe-[calc(100px-36px+0.75rem)] max-[760px]:pe-[calc(100px-22px+0.75rem)]">
                   <span className="font-mono text-meta tabular-nums text-primary">
                     ADR-{shown.num}
                   </span>
@@ -117,7 +121,7 @@ export function AdrDetailDialog({
                                 relation.target.status,
                               ),
                             }}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-muted py-2 pr-[15px] pl-3 font-mono text-meta text-muted-foreground transition-all hover:border-[color-mix(in_oklab,var(--dot)_50%,var(--border))] hover:text-foreground"
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-card py-2 pr-[15px] pl-3 font-mono text-meta text-muted-foreground transition-all hover:border-[color-mix(in_oklab,var(--dot)_50%,var(--border))] hover:text-foreground"
                           >
                             <Arrow
                               className="size-3.5 flex-none"

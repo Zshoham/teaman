@@ -16,7 +16,7 @@
 import { readFileSync } from 'fs';
 import { escapeAttr } from './html-escape.mjs';
 import { replaceChildren } from './mdast-walk.mjs';
-import { svgRootOf, withSvgClass } from './svg-markup.mjs';
+import { diagramScroll, svgRootOf, withSvgClass } from './svg-markup.mjs';
 import { assetPath, isRemoteUrl, resolveVaultAsset } from './vault-assets.mjs';
 
 // A local `.svg` url → absolute file. `false` means "not ours to inline"
@@ -61,9 +61,11 @@ export function decorateSvg(source, alt) {
 // A paragraph that is exactly one svg image is a block figure: the alt renders
 // as a visible <figcaption> (picking up the prose caption styling), replacing
 // the paragraph node so no <figure> ends up nested inside a <p>.
+// The svg scrolls inside its own wrapper, so a wide one never drags the
+// caption along with it.
 function renderBlock(svg, alt) {
-  if (!alt) return svg;
-  return `<figure class="content-figure">${svg}<figcaption>${escapeAttr(alt)}</figcaption></figure>`;
+  if (!alt) return diagramScroll(svg);
+  return `<figure class="content-figure">${diagramScroll(svg)}<figcaption>${escapeAttr(alt)}</figcaption></figure>`;
 }
 
 /** @param {{ roots?: string[] }} [options] */
