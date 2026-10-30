@@ -41,8 +41,7 @@ const pdfHref = `${base}references/${reference.id}/reference.pdf`;
 
       <div class="min-w-0 max-w-[760px]">
         <header class="mb-10">
-          <p class="m-0 font-mono text-meta uppercase tracking-label text-primary">reference document</p>
-          <h1 class="reference-title doc-title mt-3 mb-0">{title}</h1>
+          <h1 class="reference-title doc-title m-0">{title}</h1>
           {reference.data.summary && (
             <p class="mt-4 max-w-[62ch] font-serif text-lg leading-relaxed text-muted-foreground text-pretty">
               {reference.data.summary}
