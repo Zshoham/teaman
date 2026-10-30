@@ -754,54 +754,80 @@ body {
 
 /* Shiki code-block chrome (rehype-code-blocks.mjs). The wrapper keeps the
    language and copy action outside the horizontally scrolling source, so both
-   controls remain reachable even when a long line is scrolled to the right. */
+   controls remain reachable even when a long line is scrolled to the right.
+   The compact header label aligns with the source column below. */
 .prose .code-block {
+  --code-font-size: 0.875rem;
   margin-block: 1.5rem;
   overflow: hidden;
-  border: 0.5px solid var(--border);
+  border: 1px solid color-mix(in oklab, var(--border) 75%, var(--muted-foreground));
   border-radius: var(--radius-lg);
-  background: var(--muted);
+  background: var(--card);
 }
 .prose .code-block-toolbar {
   display: flex;
-  min-height: 2rem;
+  min-height: 2.5rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.25rem 0.5rem 0.25rem 0.875rem;
-  border-bottom: 0.5px solid var(--border);
+  margin-inline: 1rem;
+  border-bottom: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: var(--text-meta);
-  line-height: 1;
+  font-size: var(--code-font-size);
+  line-height: 1.4;
 }
 .prose .code-block-language {
-  /* Muted text on the code block's muted surface sits just under 4.5:1;
-     a step toward the foreground keeps the label quiet but legible. */
-  color: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
-  letter-spacing: var(--tracking-label-sm);
+  font-size: var(--text-meta);
+  color: var(--foreground);
   text-transform: lowercase;
 }
 .prose .code-block-copy {
-  min-height: 1.5rem;
-  padding: 0.25rem 0.5rem;
+  min-height: 2rem;
+  padding: 0.25rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
+  color: var(--muted-foreground);
   font: inherit;
+  font-size: var(--text-meta);
   line-height: 1;
-  transition: color 150ms ease, background-color 150ms ease;
+  text-transform: lowercase;
+  transition: color 180ms ease-out;
 }
-.prose .code-block-copy:hover {
-  background: var(--background);
-  color: var(--foreground);
-}
+.prose .code-block-copy::before,
+.prose .code-block-copy::after { color: var(--primary); }
+.prose .code-block-copy::before { content: '[ '; }
+.prose .code-block-copy::after { content: ' ]'; }
+.prose .code-block-copy:hover,
 .prose .code-block-copy[data-state='copied'] { color: var(--primary); }
-.prose .code-block-copy[data-state='error'] { color: var(--destructive); }
+@media (prefers-reduced-motion: reduce) {
+  .prose .code-block-copy { transition: none; }
+}
+/* Keep failure text legible in either theme; the explicit label and underline
+   convey failure without depending on the vault's destructive color. */
+.prose .code-block-copy[data-state='error'] {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+.prose .code-block-copy[data-state='error']::before,
+.prose .code-block-copy[data-state='error']::after { color: currentColor; }
 .prose .code-block > pre {
+  font-size: var(--code-font-size);
   margin: 0;
+  padding: 1rem;
   border: 0;
   border-radius: 0;
+  background-color: transparent !important;
+}
+/* Shiki also assigns its dark background to token spans. Clear those along
+   with the pre background so individual lines do not become colored strips. */
+.prose .code-block > pre span { background-color: transparent !important; }
+@media (max-width: 479px) {
+  .prose .code-block-toolbar { margin-inline: 0.75rem; }
+  .prose .code-block > pre { padding: 0.75rem; }
+}
+@media (pointer: coarse) {
+  .prose .code-block-copy { min-height: 2.75rem; }
 }
 
 /* SVG images inlined at build time (src/lib/remark-inline-svg.mjs). Inlined —
